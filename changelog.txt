@@ -1,0 +1,26 @@
+SILENT SEAS v6.22.4 변경사항
+
+주제: 게임 브랜드 개명 — ETERNAL PATROL: Silent Seas
+기준본: SILENT_SEAS_v6.22.3_엘우드명령날짜정합_지중해시험.html
+결과물: SILENT_SEAS_v6.22.4_ETERNAL_PATROL_메인화면개명.html
+
+1. 메인 화면 브랜딩 변경
+- 시작 화면 메인 타이틀을 "SILENT SEAS"에서 "ETERNAL PATROL"로 변경.
+- 메인 타이틀 아래 보조 브랜드를 "SILENT SEAS"로 유지해 기존 정체성과 새 이름을 함께 보이게 조정.
+- 기존 태그라인 "네 개의 바다. 세 척의 배."는 유지.
+
+2. 문서/출력 제목 변경
+- HTML document <title>을 "ETERNAL PATROL: Silent Seas — v6.22.4"로 변경.
+- 최종 전역보고 출력 제목을 "ETERNAL PATROL: Silent Seas — 최종 전역보고"로 변경.
+
+3. 전술개념 실험실 표기 변경
+- 전술개념 실험실의 브랜드 표기를 "ETERNAL PATROL 전술개념 실험실"로 변경.
+- EN/JA 번역 문자열과 aria-label도 같은 이름으로 맞춤.
+
+4. 유지 사항
+- 게임 규칙, 저장 구조, 전역 아카이브, 역사 사건, 대형함 피해, 어뢰 신뢰성, 전구 밸런스는 변경 없음.
+- 내부 패키지 식별자나 세이브 키 이름은 이번 차수에서 변경하지 않음.
+
+5. 검토 메모
+- 사용자 노출 주요 표기 5곳을 개명 기준으로 정렬.
+- 주석/개발용 내부 코멘트에 남은 "SILENT SEAS" 표기는 기능에 영향 없음.
