@@ -1,48 +1,19 @@
-ETERNAL PATROL v6.24.6 — 공식 원본 기반 음성팩 배포
-====================================================
+ETERNAL PATROL v6.24.7 — voicepack-v3 FP32 배포
+==================================================
 
-목표
-----
-- 원 제작자/제3자 저장소를 게임 사용자의 다운로드 서버로 사용하지 않음.
-- 제3자 변환 바이너리에도 의존하지 않음.
-- Supertone 공식 Supertonic 3를 ETERNAL PATROL GitHub Actions가 최초 1회 받아 직접 FP16으로 변환.
-- 이후 플레이어는 우리 GitHub Release의 voicepack-v2만 사용.
+1. 저장소에 이 프로젝트 파일을 업로드/덮어쓰기한다.
+2. Actions → Publish Official Supertonic Voice Pack → Run workflow.
+3. 성공 후 Release tag voicepack-v3 확인:
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3.zip
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3.json
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3_SHA256.txt
+4. Actions → Build Android APK → Run workflow.
+5. APK artifact:
+   ETERNAL_PATROL_v6.24.7_FP32_CPU_VOICE_debug_apk
+6. 앱 설치 후 옵션 → 승조원 음성 → 음성팩 받기.
+7. v3 설치가 완전히 성공하면 앱이 기존 v2 FP16 저장소를 자동 정리한다.
 
-최초 1회
----------
-1. 이 프로젝트 ZIP 내용을 Byanka-Rail/eternal-patrol 저장소에 업로드/교체.
-2. GitHub → Actions → Publish Official Supertonic Voice Pack.
-3. Run workflow.
-4. workflow가 공식 Supertonic 3 고정 revision을 다운로드하고 FP16 변환/검증/패키징함.
-5. Releases에서 voicepack-v2 확인.
-
-생성되는 Release assets
------------------------
-- ETERNAL_PATROL_SUPERTONIC3_FP16_V2.zip
-- ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json
-- ETERNAL_PATROL_SUPERTONIC3_FP16_V2_SHA256.txt
-
-정상이라면 이 workflow는 모델을 바꾸기 전까지 다시 실행할 필요가 없음.
-게임 HTML/APK 버전이 올라가도 voicepack-v2를 계속 재사용할 수 있음.
-
-APK
----
-1. Actions → Build Android APK → Run workflow
-2. artifact: ETERNAL_PATROL_v6.24.6_OFFICIAL_SELFHOST_VOICE_debug_apk
-3. APK 설치 후 옵션 → 승조원 음성 → 음성팩 받기
-4. 앱은 voicepack-v2 manifest → ZIP → SHA-256 → PACK_INFO 순으로 검증
-5. 설치 후 음성 시험
-
-기존 voicepack-v1 설치자
-------------------------
-- v6.24.6은 PACK_INFO의 pack id, 공식 revision, convertedBy 값을 검사함.
-- 예전 voicepack-v1은 새 공식직접변환 팩으로 인정되지 않음.
-- 새 팩 설치가 완료될 때 기존 저장경로를 원자적으로 교체하므로 최종적으로 중복 모델을 남기지 않음.
-- 새 설치 과정에는 ZIP+압축해제 공간이 필요하므로 약 430MB 이상의 여유 공간을 권장.
-
-라이선스
---------
-- 원 모델: Supertone/supertonic-3, BigScience OpenRAIL-M
-- 공식 코드/예제: MIT
-- Android 런타임: Microsoft ONNX Runtime, MIT
-- ETERNAL PATROL FP16 변환본은 원 모델 라이선스와 사용 제한을 승계함.
+주의:
+- v3는 CPU 호환성을 위해 공식 FP32 ONNX를 그대로 사용하므로 약 390~400MB급이다.
+- 설치 중 ZIP + 압축해제 + 기존 v2 보존이 겹칠 수 있어 약 900MB 여유공간을 요구한다.
+- voicepack-v2 Release는 v3 실제 음성 시험 성공 후 삭제하는 것이 안전하다.

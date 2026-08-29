@@ -20,7 +20,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
- * Optional Supertonic 3 FP16 voice-pack manager.
+ * Optional Supertonic 3 FP32 voice-pack manager.
  *
  * Runtime clients download only from the ETERNAL PATROL GitHub Release.  The
  * upstream model provenance remains documented inside the pack and in the game
@@ -31,18 +31,19 @@ import java.util.zip.ZipInputStream;
 public final class VoicePackManager {
     public interface Listener { void onStatus(JSONObject status); }
 
-    public static final String VARIANT = "FP16";
-    public static final int DISPLAY_MB = 200;
+    public static final String VARIANT = "FP32";
+    public static final int DISPLAY_MB = 400;
 
-    private static final String STORAGE_NAME = "supertonic3_fp16_v1"; // keep path so legacy pack can be replaced atomically
-    private static final String EXPECTED_PACK_ID = "supertonic3_fp16_ep_v2";
+    private static final String STORAGE_NAME = "supertonic3_fp32_v3";
+    private static final String LEGACY_STORAGE_NAME = "supertonic3_fp16_v1";
+    private static final String EXPECTED_PACK_ID = "supertonic3_fp32_ep_v3";
     private static final String OFFICIAL_REVISION = "724fb5abbf5502583fb520898d45929e62f02c0b";
-    private static final String RELEASE_TAG = "voicepack-v2";
+    private static final String RELEASE_TAG = "voicepack-v3";
     private static final String RELEASE_BASE =
             "https://github.com/Byanka-Rail/eternal-patrol/releases/download/" + RELEASE_TAG + "/";
-    private static final String MANIFEST_URL = RELEASE_BASE + "ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json";
+    private static final String MANIFEST_URL = RELEASE_BASE + "ETERNAL_PATROL_SUPERTONIC3_FP32_V3.json";
     private static final String ALLOWED_PACK_PREFIX = RELEASE_BASE;
-    private static final long MIN_FREE_BYTES = 430L * 1024L * 1024L;
+    private static final long MIN_FREE_BYTES = 900L * 1024L * 1024L;
 
     private final Context context;
     private final Listener listener;
@@ -110,8 +111,8 @@ public final class VoicePackManager {
             return EXPECTED_PACK_ID.equals(o.optString("pack", ""))
                     && "Supertone/supertonic-3".equals(o.optString("originalModel", ""))
                     && OFFICIAL_REVISION.equals(o.optString("officialRevision", ""))
-                    && "ETERNAL PATROL GitHub Actions".equals(o.optString("convertedBy", ""))
-                    && "FP16".equalsIgnoreCase(o.optString("variant", ""));
+                    && !o.optBoolean("modelWeightsModified", true)
+                    && "FP32".equalsIgnoreCase(o.optString("variant", ""));
         } catch (Exception e) {
             return false;
         }
@@ -129,14 +130,14 @@ public final class VoicePackManager {
             try {
                 long free = context.getFilesDir().getUsableSpace();
                 if (free > 0 && free < MIN_FREE_BYTES) {
-                    throw new IllegalStateException("저장공간이 부족합니다. 약 430MB 이상 여유 공간이 필요합니다.");
+                    throw new IllegalStateException("저장공간이 부족합니다. 설치 중 임시 파일을 위해 약 900MB 이상 여유 공간이 필요합니다.");
                 }
 
                 PackManifest manifest = fetchManifest();
                 if (!manifest.url.startsWith(ALLOWED_PACK_PREFIX)) {
                     throw new IllegalStateException("허용되지 않은 음성팩 배포 주소입니다.");
                 }
-                if (manifest.bytes < 120L * 1024L * 1024L || manifest.bytes > 320L * 1024L * 1024L) {
+                if (manifest.bytes < 330L * 1024L * 1024L || manifest.bytes > 460L * 1024L * 1024L) {
                     throw new IllegalStateException("음성팩 크기 정보가 예상 범위를 벗어났습니다.");
                 }
                 if (!manifest.sha256.matches("(?i)[0-9a-f]{64}")) {
@@ -171,6 +172,10 @@ public final class VoicePackManager {
                 }
                 if (!isReady()) throw new IllegalStateException("설치된 음성팩 검증에 실패했습니다.");
 
+                // v2 FP16 was not CPUExecutionProvider-safe. Keep it until v3 is
+                // fully verified, then reclaim its ~200MB storage.
+                deleteRecursive(new File(context.getFilesDir(), LEGACY_STORAGE_NAME));
+
                 zipReady().delete();
                 zipPart().delete();
                 progress = 1.0;
@@ -190,6 +195,7 @@ public final class VoicePackManager {
     public void removePack() {
         downloading.set(false);
         deleteRecursive(packRoot());
+        deleteRecursive(new File(context.getFilesDir(), LEGACY_STORAGE_NAME));
         deleteRecursive(workRoot());
         zipPart().delete();
         zipReady().delete();
@@ -212,7 +218,7 @@ public final class VoicePackManager {
             String url = o.optString("url", "");
             String hash = o.optString("sha256", "").trim();
             long len = o.optLong("bytes", 0L);
-            if (schema != 2 || !EXPECTED_PACK_ID.equals(pack) || url.isEmpty() || hash.isEmpty() || len <= 0) {
+            if (schema != 3 || !EXPECTED_PACK_ID.equals(pack) || url.isEmpty() || hash.isEmpty() || len <= 0) {
                 throw new IllegalStateException("음성팩 목록 형식이 올바르지 않습니다.");
             }
             return new PackManifest(url, hash, len);
@@ -282,7 +288,7 @@ public final class VoicePackManager {
             c.setConnectTimeout(20_000);
             c.setReadTimeout(60_000);
             c.setInstanceFollowRedirects(false);
-            c.setRequestProperty("User-Agent", "ETERNAL-PATROL-VoicePack/6.24.6");
+            c.setRequestProperty("User-Agent", "ETERNAL-PATROL-VoicePack/6.24.7");
             c.setRequestProperty("Accept", "application/octet-stream,application/json,*/*");
             if (rangeStart > 0) c.setRequestProperty("Range", "bytes=" + rangeStart + "-");
             int code = c.getResponseCode();

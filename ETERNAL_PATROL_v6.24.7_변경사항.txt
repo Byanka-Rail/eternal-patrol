@@ -1,0 +1,37 @@
+ETERNAL PATROL v6.24.7 변경사항
+================================
+
+[음성팩 CPU 호환성 수정]
+- 실제 Android 시험에서 voicepack-v2 FP16이 ORT_NOT_IMPLEMENTED:
+  com.microsoft.Gelu / CPUExecutionProvider 오류로 합성 불가함을 확인.
+- 원인: ONNX Runtime CPU 실행기는 FP16 연산 커널을 일반적으로 보장하지 않음.
+- Gelu 하나만 예외처리하는 방식은 후속 FP16 연산에서 재실패할 위험이 있어 폐기.
+
+[voicepack-v3]
+- Supertone 공식 고정 revision의 FP32 ONNX를 변환 없이 사용.
+- GitHub Actions가 공식 원본을 다운로드 → ONNX checker →
+  CPUExecutionProvider 로드검사 → 우리 Release에 자체호스팅.
+- 제3자 변환 가중치 사용 없음.
+- ETERNAL PATROL 모델 변환도 없음.
+- 약 390~400MB 선택 다운로드.
+
+[Android]
+- VoicePackManager를 FP32/v3로 전환.
+- 새 저장소 supertonic3_fp32_v3 사용.
+- 약 900MB 설치 임시 여유공간 검사.
+- v3 설치 성공 후 기존 v2 FP16 저장소 자동 삭제.
+- 음성팩 삭제 시 legacy v2도 함께 정리.
+- versionName 6.24.7 / versionCode 62407.
+- APK artifact: ETERNAL_PATROL_v6.24.7_FP32_CPU_VOICE_debug_apk.
+
+[HTML/UI]
+- 옵션 음성 고지를 'Android CPU 호환 FP32 음성팩'으로 변경.
+- voicepack-v3 및 약 400MB 표시.
+- 기존 MENU A안, 전투 시스템, 저장 구조 유지.
+
+[영향 없음]
+- 전투 계산
+- AI
+- 탐지/관측
+- 캠페인/War 저장
+- 기존 전술 대화 priority 및 화자 배정

@@ -1,34 +1,13 @@
 {
-  "package": "ETERNAL PATROL v6.24.6 Android official-origin self-hosted Supertonic voice",
-  "gameVersion": "6.24.6",
-  "versionName": "6.24.6",
-  "versionCode": 62406,
+  "package": "ETERNAL PATROL v6.24.7 Android FP32 CPU-compatible self-hosted Supertonic voice",
+  "gameVersion": "6.24.7",
+  "versionName": "6.24.7",
+  "versionCode": 62407,
   "voicePack": {
-    "releaseTag": "voicepack-v2",
-    "packId": "supertonic3_fp16_ep_v2",
-    "originalModel": "Supertone/supertonic-3",
-    "officialRevision": "724fb5abbf5502583fb520898d45929e62f02c0b",
-    "conversion": "ETERNAL PATROL GitHub Actions direct FP32 -> FP16",
-    "thirdPartyConvertedWeightsUsed": false
-  },
-  "checks": {
-    "inlineJavaScriptBlocks": 28,
-    "javascriptSyntaxErrors": 0,
-    "domIds": 570,
-    "duplicateDomIds": 0,
-    "bundledHtmlMatchesStandaloneSha256": true,
-    "runtimeVoiceHost": "Byanka-Rail/eternal-patrol GitHub Release voicepack-v2",
-    "runtimeDirectThirdPartyConverterDownload": false,
-    "thirdPartyConverterReferencesInActiveDistributionChain": false,
-    "voicePackManifestSha256Verification": true,
-    "voicePackPackInfoProvenanceVerification": true,
-    "zipSlipProtection": true,
-    "voicePackManagerJava17StubCompile": "pass",
-    "workflowYamlParse": "pass",
-    "workflowShellSyntax": "pass",
-    "saveSchemaChanged": false,
-    "gameCoreChanged": false,
-    "androidAssembleDebug": "not run locally; GitHub Actions required",
-    "remoteFp16Conversion": "not run locally; publish workflow validates ONNX checker + ORT load before Release"
+    "tag": "voicepack-v3",
+    "variant": "FP32",
+    "packId": "supertonic3_fp32_ep_v3",
+    "modelWeightsModified": false,
+    "runtimeHost": "Byanka-Rail/eternal-patrol GitHub Release"
   }
 }

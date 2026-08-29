@@ -5,14 +5,33 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.24.1</title>
+<title>ETERNAL PATROL: Silent Seas — v6.24.7</title>
+<!--
+  PATCH RECORD — 2026-08-30
+  V6.24.7 VOICE CPU Android CPUExecutionProvider가 FP16 Gelu 등 다수 연산을 보장하지 않아 voicepack-v2 FP16을 폐기하고, 공식 FP32 ONNX를 그대로 자체호스팅하는 voicepack-v3로 전환.
+  V6.24.7 VOICE HOST voicepack-v3는 Supertone 공식 고정 revision의 FP32 자산을 ETERNAL PATROL GitHub Actions가 검증 후 우리 Release에 미러링. 변환 가중치 없음.
+  V6.24.7 MIGRATION 새 FP32 팩 설치 성공 후 기존 FP16 저장소를 정리. 전투/AI/탐지/저장 구조는 변경하지 않음.
+  V6.24.6 VOICE ORIGIN 제3자 변환모델 의존을 제거. Supertone 공식 Supertonic 3 고정 revision을 GitHub Actions가 직접 받아 ETERNAL PATROL 배포용 FP16으로 변환.
+  V6.24.6 VOICE HOST 변환된 voicepack-v2는 Byanka-Rail/eternal-patrol GitHub Release에서만 플레이어에게 배포하며 PACK_INFO/SHA-256으로 출처와 무결성을 검증.
+  V6.24.6 SAFE 전투 계산·AI·탐지·어뢰·Campaign/War 저장 구조는 변경하지 않음.
+  V6.24.5 VOICE HOST 런타임 음성팩 다운로드 출처를 제3자 Hugging Face 직결에서 Byanka-Rail/eternal-patrol GitHub Release로 이전.
+  V6.24.5 VOICE PACK GitHub Release의 manifest(JSON) → ZIP 다운로드 → SHA-256 검증 → 안전 압축해제 방식으로 변경. 업스트림 원본/FP16 파생 출처와 OpenRAIL-M 고지는 그대로 유지.
+  V6.24.5 PACK v6.24.4 MENU A안과 v6.24.3 음성 무반응 진단/float PCM 재생 수정을 하나의 Android 기준본으로 통합.
+  V6.24.5 SAFE 전투 계산·AI·탐지·어뢰·저장 구조는 변경하지 않음.
+  V6.24.4 MENU 우상단에 독립적으로 떠 있던 MENU 버튼을 제거하고 기존 함장 명령 패널 헤더로 통합.
+  V6.24.4 MENU 함장 명령 패널의 MENU 버튼에서 전투 메뉴를 열며 닫으면 다시 함장 명령 패널로 돌아오도록 기존 패널 상태를 유지.
+  V6.24.4 MENU 전투 메뉴 헤더 오른쪽에 '전투 포기'와 '닫기'를 나란히 배치하고 기존 하단의 중복 계속/포기 버튼 행을 제거. 전장 이탈은 함장 명령 본문 최상단에 그대로 유지.
+  V6.24.4 SAFE 전투 계산·시간압축 규칙·전장 이탈 판정·전투 포기 처리·저장 구조·승조원 음성 코어는 변경하지 않음.
+-->
+
 <!--
   PATCH RECORD — 2026-08-29
-  V6.24.1 VOICE APK 선택형 승조원 신경망 음성 브리지를 추가. 브라우저/음성팩 미설치 상태에서는 기존 텍스트 전용으로 자동 폴백.
-  V6.24.1 VOICE P0·P1 중요 보고만 읽는 기본 모드와 전체 전술 보고 모드를 옵션에 추가. 역할별 M1~M5 음색/속도 매핑은 HTML에서 관리해 이후 APK 재빌드 없이 조정 가능.
-  V6.24.1 PACK 약 100MB급 Supertonic 3 INT8 파생 음성팩을 APK가 선택 다운로드/삭제하도록 HTML 제어 UI와 상태 콜백 규약을 추가. 모델 파일 자체는 HTML/APK에 내장하지 않음.
-  V6.24.1 LICENSE 시작 화면 하단에 합성음성/라이선스 짧은 고지를 추가하고 옵션에 Supertone Supertonic 3, OpenRAIL-M, MIT, INT8 파생모델 귀속 및 AI 합성음성 고지를 추가.
-  V6.24.1 SAFE 전투 계산·탐지·청음·AI·역사전·Campaign/War 저장 코어는 변경하지 않음.
+  V6.24.3 VOICE v6.24.1의 선택형 승조원 음성 UI를 실제 Android EternalVoice 네이티브 브리지와 연결. 음성팩이 없거나 웹판이면 기존 텍스트 전용으로 자동 폴백.
+  V6.24.3 PACK Android ONNX Runtime 호환성을 우선해 약 200MB급 Supertonic 3 FP16 파생 음성팩을 선택 다운로드/삭제하도록 확정. 모델 파일은 APK/HTML에 내장하지 않음.
+  V6.24.3 VOICE P0·P1 중요 보고 기본 모드와 전체 전술 보고 모드를 유지하고 역할별 M1~M5 음색/속도 매핑은 HTML에서 관리.
+  V6.24.3 LICENSE 당시 FP16 파생 음성팩 고지 구조를 추가. v6.24.6부터 공식 Supertone 원본의 ETERNAL PATROL 직접 FP16 변환으로 대체.
+  V6.24.3 SAFE 전투 계산·탐지·청음·AI·역사전·Campaign/War 저장 코어는 변경하지 않음.
+  V6.24.3 VOICEFIX 음성 시험 무반응 진단 강화: 네이티브 단계(모델 로드/합성/재생) 표시, 런타임 오류 우선 표기, Android float PCM 재생 경로 사용.
 -->
 
 <!--
@@ -2999,7 +3018,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div class="startOptNote" id="askNote"></div>
 </div>
 
-<!-- v6.24.1 선택형 승조원 신경망 음성 -->
+<!-- v6.24.3 선택형 승조원 신경망 음성 -->
 <div class="startOpt" id="voiceOptV6241">
 <label>승조원 음성 / Crew Voice</label>
 <div class="lampRow" id="voiceModeRowV6241">
@@ -3021,9 +3040,10 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <b style="color:var(--ink)">Supertonic 3</b><br/>
 원 모델: Supertone Inc. · <code>Supertone/supertonic-3</code><br/>
 모델 가중치: BigScience OpenRAIL-M · 엔진/예제 코드: MIT License.<br/><br/>
-<b style="color:var(--ink)">모바일 INT8 음성팩</b><br/>
-<code>q3146dq4/Supertonic-3-ONNX-INT8</code>는 Supertonic 3의 수정·양자화 파생물이며 원 모델과 동일한 OpenRAIL-M 조건을 승계합니다.
-본 배포물은 음성팩을 선택 다운로드하며, 원본·파생 라이선스 전문은 Android 패키지의 THIRD_PARTY_NOTICES에 함께 제공합니다.<br/><br/>
+<b style="color:var(--ink)">Android CPU 호환 FP32 음성팩</b><br/>
+런타임 배포: <code>Byanka-Rail/eternal-patrol</code> GitHub Release · <code>voicepack-v3</code>.<br/>
+모델 배포: Supertone 공식 <code>Supertone/supertonic-3</code> 고정 revision의 FP32 ONNX를 ETERNAL PATROL GitHub Actions가 검증한 뒤 그대로 자체 Release에 미러링합니다. 모델 변환은 하지 않으며 원 OpenRAIL-M 조건을 그대로 유지합니다.<br/>
+게임 사용자는 제3자 저장소에 직접 연결하지 않고 ETERNAL PATROL의 Release에서 고정된 음성팩을 받습니다. 음성팩 ZIP은 설치 전에 SHA-256으로 검증합니다. 모델 자체는 APK/HTML에 내장하지 않습니다. 원본·파생 출처와 라이선스 전문은 음성팩과 Android 패키지의 THIRD_PARTY_NOTICES에 함께 제공합니다.<br/><br/>
 이 기능은 기본 제공 M1~M5 음색만 사용하며 실제 인물의 목소리를 복제하지 않습니다.
 </div>
 </details>
@@ -13496,7 +13516,7 @@ window.UBOAT = (function () {
        그래서 정상적인 접근·추적·관측이 전부 플레이어의 배속 선택을 빼앗았다.
        시간을 멈출지 말지는 eventBrake() 가 실제 사건을 보고 정한다(§4.2). */
     emit('report', r);
-    /* v6.24.1 — 시뮬레이션은 음성 엔진을 모른다.
+    /* v6.24.3 — 시뮬레이션은 음성 엔진을 모른다.
        APK가 제공한 선택형 브리지가 있을 때만 현재 보고를 넘기고,
        웹판/미설치/오류에서는 텍스트 보고만 그대로 남는다. */
     try { if (window.EPVoice && window.EPVoice.onReport) window.EPVoice.onReport(r); } catch (e) {}
@@ -32747,7 +32767,7 @@ window.Lang.add('ja', {
 
 
   /* ══════════════════════════════════════════════════════════════
-     v6.24.1 · 선택형 Supertonic 3 승조원 음성 브리지
+     v6.24.7 · 선택형 Supertonic 3 승조원 음성 브리지
 
      Android 쪽 계약:
        window.EternalVoice.getStatus() -> JSON string
@@ -32773,7 +32793,7 @@ window.Lang.add('ja', {
       dc:{voice:'M5',speed:1.03},
     };
     let mode='off';
-    let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'INT8'};
+    let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'FP32',packMB:400,phase:'idle',packPhase:'idle',source:'ETERNAL PATROL GitHub Release',speaking:false,engineLoaded:false,lastSynthesisMs:0,lastSamples:0};
     function native(){ return window.EternalVoice || null; }
     function loadMode(){
       try{ const v=localStorage.getItem(MODE_KEY); if(v==='important'||v==='all'||v==='off') mode=v; }catch(e){}
@@ -32811,13 +32831,27 @@ window.Lang.add('ja', {
     }
     function packText(){
       if(!status.available) return '웹판 또는 TTS 브리지가 없는 APK입니다. 게임은 텍스트 전용으로 정상 작동합니다.';
+      /* v6.24.3: ready보다 runtime error를 먼저 보여준다. 이전판은 합성이 실패해도
+         '음성팩 준비됨'이 오류를 가려 사용자가 무반응으로만 보게 되는 문제가 있었다. */
+      if(status.error) return '승조원 음성 오류 · '+status.error;
       if(status.downloading){
         const p=Math.max(0,Math.min(100,Math.round((status.progress||0)*100)));
-        return 'Supertonic 3 INT8 음성팩 다운로드 중 · '+p+'%';
+        const pp=String(status.packPhase||'download');
+        if(pp==='manifest') return 'ETERNAL PATROL 음성팩 목록 확인 중…';
+        if(pp==='verify') return 'ETERNAL PATROL 음성팩 SHA-256 검증 중…';
+        if(pp==='install') return 'ETERNAL PATROL 음성팩 설치 중…';
+        return 'ETERNAL PATROL 음성팩 다운로드 중 · '+p+'%';
       }
-      if(status.ready) return 'Supertonic 3 INT8 음성팩 준비됨 · 온디바이스 합성 · 네트워크 불필요';
-      if(status.error) return '음성팩 오류 · '+status.error;
-      return '선택 음성팩 미설치 · 약 100MB 추가 저장공간이 필요합니다.';
+      const ph=String(status.phase||'idle');
+      if(ph==='loading') return '음성 엔진 초기화 중… 첫 실행은 모델을 메모리에 올리느라 시간이 걸릴 수 있습니다.';
+      if(ph==='queued') return '승조원 음성 대기 중…';
+      if(ph==='synthesizing') return '승조원 음성 합성 중…';
+      if(ph==='playing') return '승조원 음성 재생 중…';
+      if(status.ready){
+        const ms=Number(status.lastSynthesisMs||0);
+        return 'Supertonic 3 FP32 음성팩 준비됨 · ETERNAL PATROL Release 배포 · Android CPU 온디바이스 합성'+(ms>0?' · 최근 합성 '+(ms/1000).toFixed(1)+'초':'');
+      }
+      return '선택 음성팩 미설치 · 약 '+(status.packMB||200)+'MB 추가 저장공간이 필요합니다.';
     }
     function syncUI(){
       document.querySelectorAll('#voiceModeRowV6241 [data-voice-mode]').forEach(b=>{
@@ -32832,7 +32866,10 @@ window.Lang.add('ja', {
         pb.classList.toggle('go',!status.ready);
       }
       const tb=document.getElementById('voiceTestBtnV6241');
-      if(tb) tb.disabled=!status.available||!status.ready;
+      if(tb){
+        tb.disabled=!status.available||!status.ready||!!status.downloading||!!status.speaking;
+        tb.textContent=status.phase==='loading'?'엔진 로드 중…':status.phase==='synthesizing'?'합성 중…':status.phase==='playing'?'재생 중…':'음성 시험';
+      }
     }
     function shouldSpeak(r){
       if(!r||mode==='off'||!status.available||!status.ready) return false;
@@ -32857,7 +32894,13 @@ window.Lang.add('ja', {
     }
     function test(){
       const n=native(); if(!n||!status.ready||!n.speak) return false;
-      try{ n.speak('exec','M2','함장님, 승조원 음성 시험입니다.','P1',0.92); return true; }catch(e){return false;}
+      try{
+        status.error=null; status.phase=status.engineLoaded?'queued':'loading'; status.speaking=true; syncUI();
+        if(n.clearError) n.clearError();
+        n.speak('exec','M2','함장님, 승조원 음성 시험입니다.','P1',0.92);
+        setTimeout(refresh,250);
+        return true;
+      }catch(e){ status.error=String(e&&e.message||e); status.speaking=false; status.phase='error'; syncUI(); return false; }
     }
     function stop(){ try{ const n=native(); if(n&&n.stop)n.stop(); }catch(e){} }
     function boot(){
@@ -40079,13 +40122,16 @@ if(oldAbort){Campaign.abortEncounter=function(){var C=Campaign.state(),id=C&&C.p
 
 /* EP_V624_COMBAT_UX — appended UI-only patch; combat physics untouched */
 #epV624MenuBtn{
-  position:fixed;top:max(7px,env(safe-area-inset-top));right:max(7px,env(safe-area-inset-right));
-  z-index:2147482000;display:none;min-width:52px;height:34px;padding:0 10px;
-  border:1px solid rgba(190,205,214,.42);border-radius:7px;
-  background:rgba(5,11,15,.72);color:#dbe7ec;font:700 11px/1 system-ui,-apple-system,"Malgun Gothic",sans-serif;
-  letter-spacing:.06em;box-shadow:0 3px 14px rgba(0,0,0,.28);backdrop-filter:blur(2px)
+  flex:0 0 auto;min-width:58px;
+  border-color:rgba(190,205,214,.34);
+  background:rgba(8,16,20,.72);color:#dbe7ec;letter-spacing:.06em
 }
-body.ep-v624-tactical #epV624MenuBtn{display:block}
+#epV624MenuHeadActions{display:flex;align-items:center;gap:6px;margin-left:auto}
+#epV624MenuHeadActions button{
+  min-height:34px;padding:0 10px;border-radius:7px;border:1px solid rgba(160,182,194,.28);
+  background:#152129;color:#dbe5e9;font:700 11px system-ui,-apple-system,"Malgun Gothic",sans-serif
+}
+#epV624MenuHeadActions .danger{border-color:rgba(214,96,82,.55);background:#2a1514;color:#ffd2cd}
 #epV624MenuOverlay{
   position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;
   padding:max(14px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
@@ -40112,12 +40158,11 @@ body.ep-v624-tactical #epV624MenuBtn{display:block}
 }
 .epV624Note b,.epV624Trace b{color:#f0c77d}
 .epV624Dim{color:#8fa0a8;font-size:11px}
-#epV624MenuActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
-#epV624MenuActions button,#epV624ConfirmActions button{
+#epV624ConfirmActions button{
   min-height:43px;border-radius:8px;border:1px solid rgba(160,182,194,.28);
   background:#152129;color:#dbe5e9;font:700 12px system-ui,-apple-system,"Malgun Gothic",sans-serif
 }
-#epV624MenuActions .danger,#epV624ConfirmActions .danger{border-color:rgba(214,96,82,.55);background:#2a1514;color:#ffd2cd}
+#epV624ConfirmActions .danger{border-color:rgba(214,96,82,.55);background:#2a1514;color:#ffd2cd}
 #epV624Confirm{display:none;margin-top:10px;padding:10px;border-radius:9px;border:1px solid rgba(214,96,82,.35);background:rgba(72,23,20,.35)}
 #epV624Confirm.on{display:block}
 #epV624Confirm p{margin:0 0 9px;font-size:12px;line-height:1.5}
@@ -40140,9 +40185,11 @@ body.ep-v624-peri #tacticalCrewBubbleV620{
   text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.55)
 }
 @media(max-width:560px){
-  #epV624MenuBtn{height:31px;min-width:48px;padding:0 8px;font-size:10px}
+  #epV624MenuBtn{min-width:54px;padding-left:8px;padding-right:8px}
   #epV624MenuCard{padding:11px}
-  #epV624MenuActions button,#epV624ConfirmActions button{min-height:46px}
+  #epV624MenuHeadActions{gap:5px}
+  #epV624MenuHeadActions button{min-height:36px;padding:0 9px}
+  #epV624ConfirmActions button{min-height:46px}
 }
 
 </style>
@@ -40153,7 +40200,7 @@ body.ep-v624-peri #tacticalCrewBubbleV620{
 if(window.__EP_V624_COMBAT_UX__) return;
 window.__EP_V624_COMBAT_UX__=true;
 
-const VERSION='6.24.0';
+const VERSION='6.24.7';
 const TRACE_KEY='ETERNAL_PATROL_BATTLE_TRACES_V624';
 const RETURN_KEY='EP_V624_RETURN_MAIN';
 const $=id=>document.getElementById(id);
@@ -40336,16 +40383,17 @@ function abandon(){
 function createUI(){
   if($('epV624MenuBtn'))return;
   const btn=document.createElement('button');
-  btn.id='epV624MenuBtn';btn.type='button';btn.textContent='MENU';btn.setAttribute('aria-label','전투 메뉴');
-  document.body.appendChild(btn);
+  btn.id='epV624MenuBtn';btn.type='button';btn.className='tiny';btn.textContent='MENU';btn.setAttribute('aria-label','전투 메뉴');
+  const cpClose=$('cpClose');
+  const cpHead=cpClose&&cpClose.parentElement;
+  if(cpHead)cpHead.insertBefore(btn,cpClose);
   const ov=document.createElement('div');
   ov.id='epV624MenuOverlay';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
   ov.innerHTML=
     '<div id="epV624MenuCard">'+
-      '<div id="epV624MenuHead"><b>전투 메뉴</b><span id="epV624PauseLamp">PAUSED</span></div>'+
+      '<div id="epV624MenuHead"><b>전투 메뉴</b><div id="epV624MenuHeadActions"><span id="epV624PauseLamp">PAUSED</span><button id="epV624AbandonAsk" class="danger" type="button">전투 포기</button><button id="epV624Continue" type="button">닫기</button></div></div>'+
       '<div class="epV624Section"><h4>함장 메모 · 현재 알고 있는 정보</h4><div id="epV624Notes"></div></div>'+
       '<div class="epV624Section"><h4>최근 캠페인 교전 흔적</h4><div id="epV624Traces"></div></div>'+
-      '<div id="epV624MenuActions"><button id="epV624Continue" type="button">전투 계속</button><button id="epV624AbandonAsk" class="danger" type="button">전투 포기 · 메인 화면</button></div>'+
       '<div id="epV624Confirm"><p><b>현재 전투를 포기합니까?</b><br>이 전투의 진행상황과 전과는 정산하지 않고 메인 화면으로 돌아갑니다. 캠페인 저장 자체는 삭제하지 않습니다.</p>'+
       '<div id="epV624ConfirmActions"><button id="epV624Cancel" type="button">취소</button><button id="epV624Abandon" class="danger" type="button">포기하고 돌아가기</button></div></div>'+
     '</div>';

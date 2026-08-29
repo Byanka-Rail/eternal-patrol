@@ -5,9 +5,12 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.24.6</title>
+<title>ETERNAL PATROL: Silent Seas — v6.24.7</title>
 <!--
   PATCH RECORD — 2026-08-30
+  V6.24.7 VOICE CPU Android CPUExecutionProvider가 FP16 Gelu 등 다수 연산을 보장하지 않아 voicepack-v2 FP16을 폐기하고, 공식 FP32 ONNX를 그대로 자체호스팅하는 voicepack-v3로 전환.
+  V6.24.7 VOICE HOST voicepack-v3는 Supertone 공식 고정 revision의 FP32 자산을 ETERNAL PATROL GitHub Actions가 검증 후 우리 Release에 미러링. 변환 가중치 없음.
+  V6.24.7 MIGRATION 새 FP32 팩 설치 성공 후 기존 FP16 저장소를 정리. 전투/AI/탐지/저장 구조는 변경하지 않음.
   V6.24.6 VOICE ORIGIN 제3자 변환모델 의존을 제거. Supertone 공식 Supertonic 3 고정 revision을 GitHub Actions가 직접 받아 ETERNAL PATROL 배포용 FP16으로 변환.
   V6.24.6 VOICE HOST 변환된 voicepack-v2는 Byanka-Rail/eternal-patrol GitHub Release에서만 플레이어에게 배포하며 PACK_INFO/SHA-256으로 출처와 무결성을 검증.
   V6.24.6 SAFE 전투 계산·AI·탐지·어뢰·Campaign/War 저장 구조는 변경하지 않음.
@@ -3037,9 +3040,9 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <b style="color:var(--ink)">Supertonic 3</b><br/>
 원 모델: Supertone Inc. · <code>Supertone/supertonic-3</code><br/>
 모델 가중치: BigScience OpenRAIL-M · 엔진/예제 코드: MIT License.<br/><br/>
-<b style="color:var(--ink)">모바일 FP16 음성팩</b><br/>
-런타임 배포: <code>Byanka-Rail/eternal-patrol</code> GitHub Release · <code>voicepack-v2</code>.<br/>
-FP16 변환: Supertone 공식 <code>Supertonic/supertonic-3</code> 고정 revision을 ETERNAL PATROL GitHub Actions가 직접 FP16 ONNX로 변환합니다. 제3자 변환 바이너리를 재배포하지 않습니다. 변환본은 원 모델의 OpenRAIL-M 조건을 승계합니다.<br/>
+<b style="color:var(--ink)">Android CPU 호환 FP32 음성팩</b><br/>
+런타임 배포: <code>Byanka-Rail/eternal-patrol</code> GitHub Release · <code>voicepack-v3</code>.<br/>
+모델 배포: Supertone 공식 <code>Supertone/supertonic-3</code> 고정 revision의 FP32 ONNX를 ETERNAL PATROL GitHub Actions가 검증한 뒤 그대로 자체 Release에 미러링합니다. 모델 변환은 하지 않으며 원 OpenRAIL-M 조건을 그대로 유지합니다.<br/>
 게임 사용자는 제3자 저장소에 직접 연결하지 않고 ETERNAL PATROL의 Release에서 고정된 음성팩을 받습니다. 음성팩 ZIP은 설치 전에 SHA-256으로 검증합니다. 모델 자체는 APK/HTML에 내장하지 않습니다. 원본·파생 출처와 라이선스 전문은 음성팩과 Android 패키지의 THIRD_PARTY_NOTICES에 함께 제공합니다.<br/><br/>
 이 기능은 기본 제공 M1~M5 음색만 사용하며 실제 인물의 목소리를 복제하지 않습니다.
 </div>
@@ -32764,7 +32767,7 @@ window.Lang.add('ja', {
 
 
   /* ══════════════════════════════════════════════════════════════
-     v6.24.6 · 선택형 Supertonic 3 승조원 음성 브리지
+     v6.24.7 · 선택형 Supertonic 3 승조원 음성 브리지
 
      Android 쪽 계약:
        window.EternalVoice.getStatus() -> JSON string
@@ -32790,7 +32793,7 @@ window.Lang.add('ja', {
       dc:{voice:'M5',speed:1.03},
     };
     let mode='off';
-    let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'FP16',packMB:200,phase:'idle',packPhase:'idle',source:'ETERNAL PATROL GitHub Release',speaking:false,engineLoaded:false,lastSynthesisMs:0,lastSamples:0};
+    let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'FP32',packMB:400,phase:'idle',packPhase:'idle',source:'ETERNAL PATROL GitHub Release',speaking:false,engineLoaded:false,lastSynthesisMs:0,lastSamples:0};
     function native(){ return window.EternalVoice || null; }
     function loadMode(){
       try{ const v=localStorage.getItem(MODE_KEY); if(v==='important'||v==='all'||v==='off') mode=v; }catch(e){}
@@ -32846,7 +32849,7 @@ window.Lang.add('ja', {
       if(ph==='playing') return '승조원 음성 재생 중…';
       if(status.ready){
         const ms=Number(status.lastSynthesisMs||0);
-        return 'Supertonic 3 FP16 음성팩 준비됨 · ETERNAL PATROL Release 배포 · 온디바이스 합성'+(ms>0?' · 최근 합성 '+(ms/1000).toFixed(1)+'초':'');
+        return 'Supertonic 3 FP32 음성팩 준비됨 · ETERNAL PATROL Release 배포 · Android CPU 온디바이스 합성'+(ms>0?' · 최근 합성 '+(ms/1000).toFixed(1)+'초':'');
       }
       return '선택 음성팩 미설치 · 약 '+(status.packMB||200)+'MB 추가 저장공간이 필요합니다.';
     }
@@ -40197,7 +40200,7 @@ body.ep-v624-peri #tacticalCrewBubbleV620{
 if(window.__EP_V624_COMBAT_UX__) return;
 window.__EP_V624_COMBAT_UX__=true;
 
-const VERSION='6.24.6';
+const VERSION='6.24.7';
 const TRACE_KEY='ETERNAL_PATROL_BATTLE_TRACES_V624';
 const RETURN_KEY='EP_V624_RETURN_MAIN';
 const $=id=>document.getElementById(id);

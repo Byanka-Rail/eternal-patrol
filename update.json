@@ -1,8 +1,5 @@
 {
-  "gameVersion": "6.22.4",
-  "androidVersionCode": 62204,
-  "androidVersion": "6.22.4",
-  "gameUrl": "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/ETERNAL_PATROL.html",
-  "changelogUrl": "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/changelog.txt",
-  "mandatory": false
+  "gameVersion": "6.24.7",
+  "sha256": "08b28d85fc21917895247adf9e1a1892a879e4401517f1d72e63933ea09f9937",
+  "url": "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/ETERNAL_PATROL.html"
 }

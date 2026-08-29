@@ -29,7 +29,7 @@ import java.io.ByteArrayOutputStream;
  *
  * This is an independent integration written for ETERNAL PATROL against the public
  * Supertonic ONNX model contract. It intentionally keeps only the functionality the
- * game needs: Korean, preset voices, short reports, CPU inference and cancellation.
+ * game needs: Korean, preset voices, short reports, FP32 CPU inference and cancellation.
  */
 public final class SupertonicEngine implements Closeable {
     public static final int DEFAULT_STEPS = 8;
