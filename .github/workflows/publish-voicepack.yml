@@ -1,0 +1,152 @@
+name: Publish Supertonic Voice Pack
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build pinned FP16 voice pack
+        shell: bash
+        env:
+          HF_REVISION: d9bfd0a9384b42a76f9256eafdd3d8a5cc4706ba
+          RELEASE_TAG: voicepack-v1
+          ZIP_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.zip
+          MANIFEST_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.json
+          SHA_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1_SHA256.txt
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/ep_voicepack"
+          OUT="$RUNNER_TEMP/ep_voicepack_out"
+          mkdir -p "$ROOT/onnx" "$ROOT/voice_styles" "$OUT"
+
+          BASE="https://huggingface.co/Kyumdroid/supertonic-3-quant/resolve/${HF_REVISION}"
+          fetch() {
+            echo "Downloading $1"
+            curl -L --fail --retry 5 --retry-all-errors --connect-timeout 30 --max-time 1800 \
+              -A "ETERNAL-PATROL-VoicePack-Builder/1.0" \
+              "${BASE}/$1?download=true" -o "$2"
+          }
+
+          fetch "fp16/onnx/duration_predictor.onnx" "$ROOT/onnx/duration_predictor.onnx"
+          fetch "fp16/onnx/text_encoder.onnx" "$ROOT/onnx/text_encoder.onnx"
+          fetch "fp16/onnx/vector_estimator.onnx" "$ROOT/onnx/vector_estimator.onnx"
+          fetch "fp16/onnx/vocoder.onnx" "$ROOT/onnx/vocoder.onnx"
+          fetch "fp16/onnx/tts.json" "$ROOT/onnx/tts.json"
+          fetch "fp16/onnx/unicode_indexer.json" "$ROOT/onnx/unicode_indexer.json"
+          for v in M1 M2 M3 M4 M5; do
+            fetch "voice_styles/${v}.json" "$ROOT/voice_styles/${v}.json"
+          done
+          fetch "LICENSE" "$ROOT/LICENSE"
+
+          cat > "$ROOT/THIRD_PARTY_NOTICES.txt" <<'EOF'
+          ETERNAL PATROL optional crew voice pack — third-party notices
+          =============================================================
+
+          Runtime distribution host:
+            Byanka-Rail/eternal-patrol GitHub Release, tag voicepack-v1
+
+          Original model:
+            Supertonic 3 by Supertone Inc.
+            https://huggingface.co/Supertone/supertonic-3
+            Model license: BigScience OpenRAIL-M
+
+          FP16 derivative used by this pack:
+            Kyumdroid/supertonic-3-quant
+            https://huggingface.co/Kyumdroid/supertonic-3-quant
+            Pinned revision: d9bfd0a9384b42a76f9256eafdd3d8a5cc4706ba
+            Variant: fp16/onnx
+            License: OpenRAIL-M inherited from the original model
+
+          ETERNAL PATROL does not claim authorship of the model or the FP16 conversion.
+          This package only selects M1-M5 preset styles and repackages the pinned files
+          for stable first-party delivery to the game.  No model weights are modified
+          by this packaging workflow.
+
+          The included LICENSE file contains the model license terms.  AI-generated
+          crew speech is disclosed as synthetic in the game UI.
+          EOF
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack'
+          info = {
+              'schema': 1,
+              'pack': 'supertonic3_fp16_v1',
+              'runtimeHost': 'Byanka-Rail/eternal-patrol GitHub Release',
+              'originalModel': 'Supertone/supertonic-3',
+              'fp16Derivative': 'Kyumdroid/supertonic-3-quant',
+              'upstreamRevision': os.environ['HF_REVISION'],
+              'variant': 'FP16',
+              'voices': ['M1','M2','M3','M4','M5'],
+              'modelModifiedByEternalPatrol': False,
+              'packagingOnly': True
+          }
+          (root/'PACK_INFO.json').write_text(json.dumps(info, ensure_ascii=False, indent=2), encoding='utf-8')
+          PY
+
+          python3 - <<'PY'
+          import hashlib, json, os, zipfile
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack'
+          out = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_out'
+          zip_name = os.environ['ZIP_NAME']
+          manifest_name = os.environ['MANIFEST_NAME']
+          sha_name = os.environ['SHA_NAME']
+          zpath = out / zip_name
+          with zipfile.ZipFile(zpath, 'w', compression=zipfile.ZIP_STORED, allowZip64=True) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file():
+                      z.write(p, p.relative_to(root).as_posix())
+          h = hashlib.sha256()
+          with zpath.open('rb') as f:
+              for chunk in iter(lambda: f.read(1024*1024), b''):
+                  h.update(chunk)
+          digest = h.hexdigest()
+          size = zpath.stat().st_size
+          url = f"https://github.com/Byanka-Rail/eternal-patrol/releases/download/{os.environ['RELEASE_TAG']}/{zip_name}"
+          manifest = {
+              'schema': 1,
+              'pack': 'supertonic3_fp16_v1',
+              'variant': 'FP16',
+              'bytes': size,
+              'sha256': digest,
+              'url': url,
+              'runtimeHost': 'Byanka-Rail/eternal-patrol GitHub Release',
+              'upstreamRevision': os.environ['HF_REVISION']
+          }
+          (out/manifest_name).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          (out/sha_name).write_text(f"{digest}  {zip_name}\n", encoding='utf-8')
+          print(f"Voice pack: {size} bytes")
+          print(f"SHA-256: {digest}")
+          PY
+
+          ls -lh "$OUT"
+
+      - name: Publish first-party voice-pack release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: voicepack-v1
+          ZIP_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.zip
+          MANIFEST_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.json
+          SHA_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V1_SHA256.txt
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/ep_voicepack_out"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              "$OUT/$ZIP_NAME" "$OUT/$MANIFEST_NAME" "$OUT/$SHA_NAME" --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "$OUT/$ZIP_NAME" "$OUT/$MANIFEST_NAME" "$OUT/$SHA_NAME" \
+              --title "ETERNAL PATROL optional crew voice pack v1" \
+              --notes "Optional Supertonic 3 FP16 crew voice pack. Runtime delivery is hosted by this ETERNAL PATROL repository. Upstream model and derivative attribution/license remain included in the pack."
+          fi
