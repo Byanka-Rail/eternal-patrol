@@ -1,0 +1,228 @@
+name: Publish Official Supertonic Voice Pack
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install FP16 conversion tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy==1.26.4" "onnx==1.17.0" "onnxruntime==1.20.1"
+
+      - name: Download official Supertonic 3 and build ETERNAL PATROL FP16 pack
+        shell: bash
+        env:
+          OFFICIAL_REVISION: 724fb5abbf5502583fb520898d45929e62f02c0b
+          RELEASE_TAG: voicepack-v2
+          PACK_ID: supertonic3_fp16_ep_v2
+          ZIP_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.zip
+          MANIFEST_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json
+          SHA_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2_SHA256.txt
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/supertonic3_official_fp32"
+          ROOT="$RUNNER_TEMP/ep_voicepack_v2"
+          OUT="$RUNNER_TEMP/ep_voicepack_v2_out"
+          mkdir -p "$SRC/onnx" "$SRC/voice_styles" "$ROOT/onnx" "$ROOT/voice_styles" "$OUT"
+
+          BASE="https://huggingface.co/Supertone/supertonic-3/resolve/${OFFICIAL_REVISION}"
+          fetch() {
+            echo "Official download: $1"
+            curl -L --fail --retry 5 --retry-all-errors --connect-timeout 30 --max-time 2400 \
+              -A "ETERNAL-PATROL-VoicePack-Builder/2.0" \
+              "${BASE}/$1?download=true" -o "$2"
+          }
+
+          # Official model weights/configs, pinned to the initial Supertonic 3 release.
+          fetch "onnx/duration_predictor.onnx" "$SRC/onnx/duration_predictor.onnx"
+          fetch "onnx/text_encoder.onnx" "$SRC/onnx/text_encoder.onnx"
+          fetch "onnx/vector_estimator.onnx" "$SRC/onnx/vector_estimator.onnx"
+          fetch "onnx/vocoder.onnx" "$SRC/onnx/vocoder.onnx"
+          fetch "onnx/tts.json" "$ROOT/onnx/tts.json"
+          fetch "onnx/unicode_indexer.json" "$ROOT/onnx/unicode_indexer.json"
+          for v in M1 M2 M3 M4 M5; do
+            fetch "voice_styles/${v}.json" "$ROOT/voice_styles/${v}.json"
+          done
+          fetch "LICENSE" "$ROOT/LICENSE"
+
+          # Convert the official FP32 ONNX files ourselves. No third-party converted
+          # model weights are downloaded or repackaged by this workflow.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import onnx
+          from onnxruntime.transformers.float16 import convert_float_to_float16
+
+          src = Path(os.environ['RUNNER_TEMP']) / 'supertonic3_official_fp32' / 'onnx'
+          out = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2' / 'onnx'
+          models = ['duration_predictor.onnx', 'text_encoder.onnx', 'vector_estimator.onnx', 'vocoder.onnx']
+
+          for name in models:
+              inp = src / name
+              shaped = src / (name + '.shaped.onnx')
+              dst = out / name
+              print(f'FP16 conversion: {name}')
+              onnx.shape_inference.infer_shapes_path(str(inp), str(shaped))
+              model = onnx.load(str(shaped), load_external_data=True)
+              model16 = convert_float_to_float16(
+                  model,
+                  keep_io_types=True,
+                  op_block_list=['Cast'],
+                  disable_shape_infer=True,
+              )
+              onnx.save(model16, str(dst))
+              onnx.checker.check_model(str(dst))
+              shaped.unlink(missing_ok=True)
+              print(f'  -> {dst.stat().st_size / 1024 / 1024:.1f} MiB')
+          PY
+
+          # Ensure Android ONNX Runtime can parse every generated model before publish.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import onnxruntime as ort
+          root = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2' / 'onnx'
+          for name in ['duration_predictor.onnx','text_encoder.onnx','vector_estimator.onnx','vocoder.onnx']:
+              print('ORT load check:', name)
+              sess = ort.InferenceSession(str(root / name), providers=['CPUExecutionProvider'])
+              print('  inputs=', [x.name for x in sess.get_inputs()])
+              del sess
+          PY
+
+          cat > "$ROOT/CONVERSION_NOTES.txt" <<EOF
+          ETERNAL PATROL Supertonic 3 FP16 conversion notes
+          ==================================================
+          Original model: Supertone/supertonic-3
+          Official pinned revision: ${OFFICIAL_REVISION}
+          Converted by: ETERNAL PATROL GitHub Actions
+          Variant: FP16 ONNX
+
+          Process:
+          1. Download the four official FP32 ONNX models directly from the pinned
+             Supertone/supertonic-3 revision.
+          2. Run ONNX shape inference.
+          3. Convert floating-point model weights to FP16 with
+             onnxruntime.transformers.float16.convert_float_to_float16,
+             keep_io_types=True and op_block_list=['Cast'].
+          4. Validate each generated model with ONNX checker and ONNX Runtime CPU load.
+          5. Package the unchanged official M1-M5 style JSON files, configuration,
+             official model LICENSE, provenance metadata, and this notice.
+
+          No model training or fine-tuning is performed. No third-party converted
+          model weights are downloaded by this workflow.
+          EOF
+
+          cat > "$ROOT/THIRD_PARTY_NOTICES.txt" <<EOF
+          ETERNAL PATROL optional crew voice pack v2 — third-party notices
+          =================================================================
+
+          Runtime distribution host:
+            Byanka-Rail/eternal-patrol GitHub Release, tag voicepack-v2
+
+          Original model:
+            Supertonic 3 by Supertone Inc.
+            Source: https://huggingface.co/Supertone/supertonic-3
+            Pinned official revision: ${OFFICIAL_REVISION}
+            Model license: BigScience OpenRAIL-M
+
+          ETERNAL PATROL conversion:
+            The official FP32 ONNX files are converted by this repository's GitHub
+            Actions workflow to FP16 ONNX for optional on-device Android inference.
+            No third-party converted weight files are used. The derivative remains
+            subject to the original model's OpenRAIL-M license and use restrictions.
+
+          The included LICENSE file is copied from the pinned official model revision.
+          AI-generated crew speech is disclosed as synthetic in the game UI.
+          EOF
+
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2'
+          info = {
+              'schema': 2,
+              'pack': os.environ['PACK_ID'],
+              'variant': 'FP16',
+              'originalModel': 'Supertone/supertonic-3',
+              'officialRevision': os.environ['OFFICIAL_REVISION'],
+              'convertedBy': 'ETERNAL PATROL GitHub Actions',
+              'conversion': 'official FP32 ONNX -> shape inference -> FP16 ONNX; fp32 I/O retained; Cast blocked',
+              'thirdPartyConvertedWeightsUsed': False,
+              'voices': ['M1','M2','M3','M4','M5'],
+              'runtimeHost': 'Byanka-Rail/eternal-patrol GitHub Release'
+          }
+          (root/'PACK_INFO.json').write_text(json.dumps(info, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+
+          python3 - <<'PY'
+          import hashlib, json, os, zipfile
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2'
+          out = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2_out'
+          zpath = out / os.environ['ZIP_NAME']
+          with zipfile.ZipFile(zpath, 'w', compression=zipfile.ZIP_STORED, allowZip64=True) as z:
+              for p in sorted(root.rglob('*')):
+                  if p.is_file():
+                      z.write(p, p.relative_to(root).as_posix())
+          h = hashlib.sha256()
+          with zpath.open('rb') as f:
+              for chunk in iter(lambda: f.read(1024*1024), b''):
+                  h.update(chunk)
+          digest = h.hexdigest()
+          size = zpath.stat().st_size
+          if not (150 * 1024 * 1024 <= size <= 260 * 1024 * 1024):
+              raise SystemExit(f'Unexpected FP16 pack size: {size}')
+          url = f"https://github.com/Byanka-Rail/eternal-patrol/releases/download/{os.environ['RELEASE_TAG']}/{os.environ['ZIP_NAME']}"
+          manifest = {
+              'schema': 2,
+              'pack': os.environ['PACK_ID'],
+              'variant': 'FP16',
+              'bytes': size,
+              'sha256': digest,
+              'url': url,
+              'runtimeHost': 'Byanka-Rail/eternal-patrol GitHub Release',
+              'originalModel': 'Supertone/supertonic-3',
+              'officialRevision': os.environ['OFFICIAL_REVISION'],
+              'convertedBy': 'ETERNAL PATROL GitHub Actions'
+          }
+          (out/os.environ['MANIFEST_NAME']).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          (out/os.environ['SHA_NAME']).write_text(f"{digest}  {os.environ['ZIP_NAME']}\n", encoding='utf-8')
+          print(f'Voice pack: {size} bytes ({size/1024/1024:.1f} MiB)')
+          print(f'SHA-256: {digest}')
+          PY
+
+          ls -lh "$OUT"
+
+      - name: Publish ETERNAL PATROL voice-pack v2 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: voicepack-v2
+          ZIP_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.zip
+          MANIFEST_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json
+          SHA_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2_SHA256.txt
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/ep_voicepack_v2_out"
+          NOTES="Optional Supertonic 3 FP16 crew voice pack v2. Built by ETERNAL PATROL GitHub Actions directly from pinned official Supertone/supertonic-3 FP32 ONNX assets. No third-party converted model weights are used. Original OpenRAIL-M license and provenance are included in the pack."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" \
+              "$OUT/$ZIP_NAME" "$OUT/$MANIFEST_NAME" "$OUT/$SHA_NAME" --clobber
+          else
+            gh release create "$RELEASE_TAG" \
+              "$OUT/$ZIP_NAME" "$OUT/$MANIFEST_NAME" "$OUT/$SHA_NAME" \
+              --title "ETERNAL PATROL optional crew voice pack v2" \
+              --notes "$NOTES"
+          fi
