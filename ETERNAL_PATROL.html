@@ -5,8 +5,75 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.22.4</title>
+<title>ETERNAL PATROL: Silent Seas — v6.24.1</title>
 <!--
+  PATCH RECORD — 2026-08-29
+  V6.24.1 VOICE APK 선택형 승조원 신경망 음성 브리지를 추가. 브라우저/음성팩 미설치 상태에서는 기존 텍스트 전용으로 자동 폴백.
+  V6.24.1 VOICE P0·P1 중요 보고만 읽는 기본 모드와 전체 전술 보고 모드를 옵션에 추가. 역할별 M1~M5 음색/속도 매핑은 HTML에서 관리해 이후 APK 재빌드 없이 조정 가능.
+  V6.24.1 PACK 약 100MB급 Supertonic 3 INT8 파생 음성팩을 APK가 선택 다운로드/삭제하도록 HTML 제어 UI와 상태 콜백 규약을 추가. 모델 파일 자체는 HTML/APK에 내장하지 않음.
+  V6.24.1 LICENSE 시작 화면 하단에 합성음성/라이선스 짧은 고지를 추가하고 옵션에 Supertone Supertonic 3, OpenRAIL-M, MIT, INT8 파생모델 귀속 및 AI 합성음성 고지를 추가.
+  V6.24.1 SAFE 전투 계산·탐지·청음·AI·역사전·Campaign/War 저장 코어는 변경하지 않음.
+-->
+
+<!--
+  PATCH RECORD — 2026-08-29
+  V6.24.0 MENU 전술 교전 중 MENU를 추가. 메뉴가 열린 동안 UBOAT time scale을 0으로 두고 닫을 때 직전 배속을 복원.
+  V6.24.0 ABANDON 전장 이탈과 별개인 '전투 포기 · 메인 화면'을 추가. 포기 시 전과를 정산하지 않고 런타임을 재시작해 전투 루프·음향·임시 UI를 깨끗이 종료하며 캠페인 저장은 삭제하지 않음.
+  V6.24.0 DIALOG 전술 승조원 말풍선을 반투명화하고 잠망경 화면에서는 투명도를 더 높여 시야 가림을 줄임.
+  V6.24.0 PERISCOPE 기존 파도/시야 물리는 유지하면서 해상상태에 연동한 약한 습윤 렌즈·비네팅·야간 미세 블룸을 별도 오버레이로 추가. 조준/관측 판정에는 관여하지 않음.
+  V6.24.0 NOTES MENU에 자함 상태와 현재 플레이어가 가진 접촉 추정치만 이용한 자동 함장 메모를 표시. 숨은 실제 표적값은 사용하지 않음.
+  V6.24.0 TRACE 캠페인 교전 종료 화면을 감지해 결과 문구를 별도 localStorage 전투흔적 장부에 최대 24건 보존. 기존 Campaign/War 저장 스키마는 변경하지 않음.
+  V6.24.0 SAFE 어뢰, 탐지, 청음, 잠망경 노출, AI, 역사전 판정, Campaign/War 저장 코어는 변경하지 않음.
+-->
+
+<!--
+  PATCH RECORD — 2026-08-22
+  V6.23.7 DEV 메인 화면에 새로 만들었던 별도 '테스트 모드' 버튼/오버레이를 제거.
+  V6.23.7 DEV 기존 제목 5연타 관전/개발자 모드(ui.obs)가 켜져 있을 때만 메인 화면에 '역사전 검증 모드' 버튼이 나타나도록 통합.
+  V6.23.7 DEV #obs 진입 또는 저장된 관전모드가 이미 켜진 경우에도 같은 검증 버튼이 자동 노출되고, 제목 5연타로 관전모드를 끄면 즉시 숨김.
+  V6.23.7 FLOW 역사전 검증 목록의 '뒤로'는 별도 테스트 메뉴가 아니라 원래 메인 화면으로 복귀. 일반 역사 작전 흐름은 변경 없음.
+  PATCH RECORD — 2026-08-22
+  V6.23.6 UI 메인 화면의 역사전 검증 모드 버튼을 제거하고 별도 테스트 모드 하위 메뉴로 이동. 일반 플레이 시작 화면은 역사 작전만 직접 노출.
+  V6.23.6 TEST 메인 화면에 테스트 모드 버튼과 전용 오버레이를 추가하고, 그 안에서 역사전 검증 모드로 진입하도록 변경.
+  V6.23.6 FLOW 역사전 검증 선택 화면에서 뒤로 가면 테스트 모드로 복귀하고, 일반 역사 작전은 기존처럼 메인 화면으로 복귀. 검증 종료 후 같은 검증 목록으로 돌아가는 기존 흐름 유지.
+  V6.23.6 SAFE 역사전 29종, historicalScenarioValidationV623, Campaign/War/historicalEventsV620 저장 구조와 전투 코어는 변경하지 않음.
+  PATCH RECORD — 2026-08-22
+  V6.23.5 HISTORY 역사전의 SURVIVE 판정을 단순 "현재 자함이 살아 있음"에서 실제 "안전 이탈 완료"로 변경.
+  V6.23.5 EXFIL 역사전에서는 접촉·분류·보고·공격·유지 등 해당 시나리오의 비이탈 주목표를 모두 완료하기 전에는 전장 이탈 명령을 잠금.
+  V6.23.5 EXFIL 주목표 완료 후에도 기존 전장 이탈 안전조건(적 직접접촉 없음, 근접 수색 호위 없음)을 그대로 통과해야 이탈 가능.
+  V6.23.5 RESULT 실제 전장 이탈 성공 순간에만 역사전 안전 이탈을 완료하고 최종 통과 판정. 보고만 하거나 살아 있는 상태만으로는 역사전 검증 통과가 되지 않음.
+  V6.23.5 SCORE SURVIVAL 평가축도 단순 생존이 아니라 안전 이탈 완료에만 만점을 부여. 검증 저장에 exfilCompleted/exfilAt 추가.
+  PATCH RECORD — 2026-08-22
+  V6.23.4 HISTORY RADIO 역사전 '보고'를 즉시 완료 체크가 아니라 실제 무전 송신 행동으로 변경. 부상 상태에서만 송신을 시작할 수 있으며 송신 중 잠항하면 보고가 취소됨.
+  V6.23.4 HISTORY RADIO 접촉 수·분류·사격해법 수준에 따라 보고 내용과 송신시간(약 10~28초)이 달라지고, 송신 완료 시에만 REPORT 목표가 충족됨.
+  V6.23.4 HISTORY RADIO 전구·시기·송신 길이에 따라 HF/DF 방향탐지 위험을 계산. 방향탐지에 성공한 경우 적 호위대는 정확한 자함 좌표가 아니라 큰 오차를 가진 HFDF 단서를 받아 수색을 시작함.
+  V6.23.4 HISTORY RADIO 송신 도중 잠항해도 이미 전파된 부분만큼 부분적인 HF/DF 위험은 남음. 보고 자체는 미완료로 처리.
+  V6.23.4 UI 초박형 역사전 표시줄은 유지. '보고' 텍스트는 송신 중 '송신 Ns', 완료 후 '보고완료'로만 바뀌어 추가 세로 공간을 사용하지 않음.
+  PATCH RECORD — 2026-08-22
+  V6.23.3 UI 역사 작전 전술 표시줄을 모바일 화면 점유 최소화를 위해 초박형 텍스트 스트립으로 변경.
+  V6.23.3 UI 역사전 표시줄의 배경·테두리·그림자·44px 버튼 높이를 제거하고 약 15px 높이의 글자만 표시.
+  V6.23.3 UI '접촉 보고'는 별도 버튼 상자 대신 오른쪽의 작은 '보고' 텍스트 조작으로 축소. 전술 기능과 판정은 유지.
+  V6.23.3 UI 좁은 화면에서는 작전 역할 문구를 한 줄 말줄임 처리해 청음표·접촉 목록의 세로 공간을 침범하지 않음.
+
+  PATCH RECORD — 2026-08-22
+  V6.23.2 UI 역사전 CSS가 </style> 뒤에 노출되어 CSS 원문이 전술 화면에 그대로 표시되던 오류를 수정. 역사전 전용 CSS를 독립 style 블록 안으로 격리.
+  V6.23.2 UI 역사전 전술 HUD에서 체크리스트·점수·시드·scenario ID·contacts/class/solution·런타임 오류 등 개발용 계측문을 화면에서 전부 제거.
+  V6.23.2 UI 역사전 전술 화면에는 작전명/잠수함 역할과 접촉 보고 버튼만 남기는 얇은 단일 행을 사용. 별도 접기/검증저장 버튼도 제거.
+  V6.23.2 VALIDATION 검증 모드의 내부 판정·고정시드·오류수집·자동 검증기록은 유지하며 화면에만 노출하지 않음.
+
+  PATCH RECORD — 2026-08-22
+  V6.23.1 HISTORY HUD 역사 작전/검증 HUD를 fixed 오버레이에서 전술 화면 상단 도킹 패널로 변경해 청음 접촉·버튼을 가로막지 않도록 수정.
+  V6.23.1 HISTORY UI 일반 역사 작전에서는 내부 계측값을 숨기고 한국어 임무 HUD만 표시. 검증 모드에서만 시드·접촉수·분류·해법·발사·명중·런타임 오류 계측을 표시.
+  V6.23.1 CONTACT 역사전 시작 시 빠른전투 사전교전의 시각관측/거리/침로/속력/관측점 선지식을 주지 않고 최초 접촉도 순수 청음 단서로 시작. C1만 관측거리를 알고 시작하던 비대칭을 제거.
+  V6.23.1 REPORT 역사전 acoustic-only C1의 초기 보고문이 거리 0m로 보이지 않도록 거리 미확보 상태를 명시.
+  V6.23.1 VALIDATION ONS 5 모바일 폭에서 HUD/접촉 목록 비중첩, C1 수동 선택→집중 청음 진입, C1 초기 거리/시각관측 정보 없음, 전체 inline JavaScript 구문을 회귀 확인.
+  V6.23 HISTORY 역사 작전을 캠페인 일반 HIST 조우와 분리한 HistoricalScenarioDirector를 추가. 대형 해전 전체를 플레이어 잠수함이 전멸시키는 구조가 아니라 접촉·분류·보고·차단·기회공격·생환 등 잠수함 역할을 시나리오별 목표로 사용.
+  V6.23 SCENARIO 북대서양 6 · 지중해 6 · 서태평양 12 · 동태평양 5, 총 29개 독립 역사 작전을 추가. 미드웨이·필리핀해·레이테 등 대형 전투의 본대 전황은 배경에서 진행하고 실제 전술판에는 플레이어가 관여할 대표 접촉만 생성.
+  V6.23 VALIDATION 메인 화면에 역사전 검증 모드를 추가. 고정 시드로 접촉·분류·해법·보고·발사·명중·격침·생존·배경전황·런타임 오류를 실시간 계측하고 시나리오별 검증 통과 기록을 별도 저장.
+  V6.23 SCORE 역사전 평가는 INTEL · INTERDICTION · DAMAGE · STEALTH · SURVIVAL 5축 가중치로 계산해 단순 격침톤수보다 해당 역사적 잠수함 임무 수행을 우선.
+  V6.23 SAVE 기존 Campaign/War/historicalEventsV620 저장 구조는 변경하지 않고 역사전 검증기록은 historicalScenarioValidationV623 별도 localStorage 키에만 저장.
+  V6.23 EASTPAC 엘우드·포트 스티븐스·Operation K·Lookout은 임의 함대전으로 왜곡하지 않고 독립 역사전의 접근·작전시간 유지·연안 경계 회피·생환 검증 골격으로 유지. 탑재 수상기 발진·회수 등 전용 기능은 별도 후속 구현 대상으로 남김.
+  V6.23 TITLE 게임 표시명을 ETERNAL PATROL로 갱신하되 Silent Seas 명칭을 문서 제목의 부제로 유지.
   PATCH RECORD — 2026-08-21
   V6.22.3 EASTPAC 엘우드 포격 일반 사령부 명령은 실제 1942-02-23 작전 직전 5일(2/18~2/23)에 출항하는 초계에서만 후보가 되도록 날짜 정합. 그 밖의 시기에는 엘우드가 임의 포격명령으로 등장하지 않음.
   V6.22.3 SCORE 연안 포격의 기존 ‘격침 환산톤’ 집계는 유지. 포격 전과·전역 목표 계산은 변경하지 않음.
@@ -1747,6 +1814,53 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 }
 
 </style>
+
+<style id="historicalScenarioStyleV6233">
+/* V6.23.3 HISTORICAL SCENARIO DIRECTOR — ultra-thin tactical label */
+#ovHistOps .box{max-width:920px}
+.histTheaters{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0 10px}
+.histScenarioList{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:7px;max-height:48vh;overflow:auto;padding:2px 2px 10px}
+.histScn{display:block;text-align:left;white-space:normal;line-height:1.35;padding:10px 11px;min-height:64px}
+.histScn.on{outline:1px solid var(--amber);background:rgba(203,166,84,.12)}
+.histScn small{display:block;color:var(--dim);font-size:10px;margin-top:4px}
+.histScn .histBadge{float:right;font-size:9px;border:1px solid rgba(255,255,255,.18);padding:1px 5px;border-radius:9px}
+.histScn .histBadge.pass{color:#9ed6a6;border-color:rgba(158,214,166,.45)}
+.histScn .histBadge.warn{color:var(--amber);border-color:rgba(203,166,84,.45)}
+#histScenarioNote{margin-top:8px;max-height:19vh;overflow:auto}
+#histRuleNote{font-size:11px;line-height:1.6;color:var(--dim)}
+
+/* 전술 화면: 별도 패널이 아니라 15px짜리 텍스트 한 줄만 차지한다. */
+#histHud{
+  flex:0 0 15px; display:none; align-items:center; gap:5px;
+  width:100%; min-height:0!important; height:15px; max-height:15px;
+  padding:0 6px; margin:0;
+  background:transparent!important; border:0!important; box-shadow:none!important;
+  overflow:hidden; line-height:15px
+}
+#histHud.on{display:flex}
+#histHudTitle{
+  flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  font-size:9px; line-height:15px; color:var(--dim)
+}
+#histHudTitle b{color:var(--amber);font-size:9px;font-weight:600;margin-right:4px}
+#histHudReport{
+  flex:0 0 auto;
+  min-width:0!important; min-height:0!important; width:auto!important; height:15px!important;
+  margin:0!important; padding:0!important;
+  border:0!important; border-radius:0!important; background:transparent!important;
+  box-shadow:none!important; transform:none!important;
+  font-size:9px!important; line-height:15px!important; color:var(--amber)!important;
+  text-decoration:underline; text-underline-offset:2px
+}
+#histHudReport:active{opacity:.65;transform:none!important}
+@media(max-width:620px){
+  #histHud{flex-basis:14px;height:14px;max-height:14px;padding:0 4px;gap:3px}
+  #histHudTitle,#histHudTitle b,#histHudReport{font-size:8.5px!important;line-height:14px!important}
+  #histHudReport{height:14px!important}
+  .histScenarioList{grid-template-columns:1fr;max-height:42vh}
+}
+</style>
+
 </head>
 <body>
 <div id="app">
@@ -1781,6 +1895,10 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div id="briefSub"></div>
 </div>
 <div aria-label="현재 상황 즉시 명령" id="briefActions"></div>
+</div>
+<div id="histHud" aria-live="polite">
+  <div id="histHudTitle"></div>
+  <button class="mini" id="histHudReport" title="접촉 보고 송신">보고</button>
 </div>
 <!-- 함장 방침 — 자동임무가 돌아가는 동안에만 나온다 -->
 <div id="docBar">
@@ -2399,12 +2517,15 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <!-- ═══ 시작 화면 — 전구를 고른다 ═══ -->
 <div class="ov on" id="ovStart">
 <h1 id="ttl">ETERNAL PATROL</h1>
-<div class="tag"><b style="color:var(--ink);letter-spacing:1.6px">SILENT SEAS</b><br/>네 개의 바다. 세 척의 배.</div>
+<div class="tag">네 개의 바다. 세 척의 배.<br/>
+<b style="color:var(--ink)">-</b></div>
 <div class="box">
 <div id="thList"></div>
 <button class="go" id="btnStart" style="width:100%;margin-top:4px">초계 개시</button>
 <button id="btnResume" style="width:100%;margin-top:7px;display:none">이어하기 — 저장된 초계</button>
 <button id="btnQuick" style="width:100%;margin-top:7px">빠른 전투</button>
+<button id="btnHistOps" style="width:100%;margin-top:7px">역사 작전</button>
+<button id="btnHistValidate" style="width:100%;margin-top:7px;display:none">역사전 검증 모드</button>
 <button id="btnTrain" style="width:100%;margin-top:7px">전투 훈련</button>
 <button id="btnDaily" style="width:100%;margin-top:7px">오늘의 판</button>
 <div id="dailyNote" style="font-size:11px;color:var(--dim);line-height:1.7;margin-top:5px"></div>
@@ -2420,6 +2541,9 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div aria-label="제작자 정보" id="creatorInfo">
 <div class="creator-label">CREATOR / 제작자</div>
 <div class="creator-text" id="creatorInfoText">제작자 Byanka<br/>이메일 <a href="mailto:91minhee4@naver.com">91minhee4@naver.com</a></div>
+</div>
+<div aria-label="합성 음성 고지" id="voiceAttributionV6241" style="width:100%;max-width:420px;margin:6px auto 0;text-align:center;font-size:9.5px;line-height:1.55;color:var(--dim)">
+승조원 음성(선택): <b style="color:var(--ink)">Supertonic 3</b> · AI 합성 음성 · 모델 OpenRAIL-M · 엔진 코드 MIT
 </div>
 </div>
 <!-- ═══ 사령부 — 왜 나가는가 ═══ -->
@@ -2657,6 +2781,36 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <button class="mini go" disabled="" id="btnBigNav">항해 시작</button>
 </div>
 </div>
+
+<!-- V6.23 HISTORICAL OPERATIONS -->
+<div class="ov" id="ovHistOps">
+  <h2 id="histOpsTitle">역사 작전</h2>
+  <div class="tag" id="histOpsLead">대해전의 승패를 혼자 결정하지 않습니다. <b style="color:var(--ink)">잠수함이 실제로 맡을 법한 역할</b>만 수행합니다.</div>
+  <div class="box">
+    <div class="histTheaters" id="histTheaterList">
+      <button class="mini on" data-hth="ATLANTIC">북대서양</button>
+      <button class="mini" data-hth="MEDITERRANEAN">지중해</button>
+      <button class="mini" data-hth="PACIFIC">서태평양</button>
+      <button class="mini" data-hth="EASTPAC">동태평양</button>
+    </div>
+    <div class="histScenarioList" id="histScenarioList"></div>
+    <div class="cp-note" id="histScenarioNote"></div>
+    <details class="quickAdvanced" style="margin-top:8px">
+      <summary><span class="quickAdvLabel"><b>역사전 전용 규칙</b><small>전황 · 임무 · 평가</small></span></summary>
+      <div class="quickAdvBody" id="histRuleNote">
+        실제 날짜·작전 맥락과 잠수함 역할은 고정합니다. 세부 접촉 위치와 전술 기하는 소폭 변할 수 있습니다.
+        대규모 함대전은 배경 전황으로 진행하며 플레이어에게 함대 전멸을 요구하지 않습니다.
+        평가는 INTEL · INTERDICTION · DAMAGE · STEALTH · SURVIVAL 다섯 축으로 시나리오마다 다르게 계산합니다.
+      </div>
+    </details>
+    <div class="row" style="margin-top:10px">
+      <button id="histOpsBack">뒤로</button>
+      <button class="go" id="histOpsGo">작전 시작</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ═══ 빠른 전투 — 단판 설정 ═══ -->
 <div class="ov" id="ovDiff">
 <h2>빠른 전투</h2>
@@ -2844,6 +2998,37 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 </div>
 <div class="startOptNote" id="askNote"></div>
 </div>
+
+<!-- v6.24.1 선택형 승조원 신경망 음성 -->
+<div class="startOpt" id="voiceOptV6241">
+<label>승조원 음성 / Crew Voice</label>
+<div class="lampRow" id="voiceModeRowV6241">
+<button class="mini on" data-voice-mode="off">끔</button>
+<button class="mini" data-voice-mode="important">중요 보고</button>
+<button class="mini" data-voice-mode="all">모든 전술 보고</button>
+</div>
+<div class="startOptNote" id="voiceModeNoteV6241">웹판 또는 음성팩 미설치 상태에서는 기존 텍스트 보고만 사용합니다.</div>
+<div class="lampRow" style="margin-top:7px">
+<button class="mini go" id="voicePackBtnV6241">음성팩 상태 확인</button>
+<button class="mini" id="voiceTestBtnV6241">음성 시험</button>
+</div>
+<div class="startOptNote" id="voicePackNoteV6241">APK 음성 브리지를 확인하는 중…</div>
+<details id="voiceLicenseV6241" style="margin-top:8px;border:1px solid var(--steel);border-radius:7px;background:var(--sunk)">
+<summary style="min-height:44px;display:flex;align-items:center;padding:7px 9px;cursor:pointer;color:var(--sky);font-size:11px">합성 음성 · 제3자 라이선스 / Third-party notices</summary>
+<div style="padding:0 9px 10px;font-size:10.5px;line-height:1.65;color:var(--dim)">
+<b style="color:var(--ink)">AI 합성 음성 고지</b><br/>
+이 기능의 승조원 음성은 기기에서 인공지능 음성합성으로 생성됩니다. 실제 사람의 녹음이 아닙니다.<br/><br/>
+<b style="color:var(--ink)">Supertonic 3</b><br/>
+원 모델: Supertone Inc. · <code>Supertone/supertonic-3</code><br/>
+모델 가중치: BigScience OpenRAIL-M · 엔진/예제 코드: MIT License.<br/><br/>
+<b style="color:var(--ink)">모바일 INT8 음성팩</b><br/>
+<code>q3146dq4/Supertonic-3-ONNX-INT8</code>는 Supertonic 3의 수정·양자화 파생물이며 원 모델과 동일한 OpenRAIL-M 조건을 승계합니다.
+본 배포물은 음성팩을 선택 다운로드하며, 원본·파생 라이선스 전문은 Android 패키지의 THIRD_PARTY_NOTICES에 함께 제공합니다.<br/><br/>
+이 기능은 기본 제공 M1~M5 음색만 사용하며 실제 인물의 목소리를 복제하지 않습니다.
+</div>
+</details>
+</div>
+
 <div class="startOpt">
 <label>함내 조명</label>
 <div class="lampRow lampPick" id="lampRowStart">
@@ -13105,6 +13290,23 @@ window.UBOAT = (function () {
       const r = dist(b.x, b.y, u.x, u.y);
       c.strength = Math.max(c.strength || 0, 0.42 + rnd() * 0.25);
       c.acousticUpdatedAt = G.time;
+      /* v6.23.1 역사전은 전술판 자체가 수색·접촉·분류 임무를 포함한다.
+         일반 빠른전투처럼 C1 하나만 초계 중 잠망경으로 미리 봤다고 가정하면
+         그 접촉에만 거리·침로·속력·관측점이 생겨 역사전의 정보 규칙이 비대칭이 된다.
+         따라서 역사전에서는 최초 접촉도 순수 청음 단서로만 넘긴다. */
+      if (opts && opts.historicalScenario) {
+        c.visualUpdatedAt = null;
+        c.visual = false;
+        c.rangeEstimate = null; c.rangeError = null; c.angleOnBow = null;
+        c.courseEstimate = null; c.speedEstimate = null; c.speedFrom = null;
+        c.solutionConfidence = 0; c.obs = [];
+        c.propeller = c.propeller || (u.kind === 'merchant' ? 'slow' : 'fast');
+        c.bearing = norm360(bearing(b.x, b.y, u.x, u.y) + gauss(5 * ((G.encounterDirector&&G.encounterDirector.info&&G.encounterDirector.info.errorMul)||1)));
+        c.bearingError = (7 + rnd() * 6) * ((G.encounterDirector&&G.encounterDirector.info&&G.encounterDirector.info.errorMul)||1);
+        G.selectedContactId = c.id;
+        mark('contact');
+        return c;
+      }
       /* 초계에서 **눈으로도 한 번 봤다** — 그래서 어림 거리와 진행방향이 있는 것이다.
          이 값이 비어 있으면 자동임무가 「거리를 모른다」고 보고 곧바로 잠망경을 올린다. */
       c.visualUpdatedAt = G.time;
@@ -13218,7 +13420,9 @@ window.UBOAT = (function () {
       report('P1', 'hydro', '접촉을 놓쳤습니다 — 소리가 사라졌습니다.');
     } else {
       report('P1', 'hydro', c ? (c.id + ' — 방위 ' + String(Math.round(c.bearing)).padStart(3, '0') +
-        '°, 거리는 어림으로 ' + Math.round(c.rangeEstimate / 100) * 100 + 'm 쯤입니다. 확실하지 않습니다.')
+        (c.rangeEstimate != null
+          ? '°, 거리는 어림으로 ' + Math.round(c.rangeEstimate / 100) * 100 + 'm 쯤입니다. 확실하지 않습니다.'
+          : '°, 거리 불명. 청음 접촉만 유지 중입니다.'))
         : '접촉을 쥐고 있습니다.');
     }
   }
@@ -13292,6 +13496,10 @@ window.UBOAT = (function () {
        그래서 정상적인 접근·추적·관측이 전부 플레이어의 배속 선택을 빼앗았다.
        시간을 멈출지 말지는 eventBrake() 가 실제 사건을 보고 정한다(§4.2). */
     emit('report', r);
+    /* v6.24.1 — 시뮬레이션은 음성 엔진을 모른다.
+       APK가 제공한 선택형 브리지가 있을 때만 현재 보고를 넘기고,
+       웹판/미설치/오류에서는 텍스트 보고만 그대로 남는다. */
+    try { if (window.EPVoice && window.EPVoice.onReport) window.EPVoice.onReport(r); } catch (e) {}
     return r;
   }
 
@@ -16561,7 +16769,7 @@ window.UBOAT = (function () {
      지시서1 §5.1 — 적은 「자함의 좌표」가 아니라 **단서**를 기억한다.
      단서에는 이미 오차가 얹혀 있고, 시간이 지나면 더 벌어진다.
      이 함수만이 실제 좌표를 만지고, 그 결과로 나오는 것은 흐려진 점 하나뿐이다. */
-  const CLUE_ERR = { BOOM: 260, SIGHT: 140, RADAR: 180, PASSIVE: 420, ACTIVE: 90, WAKE: 330, SHARED: 380 };
+  const CLUE_ERR = { BOOM: 260, SIGHT: 140, RADAR: 180, PASSIVE: 420, ACTIVE: 90, WAKE: 330, SHARED: 380, HFDF: 2400 };
   function addClue(e, x, y, kind, conf, course) {
     if (!e.clues) e.clues = [];
     const r0 = CLUE_ERR[kind] || 300;
@@ -18980,6 +19188,27 @@ window.UBOAT = (function () {
       setAct('CHAOS', '훈련 — 이미 쏜 뒤다');
       report('P0', 'exec', '어뢰는 나갔습니다. **지금부터가 진짜입니다** — 호위함이 달려옵니다.');
       return true;
+    },
+    /* v6.23.4 역사전 무전 방향탐지 — 정확한 자함 좌표를 적에게 넘기지 않는다.
+       HF/DF는 넓은 오차의 단서만 만들고, 그 단서를 받은 호위함이 기존 수색 AI로 훑는다. */
+    historicalRadioFix: function (strength) {
+      if (!G) return { ok:false, affected:0 };
+      strength = clamp(+strength || 0, 0, 1);
+      const live = G.escorts.filter(e => !e.sunk && e.alive);
+      if (!live.length || strength <= 0) return { ok:false, affected:0 };
+      assignSearchRoles();
+      let affected = 0;
+      live.forEach((e, i) => {
+        /* 첫 수색함이 가장 강한 단서를 받고, 나머지는 무전 공유 수준의 약한 단서를 받는다. */
+        const share = i === 0 ? 1 : (i === 1 ? 0.72 : 0.48);
+        const conf = clamp((0.34 + strength * 0.48) * share, 0.18, 0.82);
+        const cl = addClue(e, G.boat.x, G.boat.y, 'HFDF', conf, null);
+        e.suspicion = clamp(Math.max(e.suspicion || 0, 0.24 + strength * 0.48 * share), 0, 1);
+        e.searchAnchor = { x:cl.x, y:cl.y,
+                           heading:norm360(bearing(e.x,e.y,cl.x,cl.y)), t:G.time };
+        affected++;
+      });
+      return { ok:true, affected:affected };
     },
     mods: function () { return G ? JSON.parse(JSON.stringify(G.mods)) : null; },
     /* ── 발밑의 바다 ──
@@ -27751,6 +27980,13 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
   let obsSaved = false;
   try { obsSaved = localStorage.getItem(OBS_KEY) === '1'; } catch (e) {}
   ui.obs = /(^|[#&])obs\b/.test(location.hash || '') || obsSaved;
+  /* v6.23.7 — 역사전 검증은 새 메뉴가 아니라 기존 관전/개발자 모드의 도구다.
+     제목 5연타, #obs, 저장된 관전모드가 모두 같은 ui.obs 플래그를 사용한다. */
+  function syncHistValidationDevAccess(){
+    const b = document.getElementById('btnHistValidate');
+    if (b) b.style.display = ui.obs ? '' : 'none';
+  }
+  syncHistValidationDevAccess();
   /* 겹쳐 그릴 것 넷. 기본은 전부 켬이고, 관전 중에 숫자키로 하나씩 끈다.
      한 화면에 다 얹으면 빽빽해서 오히려 안 보이기 때문이다.
        1 진짜/추정   2 단서   3 AI 상태   4 어뢰·폭뢰 */
@@ -27769,6 +28005,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       ui.obs = !ui.obs;
       try { localStorage.setItem(OBS_KEY, ui.obs ? '1' : '0'); } catch (e) {}
       if (!ui.obs && U.setObserver) U.setObserver(false);
+      syncHistValidationDevAccess();
       if (typeof flash === 'function')
         flash(ui.obs ? '관전 모드 켬 — 해도에 진짜 위치가 겹쳐 보입니다'
                      : '관전 모드 끔');
@@ -28350,6 +28587,426 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     ui.quick.presetAtStart = built.diff.crewPreset;
     flash((built.randomized ? '무작위 시나리오 — ' : '빠른 전투 — ' + built.diff.label + ' · ') + built.scn.ko, 'info');
   });
+
+
+  /* ══════════════════════════════════════════════════════════════
+     V6.23 HISTORICAL SCENARIO DIRECTOR
+     캠페인 Encounter Director와 분리된 독립 역사전 감독기.
+     전투 코어는 그대로 재사용하고, 시작 조건·목표·배경 전황·평가만 소유한다.
+     저장은 historicalScenarioValidationV623에만 기록하며 War/Campaign 저장을 건드리지 않는다.
+     ══════════════════════════════════════════════════════════════ */
+  const HISTOPS_V623 = [{"id":"ATL_HX229_SC122","theater":"ATLANTIC","date":"1943-03-16~19","title":"HX-229 / SC-122","role":"U보트 · 대형 호송선단 접촉 유지와 제한 공격","brief":"대규모 호송전의 한 척으로 참가한다. 다른 U보트의 전과는 배경 전황으로 처리하고, 플레이어는 접촉·보고·자기 공격·생환에 집중한다.","era":"MID","ships":6,"escorts":4,"speed":8,"weather":"gale","req":["CONTACT","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":120,"weights":[30,25,20,10,15],"base":"CONVOY","bg1":"다른 U보트들의 접촉보고가 오가며 호송대의 대형이 흔들리고 있다.","bg2":"호위대가 공격축을 좁혀 오고 있다. 더 머물지, 끊고 빠질지 판단해야 한다."},{"id":"ATL_ONS5","theater":"ATLANTIC","date":"1943-04-29~05-06","title":"ONS 5","role":"U보트 · 강한 호위망 속 추적과 생존","brief":"전과 욕심보다 접촉 유지와 생환이 중요하다. 시간이 갈수록 호위와 항공대잠 압력이 커지는 역사전이다.","era":"MID","ships":5,"escorts":5,"speed":8,"weather":"gale","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":300,"weights":[35,15,10,15,25],"base":"CONVOY","bg1":"호위대의 수색이 조직적으로 바뀌고 있다. 공격보다 위치 보존이 더 어려워진다.","bg2":"대잠 압력이 최고조에 접근한다. 접촉을 유지했다면 이탈이 곧 임무다."},{"id":"ATL_SC130","theater":"ATLANTIC","date":"1943-05-16~19","title":"SC 130","role":"U보트 · 강화된 연합 대잠망 속 제한 공격","brief":"호송대는 찾을 수 있지만 오래 머물수록 위험하다. 보고 후 공격창이 생길 때만 들어가는 시나리오다.","era":"MID","ships":5,"escorts":5,"speed":8,"weather":"haze","req":["CONTACT","REPORT","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":180,"weights":[35,20,15,10,20],"base":"CONVOY","bg1":"호위함들이 접촉 정보를 공유하며 수색선을 재편한다.","bg2":"공격창이 닫히고 있다. 성과가 있더라도 오래 붙는 것은 손해다."},{"id":"ATL_JW55B","theater":"ATLANTIC","date":"1943-12-26","title":"JW 55B / 북곶","role":"U보트 전초선 · 북극 호송선 위치·침로 보고","brief":"전함 결전을 대신 치르는 임무가 아니다. 북극 호송대를 찾아 분류하고 정확히 보고하는 정보전이다.","era":"MID","ships":4,"escorts":4,"speed":8,"weather":"gale","req":["CONTACT","CLASSIFY","REPORT","SURVIVE"],"bonus":["HOLD"],"hold":240,"weights":[55,5,5,15,20],"base":"CONVOY","bg1":"북극해의 다른 수상전력은 플레이어와 무관하게 작전을 계속한다.","bg2":"주력함대의 전투는 배경에서 진행된다. 잠수함의 몫은 끝까지 정보선을 유지하는 것이다."},{"id":"ATL_JW58","theater":"ATLANTIC","date":"1944-03-27~04-04","title":"JW 58","role":"U보트 · 북극 호송선 추적 유지","brief":"악천후와 강한 호위망 속에서 접촉을 끊지 않고 보고하는 것이 중심이다. 공격은 기회가 있을 때만 한다.","era":"LATE","ships":5,"escorts":5,"speed":8,"weather":"gale","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":300,"weights":[45,10,10,15,20],"base":"CONVOY","bg1":"호위항공과 수상호위가 수색 간격을 좁힌다.","bg2":"장시간 접촉을 유지했다면 임무 가치는 이미 충분하다. 무리한 접근은 선택사항이다."},{"id":"ATL_NORMANDY","theater":"ATLANTIC","date":"1944-06-06","title":"노르망디 상륙해역","role":"독일 U보트 · 상륙선단 정찰과 극한 생존","brief":"상륙작전을 뒤집는 임무가 아니다. 함정이 빽빽한 해역에서 접촉보고를 남기고 살아서 빠져나오는 것이 주목표다.","era":"LATE","ships":3,"escorts":6,"speed":7,"weather":"haze","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK"],"hold":240,"weights":[40,10,5,20,25],"base":"CONVOY","bg1":"상륙해역의 함정 밀도가 계속 높아진다. 공격보다 들키지 않는 항로가 중요하다.","bg2":"연합 대잠초계가 집중된다. 이 시점부터 생환 자체가 큰 성과다."},{"id":"MED_HARPOON","theater":"MEDITERRANEAN","date":"1942-06-12~15","title":"Operation Harpoon","role":"추축 잠수함 · 몰타 보급선단 탐지·차단","brief":"좁은 접근로에서 호송선단의 위치를 보고하고, 호위망 틈이 생기면 보급선에 제한 공격한다.","era":"EARLY","ships":5,"escorts":4,"speed":8,"weather":"clear","req":["CONTACT","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":150,"weights":[30,30,20,5,15],"base":"CONVOY","bg1":"해상과 공중의 다른 전투는 배경에서 계속된다. 플레이어는 자기 공격축만 책임진다.","bg2":"호송대가 접근로를 벗어나기 시작한다. 마지막 공격창과 이탈시점이 겹친다."},{"id":"MED_VIGOROUS","theater":"MEDITERRANEAN","date":"1942-06-11~16","title":"Operation Vigorous","role":"추축 잠수함 · 이동하는 목표 우선순위 판단","brief":"다수의 함정과 호위가 얽힌다. 먼저 무엇을 보고할지, 무엇을 추적할지 선택하는 역사전이다.","era":"EARLY","ships":6,"escorts":4,"speed":8,"weather":"haze","req":["CONTACT","CLASSIFY","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":180,"weights":[40,25,10,10,15],"base":"CONVOY","bg1":"전황 변화로 호송대의 진로와 우선순위가 계속 바뀐다.","bg2":"중요 표적을 끝까지 붙들었는지가 단순 격침수보다 더 큰 평가를 받는다."},{"id":"MED_PEDESTAL","theater":"MEDITERRANEAN","date":"1942-08-09~15","title":"Operation Pedestal","role":"추축 잠수함 · 전략적 보급선단 고가치 표적 선택","brief":"모든 배를 공격하는 전투가 아니다. 몰타 보급에 중요한 표적을 골라 접근하고, 공격 후 이탈한다.","era":"EARLY","ships":6,"escorts":5,"speed":8,"weather":"clear","req":["CONTACT","CLASSIFY","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":180,"weights":[25,30,25,5,15],"base":"CONVOY","bg1":"호송대의 방공·호위 대형이 변화하며 표적 가치와 접근 위험이 엇갈린다.","bg2":"공격 기회가 줄어든다. 한 번의 좋은 공격 뒤 살아 나오는 편이 더 큰 성과다."},{"id":"MED_TORCH","theater":"MEDITERRANEAN","date":"1942-11-08","title":"Operation Torch","role":"독일 U보트 · 상륙함대 접근 확인·보고·제한 공격","brief":"북아프리카 상륙함대 전체를 막는 임무가 아니다. 접근 세력을 찾아 분류·보고하고, 공격창이 생길 때만 제한 공격한다.","era":"EARLY","ships":2,"escorts":2,"speed":7,"weather":"haze","req":["CONTACT","CLASSIFY","REPORT","SURVIVE"],"bonus":["HOLD","ATTACK","HIT"],"hold":240,"weights":[45,15,15,10,15],"base":"PATROL","bg1":"상륙함대와 호위대는 작전시간표대로 계속 움직인다. 잠수함은 자기 접촉축만 책임진다.","bg2":"상륙해역의 대잠경계가 강화된다. 정보와 전과를 얻었다면 생환이 다음 임무다."},{"id":"MED_HUSKY","theater":"MEDITERRANEAN","date":"1943-07-09~10","title":"Operation Husky","role":"독일 U보트 · 시칠리아 상륙선단 감시·기회공격","brief":"상륙을 혼자 저지하지 않는다. 접근 선단을 찾아 보고하고, 호위망 틈에 들어올 수 있을 때만 공격한다.","era":"MID","ships":2,"escorts":3,"speed":7,"weather":"clear","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["CLASSIFY","ATTACK","HIT"],"hold":240,"weights":[40,25,15,5,15],"base":"PATROL","bg1":"상륙선단이 여러 축으로 접근한다. 잠수함 한 척이 모든 축을 막을 수는 없다.","bg2":"대잠초계가 촘촘해진다. 접촉보고를 남겼다면 추가 전과보다 이탈이 중요해진다."},{"id":"MED_AVALANCHE","theater":"MEDITERRANEAN","date":"1943-09-09","title":"Operation Avalanche","role":"독일 U보트 · 살레르노 상륙해역 감시·기회공격","brief":"상륙작전의 흐름은 배경에서 계속된다. 플레이어는 접촉보고와 제한 공격, 이후 생환에 집중한다.","era":"MID","ships":2,"escorts":3,"speed":7,"weather":"clear","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["CLASSIFY","ATTACK","HIT"],"hold":240,"weights":[40,25,15,5,15],"base":"PATROL","bg1":"상륙함대가 해안으로 들어가며 호위와 초계 밀도가 높아진다.","bg2":"상륙작전이 본격화됐다. 잠수함은 남은 공격기회보다 이탈로를 먼저 계산해야 한다."},{"id":"PAC_CORAL_SEA","theater":"PACIFIC","date":"1942-05-04~08","title":"산호해 해전","role":"미 잠수함 · 분산된 일본 함대집단 식별·보고","brief":"항모 결전을 대신 치르지 않는다. 중요한 함대집단을 찾아 분류하고 침로를 보고하는 정찰전이다.","era":"EARLY","ships":0,"escorts":3,"speed":12,"weather":"squall","req":["CONTACT","CLASSIFY","REPORT","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":180,"weights":[55,5,10,10,20],"base":"WARSHIP","warship":true,"bg1":"항모 항공전은 멀리서 독립적으로 진행된다. 잠수함은 자기 접촉을 유지한다.","bg2":"주력 함대들의 진로가 바뀐다. 마지막으로 확인한 위치와 침로가 가장 중요한 정보가 된다.","focus":"CARRIER"},{"id":"PAC_MIDWAY","theater":"PACIFIC","date":"1942-06-03~07","title":"미드웨이 해전","role":"미 잠수함 · 기동부대 접촉·보고·기회공격","brief":"일본 항모 4척 격침 같은 목표는 없다. 적 기동부대를 찾아 보고하고, 호위망을 넘을 수 있을 때만 한 번의 공격기회를 노린다.","era":"EARLY","ships":0,"escorts":4,"speed":13,"weather":"clear","req":["CONTACT","CLASSIFY","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":180,"weights":[50,5,15,10,20],"base":"WARSHIP","warship":true,"bg1":"정찰기와 항모 항공대의 전투는 플레이어와 별개로 진행된다.","bg2":"주력함 일부가 재편·철수 단계로 들어간다. 잠수함은 남은 접촉을 이용할지 이탈할지 결정한다.","focus":"CARRIER"},{"id":"PAC_SAVO_AFTERMATH","theater":"PACIFIC","date":"1942-08-10","title":"사보섬 해전 후속","role":"미 잠수함 · 철수 중 일본 순양함대 퇴로 매복","brief":"본 해전은 이미 끝났다. 철수로에 먼저 자리 잡아 고속 군함을 찾고 짧은 공격창을 활용한다.","era":"EARLY","ships":0,"escorts":1,"speed":14,"weather":"haze","req":["CONTACT","CLASSIFY","SOLUTION","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":120,"weights":[20,20,35,5,20],"base":"WARSHIP","warship":true,"bg1":"해전에서 빠져나온 함정들이 분산된 채 귀항로로 접어든다.","bg2":"고속 표적은 곧 공격권 밖으로 벗어난다. 해법이 없다면 무리한 추격보다 생환이 낫다.","focus":"HEAVY_CRUISER"},{"id":"PAC_EAST_SOLOMONS","theater":"PACIFIC","date":"1942-08-24","title":"동부 솔로몬 해전","role":"미 잠수함 · 항모부대와 증원부대 사이 우선순위 판단","brief":"가장 화려한 표적을 쫓는 대신, 자신이 확보한 접촉 중 작전상 중요한 목표를 끝까지 추적·보고한다.","era":"EARLY","ships":4,"escorts":3,"speed":10,"weather":"squall","req":["CONTACT","CLASSIFY","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK","HIT"],"hold":180,"weights":[40,25,10,10,15],"base":"CONVOY","bg1":"항모전과 증원작전이 동시에 움직인다. 한 잠수함이 두 전장을 모두 잡을 수는 없다.","bg2":"선택한 접촉을 끝까지 유지했는지가 중요하다. 다른 전황은 배경 보고로만 들어온다."},{"id":"PAC_CAPE_ESPERANCE","theater":"PACIFIC","date":"1942-10-11~12","title":"에스페란스곶 해전","role":"미 잠수함 · 야간 접근함대 조기 탐지","brief":"시계가 나쁜 밤, 청음과 해법으로 접근 세력을 먼저 찾아 보고하는 것이 핵심이다.","era":"EARLY","ships":0,"escorts":2,"speed":13,"weather":"haze","req":["CONTACT","CLASSIFY","REPORT","HOLD","SURVIVE"],"bonus":["ATTACK"],"hold":180,"weights":[55,5,5,15,20],"base":"WARSHIP","warship":true,"bg1":"야간 수상전대가 서로 접근한다. 잠수함에게는 완벽한 식별보다 조기 경보가 먼저다.","bg2":"수상전이 가까워진다. 접촉보고를 마쳤다면 불필요한 혼전 진입을 피하는 것이 합리적이다.","focus":"HEAVY_CRUISER"},{"id":"PAC_SANTA_CRUZ","theater":"PACIFIC","date":"1942-10-26","title":"산타크루즈 해전","role":"미 잠수함 · 손상·이탈 함정 추적","brief":"항모전의 승패를 직접 결정하지 않는다. 전투 후 대형 편대에서 떨어져 나온 고가치 접촉을 추적한다.","era":"EARLY","ships":0,"escorts":2,"speed":11,"weather":"squall","req":["CONTACT","CLASSIFY","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":150,"weights":[25,15,35,5,20],"base":"WARSHIP","warship":true,"bg1":"항공전 피해로 일부 함정이 편대에서 떨어진다. 잠수함의 공격기회는 이 틈에서 생긴다.","bg2":"호위대가 손상함 주변으로 모인다. 공격했다면 오래 남지 않는 편이 좋다.","focus":"CARRIER"},{"id":"PAC_GUADALCANAL","theater":"PACIFIC","date":"1942-11-12~15","title":"과달카날 해전","role":"미 잠수함 · 포격·증원세력 지속 감시와 차단","brief":"한 번의 결전이 아니라 여러 차례 접근하는 세력을 계속 찾아 보고하고, 기회가 생기면 수송·전투함을 차단한다.","era":"EARLY","ships":4,"escorts":4,"speed":10,"weather":"haze","req":["CONTACT","REPORT","ATTACK","HOLD","SURVIVE"],"bonus":["HIT","SINK"],"hold":300,"weights":[30,25,25,5,15],"base":"CONVOY","bg1":"밤에는 수상함이, 낮에는 항공위협이 전장을 지배한다. 잠수함은 접촉축을 바꿔야 한다.","bg2":"증원·포격 작전이 끝물로 들어간다. 누적 보고와 차단 성과를 보존한 채 이탈한다."},{"id":"PAC_TASSAFARONGA","theater":"PACIFIC","date":"1942-11-30","title":"타사파롱가","role":"미 잠수함 · 고속 구축함 보급부대 짧은 공격창","brief":"빠른 표적을 오래 추격하는 임무가 아니다. 먼저 자리를 잡고 짧은 시간 안에 해법과 공격 여부를 결정한다.","era":"EARLY","ships":1,"escorts":4,"speed":15,"weather":"haze","req":["CONTACT","SOLUTION","ATTACK","SURVIVE"],"bonus":["HIT"],"hold":120,"weights":[15,30,30,5,20],"base":"CONVOY","bg1":"고속 보급대가 공격구역을 빠르게 통과한다. 해법이 늦으면 기회는 사라진다.","bg2":"표적군이 이탈 단계로 들어간다. 더 따라붙기보다 반격을 피하는 것이 중요해진다."},{"id":"PAC_PHILIPPINE_SEA","theater":"PACIFIC","date":"1944-06-19~20","title":"필리핀해 해전","role":"미 잠수함 · 항모군 접촉과 한 번의 고가치 공격기회","brief":"실제 잠수함 전과는 역사적 기회일 뿐 의무 목표가 아니다. 항모군을 찾아 보고하고, 가능한 경우에만 고가치 표적을 공격한다.","era":"LATE","ships":0,"escorts":4,"speed":14,"weather":"clear","req":["CONTACT","CLASSIFY","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":180,"weights":[35,5,35,5,20],"base":"WARSHIP","warship":true,"bg1":"대규모 항공전은 독립적으로 진행된다. 잠수함은 호위망 바깥에서 접촉을 유지한다.","bg2":"항모군의 대형이 흐트러진다. 얻은 기회가 있다면 단 한 번의 제대로 된 공격이면 충분하다.","focus":"CARRIER"},{"id":"PAC_LEYTE_PALAWAN","theater":"PACIFIC","date":"1944-10-23","title":"레이테 · 팔라완 수로","role":"미 잠수함 · 중앙함대 발견·긴급보고·대함대 매복","brief":"좁은 수로에서 대형 함대를 먼저 찾아 보고한 뒤, 호위망 사이에서 가능한 표적을 공격한다.","era":"LATE","ships":0,"escorts":4,"speed":15,"weather":"clear","req":["CONTACT","CLASSIFY","REPORT","ATTACK","SURVIVE"],"bonus":["HIT","SINK"],"hold":180,"weights":[35,10,35,5,15],"base":"WARSHIP","warship":true,"bg1":"중앙함대가 좁은 통로를 통과한다. 보고가 늦으면 정보 가치가 급격히 떨어진다.","bg2":"함대가 통로를 벗어나며 호위대가 공격축을 압박한다. 공격 후 이탈이 핵심이다.","focus":"HEAVY_CRUISER"},{"id":"PAC_LEYTE_SIBUYAN","theater":"PACIFIC","date":"1944-10-24","title":"레이테 · 시부얀해 접근","role":"미 잠수함 · 손상·이탈 함정 추적","brief":"대함대 전체를 상대하지 않는다. 공습과 전투에서 떨어져 나온 접촉을 추적해 기회공격한다.","era":"LATE","ships":0,"escorts":2,"speed":11,"weather":"squall","req":["CONTACT","CLASSIFY","ATTACK","SURVIVE"],"bonus":["REPORT","HIT","SINK"],"hold":150,"weights":[20,10,45,5,20],"base":"WARSHIP","warship":true,"bg1":"전황 변화로 일부 함정이 주력대형에서 이탈한다. 잠수함은 그 틈을 노린다.","bg2":"호위가 재편되고 있다. 손상함을 따라가더라도 자기 이탈로를 잃어서는 안 된다.","focus":"BATTLESHIP"},{"id":"PAC_LEYTE_SAMAR","theater":"PACIFIC","date":"1944-10-25","title":"레이테 · 사마르 주변","role":"미 잠수함 · 예상 밖 적 주력의 긴급 접촉보고","brief":"격침보다 보고 시간이 중요하다. 예상하지 못한 방향의 주력 접촉을 확보해 즉시 알리고 생환한다.","era":"LATE","ships":0,"escorts":3,"speed":15,"weather":"squall","req":["CONTACT","REPORT","HOLD","SURVIVE"],"bonus":["CLASSIFY","ATTACK"],"hold":180,"weights":[60,5,5,10,20],"base":"WARSHIP","warship":true,"bg1":"전황이 급변한다. 완벽한 분류를 기다리기보다 존재와 침로를 먼저 알릴 가치가 크다.","bg2":"접촉보고가 전달됐다면 임무의 핵심은 달성됐다. 추가 공격은 위험을 감수한 선택이다.","focus":"BATTLESHIP"},{"id":"EAST_ELLWOOD","theater":"EASTPAC","date":"1942-02-23","title":"엘우드","role":"일본 잠수함 · 미 서해안 연안 접근·임무 후 이탈","brief":"대함대전이 아니라 연안 특수작전이다. 이 버전의 독립 역사전은 접근과 경계 회피·생환을 검증하고, 해안사건 자체는 기존 H 비함대 연출을 존중한다.","era":"EARLY","ships":0,"escorts":2,"speed":8,"weather":"haze","req":["CONTACT","HOLD","SURVIVE"],"bonus":["REPORT"],"hold":240,"weights":[20,10,0,35,35],"base":"PATROL","prototype":true,"bg1":"연안 경계가 서서히 강화된다. 불필요한 교전은 임무와 맞지 않는다.","bg2":"지정 임무시간이 지나간다. 흔적을 남기지 않고 외해로 빠지는 단계다."},{"id":"EAST_FORT_STEVENS","theater":"EASTPAC","date":"1942-06-21","title":"포트 스티븐스","role":"일본 잠수함 · 연안 접근과 경계 회피","brief":"연안 접근·은밀성·이탈을 중심으로 검증한다. 해안 포격 자체는 임의 함대전으로 바꾸지 않는다.","era":"EARLY","ships":0,"escorts":2,"speed":8,"weather":"haze","req":["CONTACT","HOLD","SURVIVE"],"bonus":["REPORT"],"hold":240,"weights":[20,10,0,35,35],"base":"PATROL","prototype":true,"bg1":"해안 초계가 접근축을 훑는다. 수상에서 오래 머물수록 위험이 커진다.","bg2":"연안 임무 단계가 종료된다. 외해로 이탈해 추적을 끊어야 한다."},{"id":"EAST_OPERATION_K","theater":"EASTPAC","date":"1942-03-04","title":"Operation K","role":"일본 잠수함 · 장거리 항공작전 지원 위치 확보","brief":"전투보다 정시 지원이 핵심인 비함대 역사작전의 검증 골격이다. 함재/지원 항공 시스템이 별도 완성되기 전에는 전술 접촉과 생존만 시험한다.","era":"EARLY","ships":0,"escorts":1,"speed":8,"weather":"clear","req":["HOLD","SURVIVE"],"bonus":["CONTACT","REPORT"],"hold":300,"weights":[10,25,0,30,35],"base":"PATROL","prototype":true,"bg1":"지원 작전의 시간창이 열려 있다. 위치를 유지하는 것이 공격보다 중요하다.","bg2":"지원 시간창이 닫힌다. 임무가 끝났다면 즉시 안전한 이탈로 전환한다."},{"id":"EAST_LOOKOUT","theater":"EASTPAC","date":"1942-09-09","title":"Lookout 공습 지원","role":"I-25 계열 · 탑재 수상기 작전 지원","brief":"향후 탑재기 발진·회수 시스템을 위한 검증 골격이다. 현재는 연안 접근·시간 유지·생환만 시험하며 가짜 함대전을 만들지 않는다.","era":"EARLY","ships":0,"escorts":1,"speed":8,"weather":"clear","req":["HOLD","SURVIVE"],"bonus":["CONTACT","REPORT"],"hold":300,"weights":[10,25,0,30,35],"base":"PATROL","prototype":true,"bg1":"기상과 연안 경계 사이에서 지원 시간창을 유지한다.","bg2":"항공지원 단계가 종료된다. 회수 이후 외해로 이탈하는 상황을 가정한다."},{"id":"EAST_WESTCOAST_PATROL","theater":"EASTPAC","date":"1942","title":"미 서해안 초계 1942","role":"일본 잠수함 · 장기 독립초계와 선별 공격","brief":"여러 실제 상선 사건을 하나의 장기초계 감각으로 묶은 시나리오다. 아무 표적이나 쏘는 대신 접촉을 분류하고 공격기회를 고른다.","era":"EARLY","ships":2,"escorts":1,"speed":8,"weather":"haze","req":["CONTACT","CLASSIFY","ATTACK","SURVIVE"],"bonus":["REPORT","HIT","SINK"],"hold":180,"weights":[20,30,30,5,15],"base":"CONVOY","bg1":"연안 교통이 흩어져 있어 접촉 하나의 가치가 크다. 분류 뒤 공격 여부를 결정한다.","bg2":"초계 시간이 길어질수록 연료·위치 노출의 부담이 커진다. 성과가 있다면 귀환 판단이 필요하다."}];
+  const HISTOPS_KEY_V623 = 'historicalScenarioValidationV623';
+  const HIST_OBJ_KO_V623 = {
+    CONTACT:'접촉 확립', CLASSIFY:'함종/세력 분류', SOLUTION:'사격해법 확보',
+    REPORT:'접촉 보고 송신', ATTACK:'공격 실시', HIT:'유효 명중', SINK:'격침',
+    HOLD:'지정 시간 접촉/작전 유지', SURVIVE:'안전 이탈'
+  };
+  const HIST_THEATER_KO_V623 = {
+    ATLANTIC:'북대서양', MEDITERRANEAN:'지중해', PACIFIC:'서태평양', EASTPAC:'동태평양'
+  };
+  let histTheaterV623 = 'ATLANTIC';
+  let histPickV623 = HISTOPS_V623[0].id;
+  let histValidationV623 = false;
+  let histRunV623 = null;
+
+  function histHashV623(s){
+    let h=2166136261>>>0;
+    for(let i=0;i<String(s).length;i++){ h^=String(s).charCodeAt(i); h=Math.imul(h,16777619); }
+    return h>>>0;
+  }
+  function histClampV623(v,a,b){ return Math.max(a,Math.min(b,v)); }
+  function histScenarioV623(id){ return HISTOPS_V623.find(x=>x.id===id)||null; }
+  function histStoreLoadV623(){
+    try{
+      const raw=localStorage.getItem(HISTOPS_KEY_V623);
+      const o=raw?JSON.parse(raw):{};
+      return o&&typeof o==='object'?o:{};
+    }catch(e){ return {}; }
+  }
+  function histStoreSaveV623(o){
+    try{ localStorage.setItem(HISTOPS_KEY_V623,JSON.stringify(o||{})); return true; }
+    catch(e){ return false; }
+  }
+  function histAliveV623(g){
+    if(!g||!g.boat) return false;
+    if(g.boat.alive===false || g.boat.destroyed===true || g.boat.sunk===true) return false;
+    if(Number.isFinite(g.boat.hp) && g.boat.hp<=0) return false;
+    if(Number.isFinite(g.boat.hull) && g.boat.hull<=0) return false;
+    return true;
+  }
+  function histMetricsV623(){
+    const g=U.state();
+    if(!g) return {time:0,contacts:0,classified:0,solved:0,torpFired:0,torpHit:0,sunk:0,tons:0,dcNear:0,alive:false};
+    const cs=(g.contacts||[]).filter(c=>!c.lost);
+    const classified=cs.filter(c=>c.classification && c.classification!=='UNKNOWN' && (c.classificationConfidence==null || c.classificationConfidence>=.20)).length;
+    const solved=cs.filter(c=>(c.solutionConfidence||0)>=.45 && c.courseEstimate!=null && c.speedEstimate!=null).length;
+    const st=g.stats||{};
+    return {
+      time:+g.time||0, contacts:cs.length, classified, solved,
+      torpFired:+st.torpFired||0, torpHit:+st.torpHit||0,
+      sunk:+st.sunkCount||0, tons:+st.sunkTons||0, dcNear:+st.dcNear||0,
+      alive:histAliveV623(g)
+    };
+  }
+  function histObjDoneV623(code,sc,m){
+    if(code==='CONTACT') return m.contacts>0;
+    if(code==='CLASSIFY') return m.classified>0;
+    if(code==='SOLUTION') return m.solved>0;
+    if(code==='REPORT') return !!(histRunV623&&histRunV623.reportSent);
+    if(code==='ATTACK') return m.torpFired>0;
+    if(code==='HIT') return m.torpHit>0;
+    if(code==='SINK') return m.sunk>0;
+    if(code==='HOLD') return m.time>=(sc.hold||180);
+    /* 역사전의 생환은 '현재 안 죽었다'가 아니라 실제 안전 이탈을 끝낸 경우만 인정한다. */
+    if(code==='SURVIVE') return !!(histRunV623&&histRunV623.exfilCompleted&&m.alive);
+    return false;
+  }
+  function histCoreReqV623(sc){ return (sc&&sc.req||[]).filter(x=>x!=='SURVIVE'); }
+  function histCoreMissingV623(sc,m){
+    return histCoreReqV623(sc).filter(x=>!histObjDoneV623(x,sc,m));
+  }
+  function histMissionReadyV623(sc,m){
+    return !!histRunV623 && !histRunV623.runtimeErrors.length && histCoreMissingV623(sc,m).length===0;
+  }
+  function histScoreV623(sc,m){
+    const intel=(m.contacts>0?.35:0)+(m.classified>0?.25:0)+(m.solved>0?.15:0)+(histRunV623&&histRunV623.reportSent?.25:0);
+    const interd=histClampV623((m.torpFired>0?.25:0)+(m.torpHit>0?.35:0)+(m.sunk>0?.40:0),0,1);
+    const damage=histClampV623(m.torpHit*.28+m.sunk*.45,0,1);
+    const stealth=histClampV623(1-m.dcNear/6,0,1);
+    const survival=(histRunV623&&histRunV623.exfilCompleted&&m.alive)?1:0;
+    const w=sc.weights||[20,20,20,20,20], sum=w.reduce((a,b)=>a+b,0)||100;
+    return Math.round(100*(intel*w[0]+interd*w[1]+damage*w[2]+stealth*w[3]+survival*w[4])/sum);
+  }
+  function histPassV623(sc,m){
+    if(!histRunV623 || histRunV623.runtimeErrors.length) return false;
+    return (sc.req||[]).every(x=>histObjDoneV623(x,sc,m));
+  }
+  function histRecordV623(force){
+    if(!histRunV623||!histRunV623.scenario) return null;
+    const sc=histRunV623.scenario,m=histMetricsV623(),score=histScoreV623(sc,m),pass=histPassV623(sc,m);
+    if(!force && (!pass || histRunV623.passSaved)) return {pass,score,m};
+    const store=histStoreLoadV623(), old=store[sc.id]||{};
+    store[sc.id]={
+      attempts:(old.attempts||0)+1, passed:!!(old.passed||pass),
+      bestScore:Math.max(old.bestScore||0,score), lastScore:score, lastPass:pass,
+      lastAt:new Date().toISOString(), validation:!!histRunV623.validation,
+      metrics:m, runtimeErrors:histRunV623.runtimeErrors.slice(0,5),
+      reportSent:!!histRunV623.reportSent, reportQuality:+(histRunV623.reportQuality||0).toFixed(3),
+      radioDfHits:histRunV623.radioDfHits||0,
+      exfilCompleted:!!histRunV623.exfilCompleted, exfilAt:histRunV623.exfilAt==null?null:+histRunV623.exfilAt.toFixed(1)
+    };
+    histStoreSaveV623(store);
+    if(pass) histRunV623.passSaved=true;
+    return {pass,score,m};
+  }
+  function histBuildOptionsV623(sc,validation){
+    const d=QUICK_DIFFICULTY.NORMAL;
+    const er=ERA[sc.era]||ERA.MID;
+    const seed=validation ? histHashV623(sc.id) : (histHashV623(sc.id)^((Date.now()/1000)|0))>>>0;
+    const boatByTheater={ATLANTIC:'TYPE_VIIC',MEDITERRANEAN:'TYPE_VIIC',PACIFIC:'GATO',EASTPAC:'I_15'};
+    const o={
+      mode:'QUICK', theater:sc.theater, boat:boatByTheater[sc.theater], seed:seed,
+      difficulty:d.id, scenario:sc.base||'CONVOY',
+      simMode:window.__simMode||'ENGAGEMENT_SIM',
+      ships:Math.max(0,Math.min(8,+sc.ships||0)), escorts:Math.max(0,Math.min(6,+sc.escorts||0)),
+      escortSkill:d.escortSkill, crewSkill:d.crewSkill,
+      escortProfile:JSON.parse(JSON.stringify(d.prof)),
+      hedgehog:(er.escalation||0)*1.05, homing:sc.era!=='EARLY',
+      battery:d.battery, air:d.air, frailShips:!!d.frailShips,
+      safetyHold:d.safetyHold, safetyRange:d.safetyRange,
+      scoreMul:d.scoreMul, contactAid:d.contactAid,
+      startRange:sc.startRange!=null?sc.startRange:d.startRange,
+      startAspect:sc.aspect||d.startAspect,
+      minEscortRange:d.minEscortRange,
+      escalation:er.escalation, era:sc.era,
+      startSolution:null, /* 역사전은 C1만 선행 해법을 받지 않는다 */
+      escortGrace:sc.grace!=null?sc.grace:(d.escortGrace!=null?d.escortGrace:300),
+      hardConvoy:false, historicalScenario:sc.id
+    };
+    if(d.doctrine) o.doctrine=d.doctrine;
+    if(sc.weather) o.weather=sc.weather;
+    if(sc.speed) o.convoySpeedKn=sc.speed;
+    if(sc.warship && window.WARSHIPS && Array.isArray(window.WARSHIPS.RARE) && typeof window.WARSHIPS.classesFor==='function'){
+      let pool=window.WARSHIPS.RARE.filter(r=>{
+        if(sc.focus && r.type!==sc.focus) return false;
+        try{return window.WARSHIPS.classesFor(sc.theater,r.type,o.escalation).length>0;}catch(e){return false;}
+      });
+      if(!pool.length){
+        pool=window.WARSHIPS.RARE.filter(r=>{
+          try{return window.WARSHIPS.classesFor(sc.theater,r.type,o.escalation).length>0;}catch(e){return false;}
+        });
+      }
+      if(pool.length){
+        const r=pool[seed%pool.length];
+        o.rare={type:r.type}; o.ships=0;
+        if(Array.isArray(r.escorts)) o.escorts=Math.min(6,Math.max(o.escorts||0,+r.escorts[0]||0));
+      }
+    }
+    return o;
+  }
+  function histRenderMenuV623(){
+    const box=$('histScenarioList'), store=histStoreLoadV623();
+    document.querySelectorAll('#histTheaterList [data-hth]').forEach(b=>b.classList.toggle('on',b.dataset.hth===histTheaterV623));
+    const list=HISTOPS_V623.filter(x=>x.theater===histTheaterV623);
+    if(!list.some(x=>x.id===histPickV623)) histPickV623=list[0]&&list[0].id;
+    box.innerHTML='';
+    list.forEach(sc=>{
+      const r=store[sc.id]||{};
+      const b=document.createElement('button');
+      b.className='histScn'+(sc.id===histPickV623?' on':'');
+      b.dataset.hsid=sc.id;
+      const badge=r.passed?'<span class="histBadge pass">검증 통과</span>':(r.attempts?'<span class="histBadge warn">재검증</span>':'<span class="histBadge">미검증</span>');
+      b.innerHTML=badge+'<b>'+sc.title+'</b><small>'+sc.date+' · '+sc.role+(sc.prototype?' · 실험 골격':'')+'</small>';
+      b.addEventListener('click',()=>{histPickV623=sc.id;histRenderMenuV623();});
+      box.appendChild(b);
+    });
+    const sc=histScenarioV623(histPickV623);
+    if(sc){
+      const w=sc.weights;
+      $('histScenarioNote').innerHTML='<b style="color:var(--ink)">'+sc.title+'</b> · '+sc.date+
+        '<br>'+sc.brief+
+        '<br><span style="color:var(--dim)">주목표: '+sc.req.map(x=>HIST_OBJ_KO_V623[x]||x).join(' · ')+
+        (sc.bonus&&sc.bonus.length?'<br>보너스: '+sc.bonus.map(x=>HIST_OBJ_KO_V623[x]||x).join(' · '):'')+
+        '<br>평가축 I/I/D/ST/SV: '+w.join('/')+'</span>';
+    }
+  }
+  function histOpenMenuV623(validation){
+    histValidationV623=!!validation;
+    $('histOpsTitle').textContent=validation?'역사전 검증 모드':'역사 작전';
+    $('histOpsLead').innerHTML=validation
+      ? '각 역사전만 따로 재현해 <b style="color:var(--ink)">접촉·보고·공격·안전 이탈·런타임 오류</b>가 목표대로 작동하는지 확인합니다. 검증 모드는 고정 시드를 사용합니다.'
+      : '대해전의 승패를 혼자 결정하지 않습니다. <b style="color:var(--ink)">잠수함이 실제로 맡을 법한 역할</b>만 수행합니다.';
+    $('histOpsGo').textContent=validation?'검증 판 시작':'작전 시작';
+    $('ovStart').classList.remove('on');
+    const testOv=$('ovTestMode'); if(testOv) testOv.classList.remove('on');
+    $('ovHistOps').classList.add('on');
+    histRenderMenuV623();
+  }
+  function histStartV623(){
+    const sc=histScenarioV623(histPickV623); if(!sc) return;
+    const opts=histBuildOptionsV623(sc,histValidationV623);
+    histRunV623={
+      active:true, validation:histValidationV623, scenario:sc, opts:opts,
+      reportSent:false, reportAt:null, reportQuality:0, reportCount:0, radioTx:null, radioDfHits:0, runtimeErrors:[],
+      exfilCompleted:false, exfilAt:null,
+      timeline:[], passSaved:false, startedAt:Date.now()
+    };
+    ui.inCampaign=false;
+    const histDiff=QUICK_DIFFICULTY.NORMAL;
+    const histBuiltMeta={
+      opts:opts, diff:histDiff,
+      scn:{id:sc.id,ko:sc.title},
+      requestedScn:{id:sc.id,ko:sc.title},
+      randomized:false
+    };
+    ui.quick=quickMeta(histBuiltMeta,{
+      label:'역사전', scenario:sc.id, scenarioKo:sc.title,
+      requestedScenario:sc.id, requestedScenarioKo:sc.title,
+      historical:true, historicalValidation:histValidationV623
+    });
+    ui.theater=sc.theater;
+    if(opts.crewSkill!=null) ui.crewSkill=opts.crewSkill;
+    $('ovHistOps').classList.remove('on');
+    const histHudEl=$('histHud'), briefEl=$('brief');
+    if(histHudEl && briefEl && histHudEl.parentElement!==$('app')) briefEl.insertAdjacentElement('afterend',histHudEl);
+    openTactical(opts);
+    if(opts.crewPreset!=null && U.setAutocrewPreset) U.setAutocrewPreset(opts.crewPreset);
+    ui.quick.presetAtStart=opts.crewPreset;
+    $('histHud').classList.add('on');
+    flash((histValidationV623?'역사전 검증 — ':'역사 작전 — ')+sc.title,'info');
+    histRenderHudV623();
+  }
+  /* v6.23.5 — 역사전은 주임무를 먼저 끝내고, 기존 안전 이탈 조건까지 만족해야 종료된다. */
+  const histBaseCanDisengageV623=U.canDisengage.bind(U);
+  const histBaseDisengageV623=U.disengage.bind(U);
+  U.canDisengage=function(){
+    const base=histBaseCanDisengageV623();
+    if(!base.ok) return base;
+    if(histRunV623&&histRunV623.active){
+      const sc=histRunV623.scenario,m=histMetricsV623();
+      const missing=histCoreMissingV623(sc,m);
+      if(missing.length){
+        const labels=missing.slice(0,2).map(x=>HIST_OBJ_KO_V623[x]||x).join(' · ');
+        return {ok:false,why:'역사전 주임무 미완료 — '+labels+(missing.length>2?' 외 '+(missing.length-2)+'개':'')};
+      }
+      if(histRunV623.radioTx) return {ok:false,why:'무전 송신 중입니다 — 송신을 끝내거나 취소한 뒤 이탈하십시오.'};
+    }
+    return base;
+  };
+  U.disengage=function(){
+    const gate=U.canDisengage();
+    if(!gate.ok) return {ok:false,err:gate.why};
+    const hr=(histRunV623&&histRunV623.active)?histRunV623:null;
+    if(hr){
+      const g=U.state();
+      hr.exfilCompleted=true;
+      hr.exfilAt=g?(+g.time||0):0;
+    }
+    const r=histBaseDisengageV623();
+    if(!r||!r.ok){
+      if(hr){ hr.exfilCompleted=false; hr.exfilAt=null; }
+      return r;
+    }
+    if(hr&&hr.validation) histRecordV623(false);
+    return r;
+  };
+
+  function histReportQualityV623(m){
+    return histClampV623(.30+(m.contacts? .14:0)+(m.classified? .24:0)+(m.solved? .22:0)+Math.min(.10,m.contacts*.025),0,1);
+  }
+  function histRadioDurationV623(m,q){
+    /* 짧은 접촉보고는 약 10초, 분류·해법까지 포함한 상세보고는 길어진다. */
+    return Math.round(histClampV623(9 + Math.min(5,m.contacts) + (m.classified?4:0) + (m.solved?6:0) + q*3,10,28));
+  }
+  function histRadioDfRiskV623(sc,duration,progress){
+    const baseByTheater={ATLANTIC:.42,MEDITERRANEAN:.34,PACIFIC:.16,EASTPAC:.26};
+    const eraMul={EARLY:.72,MID:1.0,LATE:1.18};
+    const base=baseByTheater[sc.theater]!=null?baseByTheater[sc.theater]:.20;
+    const em=eraMul[sc.era]||1;
+    return histClampV623((base*em + Math.max(0,duration-10)*.012) * histClampV623(progress,0,1),0,.88);
+  }
+  function histRadioRollV623(tag){
+    if(!histRunV623) return 1;
+    const sc=histRunV623.scenario;
+    const seed=(histRunV623.opts&&histRunV623.opts.seed)||0;
+    const n=histRunV623.reportCount||0;
+    const h=histHashV623(sc.id+'|'+seed+'|'+n+'|'+tag);
+    return (h>>>0)/4294967296;
+  }
+  function histApplyRadioDfV623(progress,duration,tag){
+    if(!histRunV623||!histRunV623.active) return false;
+    const risk=histRadioDfRiskV623(histRunV623.scenario,duration,progress);
+    const hit=histRadioRollV623(tag)<risk;
+    if(hit && U.historicalRadioFix){
+      U.historicalRadioFix(histClampV623(.35+risk*.65,0,1));
+      histRunV623.radioDfHits=(histRunV623.radioDfHits||0)+1;
+    }
+    return hit;
+  }
+  function histCancelRadioV623(reason){
+    if(!histRunV623||!histRunV623.radioTx) return;
+    const g=U.state(), tx=histRunV623.radioTx;
+    const now=g?(+g.time||0):tx.startedAt;
+    const progress=histClampV623((now-tx.startedAt)/Math.max(1,tx.duration),0,1);
+    if(progress>.15) histApplyRadioDfV623(progress,tx.duration,'cancel-'+Math.floor(now));
+    histRunV623.radioTx=null;
+    flash(reason||'무전 송신 중단','info');
+    histRenderHudV623();
+  }
+  function histCompleteRadioV623(){
+    if(!histRunV623||!histRunV623.radioTx) return;
+    const g=U.state(), tx=histRunV623.radioTx;
+    histRunV623.reportSent=true;
+    histRunV623.reportAt=g?(+g.time||0):tx.endAt;
+    histRunV623.reportQuality=tx.quality;
+    histRunV623.reportCount=(histRunV623.reportCount||0)+1;
+    histApplyRadioDfV623(1,tx.duration,'complete-'+histRunV623.reportCount);
+    histRunV623.radioTx=null;
+    const q=histRunV623.reportQuality>=.78?'양호':histRunV623.reportQuality>=.55?'보통':'거친 보고';
+    flash('접촉보고 송신 완료 · '+q+' · 장시간 송신은 방향탐지 위험을 남깁니다.','info');
+    if(window.Snd&&Snd.event) try{Snd.event('radio',{urgent:false});}catch(e){}
+    histRenderHudV623();
+  }
+  function histSendReportV623(){
+    if(!histRunV623||!histRunV623.active) return;
+    const g=U.state(); if(!g) return;
+    if(histRunV623.reportSent) return flash('접촉보고는 이미 송신했습니다.','info');
+    if(histRunV623.radioTx){
+      return histCancelRadioV623('무전 송신을 취소했습니다. 이미 나간 전파는 방향탐지에 잡힐 수 있습니다.');
+    }
+    const m=histMetricsV623();
+    if(!m.contacts) return flash('보고할 접촉이 없습니다. 먼저 접촉을 확립하십시오.','info');
+    if(!(U.isSurfaced&&U.isSurfaced(g.boat)))
+      return flash('무전 송신 불가 — 안테나를 쓰려면 부상해야 합니다.','info');
+    const q=histReportQualityV623(m), duration=histRadioDurationV623(m,q);
+    histRunV623.radioTx={startedAt:+g.time||0,endAt:(+g.time||0)+duration,duration:duration,quality:q};
+    flash('무전 송신 시작 · '+duration+'초 · 송신 중에는 방향탐지 위험이 있습니다.','info');
+    if(window.Snd&&Snd.event) try{Snd.event('radio',{urgent:false});}catch(e){}
+    histRenderHudV623();
+  }
+  function histRenderHudV623(){
+    if(!histRunV623||!histRunV623.active) return;
+    const sc=histRunV623.scenario,m=histMetricsV623(),pass=histPassV623(sc,m);
+    const role=String(sc.role||'').replace(/^[^·]+·\s*/,'');
+    $('histHudTitle').innerHTML='<b>'+sc.title+'</b>'+role;
+    const rb=$('histHudReport');
+    if(rb){
+      if(histRunV623.reportSent){ rb.textContent='보고완료'; rb.disabled=true; }
+      else if(histRunV623.radioTx){
+        const left=Math.max(0,Math.ceil(histRunV623.radioTx.endAt-m.time));
+        rb.textContent='송신 '+left+'s'; rb.disabled=false;
+      } else { rb.textContent='보고'; rb.disabled=false; }
+    }
+    if(pass && histRunV623.validation && !histRunV623.passSaved) histRecordV623(false);
+  }
+  function histTickV623(){
+    if(!histRunV623||!histRunV623.active) return;
+    const g=U.state(); if(!g) return;
+    const sc=histRunV623.scenario, t=+g.time||0;
+    if(histRunV623.radioTx){
+      if(!(U.isSurfaced&&U.isSurfaced(g.boat))){
+        histCancelRadioV623('무전 송신 중단 — 잠항하여 안테나가 물에 잠겼습니다.');
+      } else if(t>=histRunV623.radioTx.endAt){
+        histCompleteRadioV623();
+      }
+    }
+    if(t>=120 && !histRunV623.timeline.includes(1)){
+      histRunV623.timeline.push(1); flash('역사 전황 — '+sc.bg1,'info');
+    }
+    if(t>=360 && !histRunV623.timeline.includes(2)){
+      histRunV623.timeline.push(2); flash('역사 전황 — '+sc.bg2,'info');
+    }
+    histRenderHudV623();
+  }
+  function histFinishToMenuV623(){
+    if(!histRunV623||!histRunV623.active) return;
+    histRecordV623(true);
+    const validation=histRunV623.validation;
+    histRunV623.active=false;
+    $('histHud').classList.remove('on');
+    setTimeout(()=>{
+      $('ovStart').classList.remove('on');
+      histOpenMenuV623(validation);
+    },0);
+  }
+
+  document.querySelectorAll('#histTheaterList [data-hth]').forEach(b=>b.addEventListener('click',()=>{
+    histTheaterV623=b.dataset.hth; histRenderMenuV623();
+  }));
+  $('btnHistOps').addEventListener('click',()=>histOpenMenuV623(false));
+  $('btnHistValidate').addEventListener('click',()=>histOpenMenuV623(true));
+  $('histOpsBack').addEventListener('click',()=>{
+    $('ovHistOps').classList.remove('on');
+    $('ovStart').classList.add('on');
+    syncHistValidationDevAccess();
+  });
+  $('histOpsGo').addEventListener('click',histStartV623);
+  $('histHudReport').addEventListener('click',histSendReportV623);
+  setInterval(histTickV623,500);
+  window.addEventListener('error',e=>{
+    if(histRunV623&&histRunV623.active&&histRunV623.validation){
+      histRunV623.runtimeErrors.push(String((e&&e.message)||'runtime error').slice(0,180));
+      histRenderHudV623();
+    }
+  });
+  window.addEventListener('unhandledrejection',e=>{
+    if(histRunV623&&histRunV623.active&&histRunV623.validation){
+      const r=e&&e.reason; histRunV623.runtimeErrors.push(String(r&&r.message||r||'unhandled rejection').slice(0,180));
+      histRenderHudV623();
+    }
+  });
+  /* 기존 '다시/계속' 흐름이 먼저 시작화면을 열더라도 다음 tick에서 역사 메뉴로 복귀시킨다. */
+  $('btnAgain').addEventListener('click',()=>{ if(histRunV623&&histRunV623.active) histFinishToMenuV623(); });
+  window.HistoricalScenarioDirector={
+    version:'6.23.7', scenarios:HISTOPS_V623.slice(),
+    state:()=>histRunV623, records:histStoreLoadV623,
+    missionReady:()=>!!histRunV623&&histMissionReadyV623(histRunV623.scenario,histMetricsV623()),
+    missing:()=>histRunV623?histCoreMissingV623(histRunV623.scenario,histMetricsV623()).slice():[],
+    passed:()=>!!histRunV623&&histPassV623(histRunV623.scenario,histMetricsV623()),
+    openValidation:()=>histOpenMenuV623(true), openOperations:()=>histOpenMenuV623(false)
+  };
+
 
   $('btnResume').addEventListener('click', () => {
     let hadSave = false;
@@ -31942,6 +32599,35 @@ window.Lang.add('ja', {
     '方向性のあるピングと爆雷、自艦・接触スクリュー音、潜望鏡・静粛航行・緊急命令の操作音を再生します。画面にない情報を音だけで与えることはありません。'
 });
 
+
+window.Lang.add('en', {
+  '승조원 음성 / Crew Voice':'Crew Voice',
+  '중요 보고':'Important reports',
+  '모든 전술 보고':'All tactical reports',
+  '음성팩 상태 확인':'Check voice pack',
+  '음성팩 받기':'Download voice pack',
+  '음성팩 삭제':'Remove voice pack',
+  '다운로드 중…':'Downloading…',
+  '음성 시험':'Voice test',
+  '합성 음성 · 제3자 라이선스 / Third-party notices':'Synthetic voice · Third-party notices',
+  '웹판 또는 음성팩 미설치 상태에서는 기존 텍스트 보고만 사용합니다.':'The web build or an APK without the voice pack continues to use text reports only.',
+  'APK 음성 브리지를 확인하는 중…':'Checking the APK voice bridge…'
+});
+window.Lang.add('ja', {
+  '승조원 음성 / Crew Voice':'乗員音声 / Crew Voice',
+  '중요 보고':'重要報告',
+  '모든 전술 보고':'全戦術報告',
+  '음성팩 상태 확인':'音声パック確認',
+  '음성팩 받기':'音声パックを取得',
+  '음성팩 삭제':'音声パックを削除',
+  '다운로드 중…':'ダウンロード中…',
+  '음성 시험':'音声テスト',
+  '합성 음성 · 제3자 라이선스 / Third-party notices':'合成音声・第三者ライセンス',
+  '웹판 또는 음성팩 미설치 상태에서는 기존 텍스트 보고만 사용합니다。':'Web版または音声パック未導入時は、従来どおりテキスト報告のみを使用します。',
+  '웹판 또는 음성팩 미설치 상태에서는 기존 텍스트 보고만 사용합니다.':'Web版または音声パック未導入時は、従来どおりテキスト報告のみを使用します。',
+  'APK 음성 브리지를 확인하는 중…':'APK音声ブリッジを確認中…'
+});
+
   const SND_NOTE = {
     off: '소리를 끕니다.',
     quiet: '메인 화면 환경음, 클릭 삑, 출항·입항 전환음, 전략항해 추진음, 상태·무전·승조원 생활 효과음을 작게 냅니다.',
@@ -32059,6 +32745,135 @@ window.Lang.add('ja', {
     return 1 - 0.78 * ((d - top) / Math.max(1, bot - top));
   }
 
+
+  /* ══════════════════════════════════════════════════════════════
+     v6.24.1 · 선택형 Supertonic 3 승조원 음성 브리지
+
+     Android 쪽 계약:
+       window.EternalVoice.getStatus() -> JSON string
+       window.EternalVoice.requestDownload()
+       window.EternalVoice.removePack()
+       window.EternalVoice.speak(role, voice, text, priority, speed)
+       window.EternalVoice.stop()
+
+     Android는 상태가 바뀔 때:
+       window.EPVoice.nativeStatus(<json object>)
+     를 evaluateJavascript 로 호출한다.
+
+     브라우저에는 EternalVoice 가 없으므로 항상 조용히 텍스트 전용으로 폴백한다.
+     ══════════════════════════════════════════════════════════════ */
+  window.EPVoice = (function(){
+    const MODE_KEY='ep.voice.mode.v6241';
+    const ROLE = {
+      exec:{voice:'M2',speed:0.92},
+      nav:{voice:'M4',speed:0.98},
+      hydro:{voice:'M1',speed:1.04},
+      weap:{voice:'M3',speed:0.96},
+      eng:{voice:'M5',speed:0.94},
+      dc:{voice:'M5',speed:1.03},
+    };
+    let mode='off';
+    let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'INT8'};
+    function native(){ return window.EternalVoice || null; }
+    function loadMode(){
+      try{ const v=localStorage.getItem(MODE_KEY); if(v==='important'||v==='all'||v==='off') mode=v; }catch(e){}
+      return mode;
+    }
+    function saveMode(v){
+      mode=(v==='important'||v==='all')?v:'off';
+      try{localStorage.setItem(MODE_KEY,mode);}catch(e){}
+      syncUI();
+      return mode;
+    }
+    function parseStatus(x){
+      try{
+        if(typeof x==='string') x=JSON.parse(x);
+        if(x&&typeof x==='object') status=Object.assign({},status,x,{available:!!native()});
+      }catch(e){ status.error=String(e&&e.message||e); }
+      syncUI();
+      return status;
+    }
+    function refresh(){
+      status.available=!!native();
+      if(!status.available){ status.ready=false; status.downloading=false; syncUI(); return status; }
+      try{
+        const x=native().getStatus && native().getStatus();
+        if(x!=null) parseStatus(x); else syncUI();
+      }catch(e){ status.error=String(e&&e.message||e); syncUI(); }
+      return status;
+    }
+    function modeText(){
+      return mode==='important'
+        ? 'P0·P1 중요 전술 보고만 음성으로 읽습니다.'
+        : mode==='all'
+          ? '역할이 있는 P0·P1·P2 전술 보고를 모두 읽습니다.'
+          : '승조원 음성을 사용하지 않습니다.';
+    }
+    function packText(){
+      if(!status.available) return '웹판 또는 TTS 브리지가 없는 APK입니다. 게임은 텍스트 전용으로 정상 작동합니다.';
+      if(status.downloading){
+        const p=Math.max(0,Math.min(100,Math.round((status.progress||0)*100)));
+        return 'Supertonic 3 INT8 음성팩 다운로드 중 · '+p+'%';
+      }
+      if(status.ready) return 'Supertonic 3 INT8 음성팩 준비됨 · 온디바이스 합성 · 네트워크 불필요';
+      if(status.error) return '음성팩 오류 · '+status.error;
+      return '선택 음성팩 미설치 · 약 100MB 추가 저장공간이 필요합니다.';
+    }
+    function syncUI(){
+      document.querySelectorAll('#voiceModeRowV6241 [data-voice-mode]').forEach(b=>{
+        b.classList.toggle('on',b.dataset.voiceMode===mode);
+      });
+      const mn=document.getElementById('voiceModeNoteV6241'); if(mn) mn.textContent=modeText();
+      const pn=document.getElementById('voicePackNoteV6241'); if(pn) pn.textContent=packText();
+      const pb=document.getElementById('voicePackBtnV6241');
+      if(pb){
+        pb.disabled=!!status.downloading;
+        pb.textContent=status.downloading?'다운로드 중…':status.ready?'음성팩 삭제':'음성팩 받기';
+        pb.classList.toggle('go',!status.ready);
+      }
+      const tb=document.getElementById('voiceTestBtnV6241');
+      if(tb) tb.disabled=!status.available||!status.ready;
+    }
+    function shouldSpeak(r){
+      if(!r||mode==='off'||!status.available||!status.ready) return false;
+      if(!ROLE[r.who]) return false;
+      if(mode==='important' && r.priority==='P2') return false;
+      const t=String(r.text||'').trim();
+      if(!t || t.length>220) return false;
+      return true;
+    }
+    function onReport(r){
+      if(!shouldSpeak(r)) return false;
+      const n=native(), cfg=ROLE[r.who]; if(!n||!n.speak) return false;
+      try{
+        n.speak(String(r.who),String(cfg.voice),String(r.text||''),String(r.priority||'P2'),Number(cfg.speed||1));
+        return true;
+      }catch(e){ status.error=String(e&&e.message||e); syncUI(); return false; }
+    }
+    function requestDownload(){
+      const n=native(); if(!n){refresh();return false;}
+      try{ if(status.ready){ if(n.removePack)n.removePack(); } else if(n.requestDownload)n.requestDownload(); refresh(); return true; }
+      catch(e){ status.error=String(e&&e.message||e); syncUI(); return false; }
+    }
+    function test(){
+      const n=native(); if(!n||!status.ready||!n.speak) return false;
+      try{ n.speak('exec','M2','함장님, 승조원 음성 시험입니다.','P1',0.92); return true; }catch(e){return false;}
+    }
+    function stop(){ try{ const n=native(); if(n&&n.stop)n.stop(); }catch(e){} }
+    function boot(){
+      loadMode(); refresh();
+      document.querySelectorAll('#voiceModeRowV6241 [data-voice-mode]').forEach(b=>{
+        b.addEventListener('click',()=>saveMode(b.dataset.voiceMode));
+      });
+      const pb=document.getElementById('voicePackBtnV6241'); if(pb)pb.addEventListener('click',requestDownload);
+      const tb=document.getElementById('voiceTestBtnV6241'); if(tb)tb.addEventListener('click',test);
+      window.addEventListener('focus',()=>setTimeout(refresh,120));
+      syncUI();
+    }
+    return {boot,refresh,nativeStatus:parseStatus,onReport,setMode:saveMode,getMode:()=>mode,status:()=>Object.assign({},status),test,stop,ROLE};
+  })();
+  window.EPVoice.boot();
+
   /* ══════════════════════════════════════════════════════════════
      언어 고르기
 
@@ -32085,6 +32900,7 @@ window.Lang.add('ja', {
     b.addEventListener('click', () => setLang(b.dataset.lang)));
   $('btnOptions').addEventListener('click', () => {
     $('ovStart').classList.remove('on'); $('ovOptions').classList.add('on');
+    try { if(window.EPVoice) window.EPVoice.refresh(); } catch(e) {}
   });
   $('optBack').addEventListener('click', () => {
     $('ovOptions').classList.remove('on'); $('ovStart').classList.add('on');
@@ -32409,7 +33225,7 @@ window.Lang.add('ja', {
     if(!r) return '';
     const th=TH.THEATERS[r.theater]||{};
     const L2=[];
-    L2.push('ETERNAL PATROL: Silent Seas — 최종 전역보고');
+    L2.push('SILENT SEAS — 최종 전역보고');
     L2.push('전구: '+(th.name||r.theater));
     if(r.startDate||r.endDate)L2.push('기간: '+(r.startDate||'—')+' ~ '+(r.endDate||'—'));
     L2.push('상태: '+(r.status||'—')+(r.endReason?' · '+r.endReason:''));
@@ -37698,7 +38514,7 @@ const API_NAME = 'SilentSeasTacticalTutor';
 if (global[API_NAME]) return;
 
 const KNOT = 0.514444;
-const TUTOR_I18N={"en":{"자이로각":"Gyro angle","어뢰는 어디로 꺾여 가는가":"Where the torpedo turns after launch","측면각 AOB":"Angle on the bow","표적의 정면·옆면·선미를 읽기":"Read the target bow, broadside, and stern","CPA·방위율":"CPA and bearing rate","가장 가까워지는 거리와 충돌 방위":"Closest approach and constant-bearing danger","해법 신뢰도":"Firing-solution confidence","관측이 오차타원을 줄이는 과정":"How observations shrink the error ellipse","발사창":"Firing window","사거리 안에 들어오는 시간 구간":"The interval in which the target is in effective range","산개":"Spread","여러 발로 불확실성을 덮는 법":"Cover uncertainty with several torpedoes","수온약층":"Thermocline","음파 굴절과 깊이 선택":"Sound refraction and depth selection","ETERNAL PATROL 전술개념 실험실":"ETERNAL PATROL Tactical Lab","전술개념 실험실":"Tactical Lab","개념 선택":"Select concept","닫기":"Close","값을 바꿔 보기":"Change the values","이 모듈은 개념 학습용입니다. 본편에 연결하면 현재 접촉의 추정값을 받아 시작할 수 있습니다.":"This module is for concept practice. When opened from the game, it starts with the current estimated contact data.","본편 삽입용 호출 방법":"Integration call example","본편 시간 정지 조건에 추가":"Add this to the main-game pause condition","우현":"starboard","좌현":"port","정면":"ahead","산개가 너무 좁음":"Spread is too narrow","어뢰 사이가 너무 넓음":"Gaps between torpedoes are too wide","오차구역을 무난히 덮음":"Covers the error area adequately","자이로각과 예상 조우점":"Gyro angle and predicted intercept point","어뢰는 현재 표적이 아니라, 어뢰가 도착할 때 표적이 있을 미래 위치를 향합니다.":"A torpedo aims not at the target’s current position, but at where the target is predicted to be when the torpedo arrives.","현재 표적거리":"Current target range","조우점거리":"Intercept-point range","주행시간":"Run time","자함 침로":"Own heading","상선 침로":"Merchant heading","상선 속력":"Merchant speed","어뢰 속력":"Torpedo speed","저속 호송 7.5kn":"Slow convoy 7.5 kn","일반 호송 9kn":"Normal convoy 9 kn","고속 호송 10kn":"Fast convoy 10 kn","단독 고속선 12.5kn":"Fast lone ship 12.5 kn","화면 재현 14.4kn":"Screen example 14.4 kn","▶ 재생":"▶ Play","처음으로":"Reset","▶ 표적과 어뢰 재생":"▶ Play target and torpedo","표적 측면각 AOB":"Target angle on the bow","표적이 나에게 어느 쪽 옆구리를 얼마나 보이는지를 나타냅니다. 표적 방위와 표적 침로를 함께 봐야 합니다.":"Shows which side of the target is presented and by how much. Read the target bearing together with its estimated course.","표적 방위":"Target bearing","표적 침로":"Target course","측면각":"Angle on the bow (AOB)","겉보기 폭":"Apparent width","표적 거리":"Target range","정횡 예시":"Broadside example","정면 예시":"Bow-on example","CPA와 방위 변화율":"CPA and bearing rate","현재 침로와 속력을 유지했을 때 가장 가까워지는 거리와 시각을 계산합니다.":"Calculates the closest distance and time if both vessels maintain their present course and speed.","현재 거리":"Current range","CPA까지":"Time to CPA","방위 변화":"Bearing change","자함 속력":"Own speed","표적 속력":"Target speed","일정방위 접근":"Constant-bearing approach","횡단 통과":"Crossing pass","해법 신뢰도와 오차타원":"Firing-solution confidence and error ellipse","관측을 반복하면 표적의 거리·침로·속력 추정 범위가 줄어듭니다. 오래되거나 변침하면 다시 커집니다.":"Repeated observations narrow the estimated range, course, and speed. Old information or a target turn enlarges the uncertainty again.","관측 횟수":"Observations","정보 나이":"Information age","신뢰도":"Confidence","오차 폭":"Error width","마지막 관측 후":"Since last observation","시정":"Visibility","표적 상태":"Target state","침로 유지":"Steady course","변침 발생":"Target turned","잠망경 관측":"Periscope observation","30초 경과":"Advance 30 seconds","현재 상대운동을 유지할 때 표적이 유효 사거리 안에 들어와 있는 시간 구간입니다.":"The time interval during which the target remains within effective range if relative motion is unchanged.","유효 사거리":"Effective range","진입까지":"Time to entry","창 길이":"Window length","현재":"Now","30분":"30 min","어뢰 산개와 오차구역":"Torpedo spread and error area","여러 발은 같은 선에 겹치는 대신, 표적이 있을 가능성이 높은 구역을 나누어 덮습니다.":"Several torpedoes divide and cover the area where the target is likely to be instead of following one identical line.","발사 수":"Torpedoes","산개 폭":"Spread width","필요 폭":"Required width","판정":"Assessment","산개 전체 폭":"Total spread width","해법 횡오차":"Cross-range error","해법 종오차":"Along-track error","표적 길이":"Target length","수온약층과 소나":"Thermocline and sonar","수온이 급격히 변하는 층에서는 음파가 굴절됩니다. 완전한 벽은 아니지만 접촉 강도와 위치 정확도를 떨어뜨릴 수 있습니다.":"Sound refracts in a layer where temperature changes rapidly. It is not a solid wall, but it can weaken contact strength and positional accuracy.","자함 심도":"Own depth","음탐 방식":"Sonar mode","접촉 강도":"Contact strength","수온약층 깊이":"Thermocline depth","잠수함 심도":"Submarine depth","해상 상태":"Sea state","능동 음탐":"Active sonar","수동 청음":"Passive sonar / hydrophone listening","핑 재생":"Play ping","<b>조우 불가</b><br>현재 속력 조합에서는 어뢰가 표적을 따라잡지 못합니다.":"<b>No intercept</b><br>With the current speed combination, the torpedo cannot catch the target.","좌 ":"Port ","우 ":"Starboard ","현재 상선":"Merchant now","예상 조우점":"Predicted intercept point","<b>핵심</b><br>자함은 ":"<b>Key point</b><br>Your submarine is heading ","를 향하지만, 계산된 조우점은 ":" but the calculated intercept point lies at "," 방향입니다. 어뢰는 발사 뒤 ":" . After launch the torpedo turns ","왼쪽":"left","오른쪽":"right","으로 ":" by ","° 선회해 그 침로에 올라선 뒤 직진합니다.":"°, settles on that course, and then runs straight.","표적의 정면이나 선미에 가깝습니다. 겉보기 폭이 좁고 침로 판단이 어렵습니다.":"The view is close to bow-on or stern-on. The apparent width is narrow and course estimation is difficult.","표적의 옆구리가 크게 열렸습니다. 식별과 사격에 유리한 모습입니다.":"The target presents a broad side. This geometry helps identification and firing.","비스듬한 측면입니다. 표적 침로와 선행점을 계속 갱신해야 합니다.":"The target is oblique. Keep updating its course and lead point.","일정 방위·거리 감소":"Constant bearing, decreasing range","방위가 변하고 있음":"Bearing is changing","표적이 화면의 거의 같은 방향에 머무르면서 거리가 줄고 있습니다. 두 항로가 같은 시각에 가까워지는 위험한 기하입니다.":"The target remains on nearly the same bearing while range decreases. This is dangerous geometry in which the two tracks converge at the same time.","표적 방위가 분당 ":"Target bearing changes by ","° 변합니다. 현재 운동을 유지하면 ":"° per minute. If present motion continues, the vessels will close to "," 뒤 ":" in ","까지 접근합니다.":" .","푸른 타원은 표적이 있을 가능성이 높은 범위입니다. 관측 횟수가 늘면 줄어들고, 정보가 오래되거나 표적이 변침하면 다시 커집니다. 이 수치는 곧바로 명중확률을 뜻하지 않습니다.":"The blue ellipse is the area in which the target is likely to be. It shrinks with more observations and expands when information ages or the target turns. This value is not itself a hit probability.","지금 사거리 안":"In range now","진입하지 않음":"Will not enter","현재 발사창 안":"Inside the firing window","발사창 계산":"Firing-window calculation","현재 침로를 유지하면 유효 사거리 안에 들어오지 않습니다. 침로를 바꾸거나 공격을 포기해야 합니다.":"At the current courses the target will not enter effective range. Change course or abandon the attack.","지금부터 ":"The target remains in effective range from now until "," 뒤까지 유효 사거리 안입니다.":"."," 뒤에 창이 열리고 ":"The window opens in "," 동안 유지됩니다.":" and remains open for ","푸른 타원은 표적 위치의 횡·종 오차입니다. 청록색 선은 각 어뢰의 예상 항로입니다. 산개가 너무 좁으면 모두 같은 빈곳을 지나고, 너무 넓으면 표적이 어뢰 사이로 빠져나갑니다.":"The blue ellipse shows cross-range and along-track uncertainty. Cyan lines are the predicted torpedo tracks. A spread that is too narrow sends every torpedo through the same empty water; one that is too wide lets the target pass between them.","능동":"Active","수동":"Passive","예상 접촉 강도 ":"Estimated contact strength ","구축함과 잠수함 사이에 수온약층이 놓여 음파 경로가 굴절됩니다. 접촉은 약해질 수 있지만 완전히 사라지는 벽은 아닙니다.":"A thermocline lies between the escort and submarine, refracting the sound path. Contact may weaken, but the layer is not an impenetrable wall.","양쪽이 수온약층의 같은 편에 있어 층의 차폐 효과가 작습니다. 거리·해상 상태·자함 소음이 더 중요해집니다.":"Both vessels are on the same side of the thermocline, so the shielding effect is small. Range, sea state, and own-ship noise matter more.","mount 대상 요소가 필요합니다.":"A mount target element is required."},"ja":{"자이로각":"ジャイロ角","어뢰는 어디로 꺾여 가는가":"魚雷は発射後どちらへ曲がるか","측면각 AOB":"目標艦首角 AOB","표적의 정면·옆면·선미를 읽기":"目標の艦首・側面・艦尾を読む","CPA·방위율":"CPA・方位変化率","가장 가까워지는 거리와 충돌 방위":"最接近距離と一定方位の危険","해법 신뢰도":"雷撃諸元の確度","관측이 오차타원을 줄이는 과정":"観測によって誤差楕円が縮む過程","발사창":"発射可能時間帯","사거리 안에 들어오는 시간 구간":"目標が有効射程内に入る時間帯","산개":"散開","여러 발로 불확실성을 덮는 법":"複数魚雷で不確実性を覆う方法","수온약층":"水温躍層","음파 굴절과 깊이 선택":"音波の屈折と深度選択","ETERNAL PATROL 전술개념 실험실":"ETERNAL PATROL 戦術実験室","전술개념 실험실":"戦術実験室","개념 선택":"概念を選択","닫기":"閉じる","값을 바꿔 보기":"値を変更する","이 모듈은 개념 학습용입니다. 본편에 연결하면 현재 접촉의 추정값을 받아 시작할 수 있습니다.":"このモジュールは概念学習用です。本編から開くと、現在の接触推定値を初期値として使用します。","본편 삽입용 호출 방법":"本編から呼び出す方法","본편 시간 정지 조건에 추가":"本編の時間停止条件に追加","우현":"右舷","좌현":"左舷","정면":"正面","산개가 너무 좁음":"散開幅が狭すぎる","어뢰 사이가 너무 넓음":"魚雷間隔が広すぎる","오차구역을 무난히 덮음":"誤差範囲を適切に覆う","자이로각과 예상 조우점":"ジャイロ角と予想会合点","어뢰는 현재 표적이 아니라, 어뢰가 도착할 때 표적이 있을 미래 위치를 향합니다.":"魚雷は目標の現在位置ではなく、到達時に目標がいると予測される位置へ向かいます。","현재 표적거리":"現在の目標距離","조우점거리":"予想会合点距離","주행시간":"航走時間","자함 침로":"自艦針路","상선 침로":"商船針路","상선 속력":"商船速力","어뢰 속력":"魚雷速力","저속 호송 7.5kn":"低速船団 7.5kt","일반 호송 9kn":"通常船団 9kt","고속 호송 10kn":"高速船団 10kt","단독 고속선 12.5kn":"単独高速船 12.5kt","화면 재현 14.4kn":"画面例 14.4kt","▶ 재생":"▶ 再生","처음으로":"リセット","▶ 표적과 어뢰 재생":"▶ 目標と魚雷を再生","표적 측면각 AOB":"目標艦首角 AOB","표적이 나에게 어느 쪽 옆구리를 얼마나 보이는지를 나타냅니다. 표적 방위와 표적 침로를 함께 봐야 합니다.":"目標がどちら側の舷をどの程度見せているかを示します。目標方位と目標針路を合わせて読みます。","표적 방위":"目標方位","표적 침로":"目標針路","측면각":"艦首角（AOB）","겉보기 폭":"見かけの幅","표적 거리":"目標距離","정횡 예시":"真横の例","정면 예시":"正面の例","CPA와 방위 변화율":"CPAと方位変化率","현재 침로와 속력을 유지했을 때 가장 가까워지는 거리와 시각을 계산합니다.":"双方が現在の針路と速力を維持した場合の最接近距離と時刻を計算します。","현재 거리":"現在距離","CPA까지":"CPAまで","방위 변화":"方位変化","자함 속력":"自艦速力","표적 속력":"目標速力","일정방위 접근":"一定方位で接近","횡단 통과":"横切り通過","해법 신뢰도와 오차타원":"雷撃諸元の確度と誤差楕円","관측을 반복하면 표적의 거리·침로·속력 추정 범위가 줄어듭니다. 오래되거나 변침하면 다시 커집니다.":"観測を重ねると目標の距離・針路・速力の推定範囲が狭まります。情報が古くなったり目標が変針すると再び広がります。","관측 횟수":"観測回数","정보 나이":"情報の経過時間","신뢰도":"確度","오차 폭":"誤差幅","마지막 관측 후":"最終観測から","시정":"視程","표적 상태":"目標状態","침로 유지":"針路維持","변침 발생":"変針発生","잠망경 관측":"潜望鏡観測","30초 경과":"30秒進める","현재 상대운동을 유지할 때 표적이 유효 사거리 안에 들어와 있는 시간 구간입니다.":"現在の相対運動を維持した場合、目標が有効射程内にいる時間帯です。","유효 사거리":"有効射程","진입까지":"進入まで","창 길이":"継続時間","현재":"現在","30분":"30分","어뢰 산개와 오차구역":"魚雷散開と誤差範囲","여러 발은 같은 선에 겹치는 대신, 표적이 있을 가능성이 높은 구역을 나누어 덮습니다.":"複数の魚雷を同じ線に重ねず、目標が存在する可能性の高い範囲を分担して覆います。","발사 수":"発射数","산개 폭":"散開幅","필요 폭":"必要幅","판정":"判定","산개 전체 폭":"散開全幅","해법 횡오차":"雷撃諸元の横方向誤差","해법 종오차":"雷撃諸元の進行方向誤差","표적 길이":"目標全長","수온약층과 소나":"水温躍層とソナー","수온이 급격히 변하는 층에서는 음파가 굴절됩니다. 완전한 벽은 아니지만 접촉 강도와 위치 정확도를 떨어뜨릴 수 있습니다.":"水温が急変する層では音波が屈折します。完全な壁ではありませんが、接触強度と位置精度を低下させることがあります。","자함 심도":"自艦深度","음탐 방식":"ソナー方式","접촉 강도":"接触強度","수온약층 깊이":"水温躍層深度","잠수함 심도":"潜水艦深度","해상 상태":"海況","능동 음탐":"アクティブソナー","수동 청음":"受動聴音（パッシブソナー）","핑 재생":"ピング再生","<b>조우 불가</b><br>현재 속력 조합에서는 어뢰가 표적을 따라잡지 못합니다.":"<b>会合不能</b><br>現在の速力条件では魚雷が目標に追いつけません。","좌 ":"左 ","우 ":"右 ","현재 상선":"現在の商船","예상 조우점":"予想会合点（迎撃点）","<b>핵심</b><br>자함은 ":"<b>要点</b><br>自艦は ","를 향하지만, 계산된 조우점은 ":"へ向いていますが、計算された会合点は "," 방향입니다. 어뢰는 발사 뒤 ":"の方位です。魚雷は発射後 ","왼쪽":"左","오른쪽":"右","으로 ":"へ ","° 선회해 그 침로에 올라선 뒤 직진합니다.":"°旋回し、その針路に乗ってから直進します。","표적의 정면이나 선미에 가깝습니다. 겉보기 폭이 좁고 침로 판단이 어렵습니다.":"目標を艦首または艦尾寄りから見ています。見かけの幅が狭く、針路判断が困難です。","표적의 옆구리가 크게 열렸습니다. 식별과 사격에 유리한 모습입니다.":"目標が大きく側面を見せています。識別と射撃に有利です。","비스듬한 측면입니다. 표적 침로와 선행점을 계속 갱신해야 합니다.":"斜めの側面です。目標針路と先行点を継続して更新する必要があります。","일정 방위·거리 감소":"一定方位・距離減少","방위가 변하고 있음":"方位が変化中","표적이 화면의 거의 같은 방향에 머무르면서 거리가 줄고 있습니다. 두 항로가 같은 시각에 가까워지는 위험한 기하입니다.":"目標がほぼ同じ方位に留まりながら距離が減っています。二つの航路が同時刻に接近する危険な幾何です。","표적 방위가 분당 ":"目標方位は毎分 ","° 변합니다. 현재 운동을 유지하면 ":"°変化します。現在の運動を維持すると "," 뒤 ":"後に ","까지 접근합니다.":"まで接近します。","푸른 타원은 표적이 있을 가능성이 높은 범위입니다. 관측 횟수가 늘면 줄어들고, 정보가 오래되거나 표적이 변침하면 다시 커집니다. 이 수치는 곧바로 명중확률을 뜻하지 않습니다.":"青い楕円は目標が存在する可能性の高い範囲です。観測回数が増えると縮み、情報が古くなったり目標が変針すると再び広がります。この数値はそのまま命中率を意味しません。","지금 사거리 안":"現在射程内","진입하지 않음":"進入しない","현재 발사창 안":"現在発射可能","발사창 계산":"発射可能時間帯の計算","현재 침로를 유지하면 유효 사거리 안에 들어오지 않습니다. 침로를 바꾸거나 공격을 포기해야 합니다.":"現在の針路を維持すると有効射程内に入りません。針路を変更するか攻撃を断念する必要があります。","지금부터 ":"現在から "," 뒤까지 유효 사거리 안입니다.":"後まで有効射程内です。"," 뒤에 창이 열리고 ":"後に時間帯が開き、"," 동안 유지됩니다.":"継続します。","푸른 타원은 표적 위치의 횡·종 오차입니다. 청록색 선은 각 어뢰의 예상 항로입니다. 산개가 너무 좁으면 모두 같은 빈곳을 지나고, 너무 넓으면 표적이 어뢰 사이로 빠져나갑니다.":"青い楕円は目標位置の横・縦誤差です。青緑色の線は各魚雷の予想航路です。散開が狭すぎると全魚雷が同じ空所を通り、広すぎると目標が魚雷の間を抜けます。","능동":"アクティブ","수동":"パッシブ","예상 접촉 강도 ":"予想接触強度 ","구축함과 잠수함 사이에 수온약층이 놓여 음파 경로가 굴절됩니다. 접촉은 약해질 수 있지만 완전히 사라지는 벽은 아닙니다.":"護衛艦と潜水艦の間に水温躍層があり、音波経路が屈折します。接触は弱くなることがありますが、完全に遮断する壁ではありません。","양쪽이 수온약층의 같은 편에 있어 층의 차폐 효과가 작습니다. 거리·해상 상태·자함 소음이 더 중요해집니다.":"双方が水温躍層の同じ側にいるため遮蔽効果は小さくなります。距離・海況・自艦雑音の方が重要です。","mount 대상 요소가 필요합니다.":"マウント先の要素が必要です。"} };
+const TUTOR_I18N={"en":{"자이로각":"Gyro angle","어뢰는 어디로 꺾여 가는가":"Where the torpedo turns after launch","측면각 AOB":"Angle on the bow","표적의 정면·옆면·선미를 읽기":"Read the target bow, broadside, and stern","CPA·방위율":"CPA and bearing rate","가장 가까워지는 거리와 충돌 방위":"Closest approach and constant-bearing danger","해법 신뢰도":"Firing-solution confidence","관측이 오차타원을 줄이는 과정":"How observations shrink the error ellipse","발사창":"Firing window","사거리 안에 들어오는 시간 구간":"The interval in which the target is in effective range","산개":"Spread","여러 발로 불확실성을 덮는 법":"Cover uncertainty with several torpedoes","수온약층":"Thermocline","음파 굴절과 깊이 선택":"Sound refraction and depth selection","SILENT SEAS 전술개념 실험실":"SILENT SEAS Tactical Lab","전술개념 실험실":"Tactical Lab","개념 선택":"Select concept","닫기":"Close","값을 바꿔 보기":"Change the values","이 모듈은 개념 학습용입니다. 본편에 연결하면 현재 접촉의 추정값을 받아 시작할 수 있습니다.":"This module is for concept practice. When opened from the game, it starts with the current estimated contact data.","본편 삽입용 호출 방법":"Integration call example","본편 시간 정지 조건에 추가":"Add this to the main-game pause condition","우현":"starboard","좌현":"port","정면":"ahead","산개가 너무 좁음":"Spread is too narrow","어뢰 사이가 너무 넓음":"Gaps between torpedoes are too wide","오차구역을 무난히 덮음":"Covers the error area adequately","자이로각과 예상 조우점":"Gyro angle and predicted intercept point","어뢰는 현재 표적이 아니라, 어뢰가 도착할 때 표적이 있을 미래 위치를 향합니다.":"A torpedo aims not at the target’s current position, but at where the target is predicted to be when the torpedo arrives.","현재 표적거리":"Current target range","조우점거리":"Intercept-point range","주행시간":"Run time","자함 침로":"Own heading","상선 침로":"Merchant heading","상선 속력":"Merchant speed","어뢰 속력":"Torpedo speed","저속 호송 7.5kn":"Slow convoy 7.5 kn","일반 호송 9kn":"Normal convoy 9 kn","고속 호송 10kn":"Fast convoy 10 kn","단독 고속선 12.5kn":"Fast lone ship 12.5 kn","화면 재현 14.4kn":"Screen example 14.4 kn","▶ 재생":"▶ Play","처음으로":"Reset","▶ 표적과 어뢰 재생":"▶ Play target and torpedo","표적 측면각 AOB":"Target angle on the bow","표적이 나에게 어느 쪽 옆구리를 얼마나 보이는지를 나타냅니다. 표적 방위와 표적 침로를 함께 봐야 합니다.":"Shows which side of the target is presented and by how much. Read the target bearing together with its estimated course.","표적 방위":"Target bearing","표적 침로":"Target course","측면각":"Angle on the bow (AOB)","겉보기 폭":"Apparent width","표적 거리":"Target range","정횡 예시":"Broadside example","정면 예시":"Bow-on example","CPA와 방위 변화율":"CPA and bearing rate","현재 침로와 속력을 유지했을 때 가장 가까워지는 거리와 시각을 계산합니다.":"Calculates the closest distance and time if both vessels maintain their present course and speed.","현재 거리":"Current range","CPA까지":"Time to CPA","방위 변화":"Bearing change","자함 속력":"Own speed","표적 속력":"Target speed","일정방위 접근":"Constant-bearing approach","횡단 통과":"Crossing pass","해법 신뢰도와 오차타원":"Firing-solution confidence and error ellipse","관측을 반복하면 표적의 거리·침로·속력 추정 범위가 줄어듭니다. 오래되거나 변침하면 다시 커집니다.":"Repeated observations narrow the estimated range, course, and speed. Old information or a target turn enlarges the uncertainty again.","관측 횟수":"Observations","정보 나이":"Information age","신뢰도":"Confidence","오차 폭":"Error width","마지막 관측 후":"Since last observation","시정":"Visibility","표적 상태":"Target state","침로 유지":"Steady course","변침 발생":"Target turned","잠망경 관측":"Periscope observation","30초 경과":"Advance 30 seconds","현재 상대운동을 유지할 때 표적이 유효 사거리 안에 들어와 있는 시간 구간입니다.":"The time interval during which the target remains within effective range if relative motion is unchanged.","유효 사거리":"Effective range","진입까지":"Time to entry","창 길이":"Window length","현재":"Now","30분":"30 min","어뢰 산개와 오차구역":"Torpedo spread and error area","여러 발은 같은 선에 겹치는 대신, 표적이 있을 가능성이 높은 구역을 나누어 덮습니다.":"Several torpedoes divide and cover the area where the target is likely to be instead of following one identical line.","발사 수":"Torpedoes","산개 폭":"Spread width","필요 폭":"Required width","판정":"Assessment","산개 전체 폭":"Total spread width","해법 횡오차":"Cross-range error","해법 종오차":"Along-track error","표적 길이":"Target length","수온약층과 소나":"Thermocline and sonar","수온이 급격히 변하는 층에서는 음파가 굴절됩니다. 완전한 벽은 아니지만 접촉 강도와 위치 정확도를 떨어뜨릴 수 있습니다.":"Sound refracts in a layer where temperature changes rapidly. It is not a solid wall, but it can weaken contact strength and positional accuracy.","자함 심도":"Own depth","음탐 방식":"Sonar mode","접촉 강도":"Contact strength","수온약층 깊이":"Thermocline depth","잠수함 심도":"Submarine depth","해상 상태":"Sea state","능동 음탐":"Active sonar","수동 청음":"Passive sonar / hydrophone listening","핑 재생":"Play ping","<b>조우 불가</b><br>현재 속력 조합에서는 어뢰가 표적을 따라잡지 못합니다.":"<b>No intercept</b><br>With the current speed combination, the torpedo cannot catch the target.","좌 ":"Port ","우 ":"Starboard ","현재 상선":"Merchant now","예상 조우점":"Predicted intercept point","<b>핵심</b><br>자함은 ":"<b>Key point</b><br>Your submarine is heading ","를 향하지만, 계산된 조우점은 ":" but the calculated intercept point lies at "," 방향입니다. 어뢰는 발사 뒤 ":" . After launch the torpedo turns ","왼쪽":"left","오른쪽":"right","으로 ":" by ","° 선회해 그 침로에 올라선 뒤 직진합니다.":"°, settles on that course, and then runs straight.","표적의 정면이나 선미에 가깝습니다. 겉보기 폭이 좁고 침로 판단이 어렵습니다.":"The view is close to bow-on or stern-on. The apparent width is narrow and course estimation is difficult.","표적의 옆구리가 크게 열렸습니다. 식별과 사격에 유리한 모습입니다.":"The target presents a broad side. This geometry helps identification and firing.","비스듬한 측면입니다. 표적 침로와 선행점을 계속 갱신해야 합니다.":"The target is oblique. Keep updating its course and lead point.","일정 방위·거리 감소":"Constant bearing, decreasing range","방위가 변하고 있음":"Bearing is changing","표적이 화면의 거의 같은 방향에 머무르면서 거리가 줄고 있습니다. 두 항로가 같은 시각에 가까워지는 위험한 기하입니다.":"The target remains on nearly the same bearing while range decreases. This is dangerous geometry in which the two tracks converge at the same time.","표적 방위가 분당 ":"Target bearing changes by ","° 변합니다. 현재 운동을 유지하면 ":"° per minute. If present motion continues, the vessels will close to "," 뒤 ":" in ","까지 접근합니다.":" .","푸른 타원은 표적이 있을 가능성이 높은 범위입니다. 관측 횟수가 늘면 줄어들고, 정보가 오래되거나 표적이 변침하면 다시 커집니다. 이 수치는 곧바로 명중확률을 뜻하지 않습니다.":"The blue ellipse is the area in which the target is likely to be. It shrinks with more observations and expands when information ages or the target turns. This value is not itself a hit probability.","지금 사거리 안":"In range now","진입하지 않음":"Will not enter","현재 발사창 안":"Inside the firing window","발사창 계산":"Firing-window calculation","현재 침로를 유지하면 유효 사거리 안에 들어오지 않습니다. 침로를 바꾸거나 공격을 포기해야 합니다.":"At the current courses the target will not enter effective range. Change course or abandon the attack.","지금부터 ":"The target remains in effective range from now until "," 뒤까지 유효 사거리 안입니다.":"."," 뒤에 창이 열리고 ":"The window opens in "," 동안 유지됩니다.":" and remains open for ","푸른 타원은 표적 위치의 횡·종 오차입니다. 청록색 선은 각 어뢰의 예상 항로입니다. 산개가 너무 좁으면 모두 같은 빈곳을 지나고, 너무 넓으면 표적이 어뢰 사이로 빠져나갑니다.":"The blue ellipse shows cross-range and along-track uncertainty. Cyan lines are the predicted torpedo tracks. A spread that is too narrow sends every torpedo through the same empty water; one that is too wide lets the target pass between them.","능동":"Active","수동":"Passive","예상 접촉 강도 ":"Estimated contact strength ","구축함과 잠수함 사이에 수온약층이 놓여 음파 경로가 굴절됩니다. 접촉은 약해질 수 있지만 완전히 사라지는 벽은 아닙니다.":"A thermocline lies between the escort and submarine, refracting the sound path. Contact may weaken, but the layer is not an impenetrable wall.","양쪽이 수온약층의 같은 편에 있어 층의 차폐 효과가 작습니다. 거리·해상 상태·자함 소음이 더 중요해집니다.":"Both vessels are on the same side of the thermocline, so the shielding effect is small. Range, sea state, and own-ship noise matter more.","mount 대상 요소가 필요합니다.":"A mount target element is required."},"ja":{"자이로각":"ジャイロ角","어뢰는 어디로 꺾여 가는가":"魚雷は発射後どちらへ曲がるか","측면각 AOB":"目標艦首角 AOB","표적의 정면·옆면·선미를 읽기":"目標の艦首・側面・艦尾を読む","CPA·방위율":"CPA・方位変化率","가장 가까워지는 거리와 충돌 방위":"最接近距離と一定方位の危険","해법 신뢰도":"雷撃諸元の確度","관측이 오차타원을 줄이는 과정":"観測によって誤差楕円が縮む過程","발사창":"発射可能時間帯","사거리 안에 들어오는 시간 구간":"目標が有効射程内に入る時間帯","산개":"散開","여러 발로 불확실성을 덮는 법":"複数魚雷で不確実性を覆う方法","수온약층":"水温躍層","음파 굴절과 깊이 선택":"音波の屈折と深度選択","SILENT SEAS 전술개념 실험실":"SILENT SEAS 戦術実験室","전술개념 실험실":"戦術実験室","개념 선택":"概念を選択","닫기":"閉じる","값을 바꿔 보기":"値を変更する","이 모듈은 개념 학습용입니다. 본편에 연결하면 현재 접촉의 추정값을 받아 시작할 수 있습니다.":"このモジュールは概念学習用です。本編から開くと、現在の接触推定値を初期値として使用します。","본편 삽입용 호출 방법":"本編から呼び出す方法","본편 시간 정지 조건에 추가":"本編の時間停止条件に追加","우현":"右舷","좌현":"左舷","정면":"正面","산개가 너무 좁음":"散開幅が狭すぎる","어뢰 사이가 너무 넓음":"魚雷間隔が広すぎる","오차구역을 무난히 덮음":"誤差範囲を適切に覆う","자이로각과 예상 조우점":"ジャイロ角と予想会合点","어뢰는 현재 표적이 아니라, 어뢰가 도착할 때 표적이 있을 미래 위치를 향합니다.":"魚雷は目標の現在位置ではなく、到達時に目標がいると予測される位置へ向かいます。","현재 표적거리":"現在の目標距離","조우점거리":"予想会合点距離","주행시간":"航走時間","자함 침로":"自艦針路","상선 침로":"商船針路","상선 속력":"商船速力","어뢰 속력":"魚雷速力","저속 호송 7.5kn":"低速船団 7.5kt","일반 호송 9kn":"通常船団 9kt","고속 호송 10kn":"高速船団 10kt","단독 고속선 12.5kn":"単独高速船 12.5kt","화면 재현 14.4kn":"画面例 14.4kt","▶ 재생":"▶ 再生","처음으로":"リセット","▶ 표적과 어뢰 재생":"▶ 目標と魚雷を再生","표적 측면각 AOB":"目標艦首角 AOB","표적이 나에게 어느 쪽 옆구리를 얼마나 보이는지를 나타냅니다. 표적 방위와 표적 침로를 함께 봐야 합니다.":"目標がどちら側の舷をどの程度見せているかを示します。目標方位と目標針路を合わせて読みます。","표적 방위":"目標方位","표적 침로":"目標針路","측면각":"艦首角（AOB）","겉보기 폭":"見かけの幅","표적 거리":"目標距離","정횡 예시":"真横の例","정면 예시":"正面の例","CPA와 방위 변화율":"CPAと方位変化率","현재 침로와 속력을 유지했을 때 가장 가까워지는 거리와 시각을 계산합니다.":"双方が現在の針路と速力を維持した場合の最接近距離と時刻を計算します。","현재 거리":"現在距離","CPA까지":"CPAまで","방위 변화":"方位変化","자함 속력":"自艦速力","표적 속력":"目標速力","일정방위 접근":"一定方位で接近","횡단 통과":"横切り通過","해법 신뢰도와 오차타원":"雷撃諸元の確度と誤差楕円","관측을 반복하면 표적의 거리·침로·속력 추정 범위가 줄어듭니다. 오래되거나 변침하면 다시 커집니다.":"観測を重ねると目標の距離・針路・速力の推定範囲が狭まります。情報が古くなったり目標が変針すると再び広がります。","관측 횟수":"観測回数","정보 나이":"情報の経過時間","신뢰도":"確度","오차 폭":"誤差幅","마지막 관측 후":"最終観測から","시정":"視程","표적 상태":"目標状態","침로 유지":"針路維持","변침 발생":"変針発生","잠망경 관측":"潜望鏡観測","30초 경과":"30秒進める","현재 상대운동을 유지할 때 표적이 유효 사거리 안에 들어와 있는 시간 구간입니다.":"現在の相対運動を維持した場合、目標が有効射程内にいる時間帯です。","유효 사거리":"有効射程","진입까지":"進入まで","창 길이":"継続時間","현재":"現在","30분":"30分","어뢰 산개와 오차구역":"魚雷散開と誤差範囲","여러 발은 같은 선에 겹치는 대신, 표적이 있을 가능성이 높은 구역을 나누어 덮습니다.":"複数の魚雷を同じ線に重ねず、目標が存在する可能性の高い範囲を分担して覆います。","발사 수":"発射数","산개 폭":"散開幅","필요 폭":"必要幅","판정":"判定","산개 전체 폭":"散開全幅","해법 횡오차":"雷撃諸元の横方向誤差","해법 종오차":"雷撃諸元の進行方向誤差","표적 길이":"目標全長","수온약층과 소나":"水温躍層とソナー","수온이 급격히 변하는 층에서는 음파가 굴절됩니다. 완전한 벽은 아니지만 접촉 강도와 위치 정확도를 떨어뜨릴 수 있습니다.":"水温が急変する層では音波が屈折します。完全な壁ではありませんが、接触強度と位置精度を低下させることがあります。","자함 심도":"自艦深度","음탐 방식":"ソナー方式","접촉 강도":"接触強度","수온약층 깊이":"水温躍層深度","잠수함 심도":"潜水艦深度","해상 상태":"海況","능동 음탐":"アクティブソナー","수동 청음":"受動聴音（パッシブソナー）","핑 재생":"ピング再生","<b>조우 불가</b><br>현재 속력 조합에서는 어뢰가 표적을 따라잡지 못합니다.":"<b>会合不能</b><br>現在の速力条件では魚雷が目標に追いつけません。","좌 ":"左 ","우 ":"右 ","현재 상선":"現在の商船","예상 조우점":"予想会合点（迎撃点）","<b>핵심</b><br>자함은 ":"<b>要点</b><br>自艦は ","를 향하지만, 계산된 조우점은 ":"へ向いていますが、計算された会合点は "," 방향입니다. 어뢰는 발사 뒤 ":"の方位です。魚雷は発射後 ","왼쪽":"左","오른쪽":"右","으로 ":"へ ","° 선회해 그 침로에 올라선 뒤 직진합니다.":"°旋回し、その針路に乗ってから直進します。","표적의 정면이나 선미에 가깝습니다. 겉보기 폭이 좁고 침로 판단이 어렵습니다.":"目標を艦首または艦尾寄りから見ています。見かけの幅が狭く、針路判断が困難です。","표적의 옆구리가 크게 열렸습니다. 식별과 사격에 유리한 모습입니다.":"目標が大きく側面を見せています。識別と射撃に有利です。","비스듬한 측면입니다. 표적 침로와 선행점을 계속 갱신해야 합니다.":"斜めの側面です。目標針路と先行点を継続して更新する必要があります。","일정 방위·거리 감소":"一定方位・距離減少","방위가 변하고 있음":"方位が変化中","표적이 화면의 거의 같은 방향에 머무르면서 거리가 줄고 있습니다. 두 항로가 같은 시각에 가까워지는 위험한 기하입니다.":"目標がほぼ同じ方位に留まりながら距離が減っています。二つの航路が同時刻に接近する危険な幾何です。","표적 방위가 분당 ":"目標方位は毎分 ","° 변합니다. 현재 운동을 유지하면 ":"°変化します。現在の運動を維持すると "," 뒤 ":"後に ","까지 접근합니다.":"まで接近します。","푸른 타원은 표적이 있을 가능성이 높은 범위입니다. 관측 횟수가 늘면 줄어들고, 정보가 오래되거나 표적이 변침하면 다시 커집니다. 이 수치는 곧바로 명중확률을 뜻하지 않습니다.":"青い楕円は目標が存在する可能性の高い範囲です。観測回数が増えると縮み、情報が古くなったり目標が変針すると再び広がります。この数値はそのまま命中率を意味しません。","지금 사거리 안":"現在射程内","진입하지 않음":"進入しない","현재 발사창 안":"現在発射可能","발사창 계산":"発射可能時間帯の計算","현재 침로를 유지하면 유효 사거리 안에 들어오지 않습니다. 침로를 바꾸거나 공격을 포기해야 합니다.":"現在の針路を維持すると有効射程内に入りません。針路を変更するか攻撃を断念する必要があります。","지금부터 ":"現在から "," 뒤까지 유효 사거리 안입니다.":"後まで有効射程内です。"," 뒤에 창이 열리고 ":"後に時間帯が開き、"," 동안 유지됩니다.":"継続します。","푸른 타원은 표적 위치의 횡·종 오차입니다. 청록색 선은 각 어뢰의 예상 항로입니다. 산개가 너무 좁으면 모두 같은 빈곳을 지나고, 너무 넓으면 표적이 어뢰 사이로 빠져나갑니다.":"青い楕円は目標位置の横・縦誤差です。青緑色の線は各魚雷の予想航路です。散開が狭すぎると全魚雷が同じ空所を通り、広すぎると目標が魚雷の間を抜けます。","능동":"アクティブ","수동":"パッシブ","예상 접촉 강도 ":"予想接触強度 ","구축함과 잠수함 사이에 수온약층이 놓여 음파 경로가 굴절됩니다. 접촉은 약해질 수 있지만 완전히 사라지는 벽은 아닙니다.":"護衛艦と潜水艦の間に水温躍層があり、音波経路が屈折します。接触は弱くなることがありますが、完全に遮断する壁ではありません。","양쪽이 수온약층의 같은 편에 있어 층의 차폐 효과가 작습니다. 거리·해상 상태·자함 소음이 더 중요해집니다.":"双方が水温躍層の同じ側にいるため遮蔽効果は小さくなります。距離・海況・自艦雑音の方が重要です。","mount 대상 요소가 필요합니다.":"マウント先の要素が必要です。"} };
 Object.assign(TUTOR_I18N.en,{
   '실루엣 판독':'Silhouette recognition','거리·각도·시정에 따라 무엇이 보이는가':'What remains visible as range, aspect, and visibility change',
   '판독 범주':'Recognition category','전체 함종':'All ship types','관측 거리':'Observation range','측면 노출':'Beam aspect','해상 상태':'Sea state',
@@ -37793,7 +38609,7 @@ function ensureRoot(target){
   modalMode=!target;
   root=document.createElement('section');
   root.className=modalMode?'sstt sstt-modal':'sstt sstt-embedded';
-  root.setAttribute('aria-label',TR('ETERNAL PATROL 전술개념 실험실'));
+  root.setAttribute('aria-label',TR('SILENT SEAS 전술개념 실험실'));
   root.innerHTML='<header class="sstt-head">'+
     '<div class="sstt-title">'+TR('전술개념 실험실')+'</div>'+
     '<nav class="sstt-tabs" aria-label="'+TR('개념 선택')+'"></nav>'+
@@ -39257,6 +40073,377 @@ if(oldResolve){Campaign.resolveEncounter=function(aar){var C=Campaign.state(),id
 var oldAbort=Campaign.abortEncounter&&Campaign.abortEncounter.bind(Campaign);
 if(oldAbort){Campaign.abortEncounter=function(){var C=Campaign.state(),id=C&&C.pendingEncounter&&C.pendingEncounter.historicalEventId;var r=oldAbort();if(id){var C2=Campaign.state();if(C2){var st=histState(C2,id);st.joined=false;st.arrived=true;Campaign.save();}}return r;};}
 })();
+</script>
+
+<style id="ep-v624-combat-ux-style">
+
+/* EP_V624_COMBAT_UX — appended UI-only patch; combat physics untouched */
+#epV624MenuBtn{
+  position:fixed;top:max(7px,env(safe-area-inset-top));right:max(7px,env(safe-area-inset-right));
+  z-index:2147482000;display:none;min-width:52px;height:34px;padding:0 10px;
+  border:1px solid rgba(190,205,214,.42);border-radius:7px;
+  background:rgba(5,11,15,.72);color:#dbe7ec;font:700 11px/1 system-ui,-apple-system,"Malgun Gothic",sans-serif;
+  letter-spacing:.06em;box-shadow:0 3px 14px rgba(0,0,0,.28);backdrop-filter:blur(2px)
+}
+body.ep-v624-tactical #epV624MenuBtn{display:block}
+#epV624MenuOverlay{
+  position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;
+  padding:max(14px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right))
+          max(14px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
+  background:rgba(0,4,7,.64);backdrop-filter:blur(3px)
+}
+#epV624MenuOverlay.on{display:flex}
+#epV624MenuCard{
+  width:min(540px,96vw);max-height:min(690px,92vh);overflow:auto;
+  border:1px solid rgba(151,177,190,.34);border-radius:12px;
+  background:rgba(7,14,18,.94);color:#d7e2e8;box-shadow:0 16px 55px rgba(0,0,0,.58);
+  padding:13px
+}
+#epV624MenuCard *{box-sizing:border-box}
+#epV624MenuHead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+#epV624MenuHead b{font-size:15px;letter-spacing:.05em}
+#epV624PauseLamp{font-size:10px;color:#ffcc7b;border:1px solid rgba(255,194,96,.35);border-radius:999px;padding:3px 7px}
+.epV624Section{border-top:1px solid rgba(148,170,181,.17);padding-top:10px;margin-top:10px}
+.epV624Section h4{margin:0 0 6px;font-size:11px;color:#91a8b4;letter-spacing:.08em;font-weight:700}
+#epV624Notes,#epV624Traces{display:grid;gap:5px}
+.epV624Note,.epV624Trace{
+  padding:7px 8px;border-radius:7px;background:rgba(255,255,255,.035);
+  border:1px solid rgba(157,180,191,.10);font-size:12px;line-height:1.45
+}
+.epV624Note b,.epV624Trace b{color:#f0c77d}
+.epV624Dim{color:#8fa0a8;font-size:11px}
+#epV624MenuActions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+#epV624MenuActions button,#epV624ConfirmActions button{
+  min-height:43px;border-radius:8px;border:1px solid rgba(160,182,194,.28);
+  background:#152129;color:#dbe5e9;font:700 12px system-ui,-apple-system,"Malgun Gothic",sans-serif
+}
+#epV624MenuActions .danger,#epV624ConfirmActions .danger{border-color:rgba(214,96,82,.55);background:#2a1514;color:#ffd2cd}
+#epV624Confirm{display:none;margin-top:10px;padding:10px;border-radius:9px;border:1px solid rgba(214,96,82,.35);background:rgba(72,23,20,.35)}
+#epV624Confirm.on{display:block}
+#epV624Confirm p{margin:0 0 9px;font-size:12px;line-height:1.5}
+#epV624ConfirmActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#epV624PeriFx{position:fixed;display:none;pointer-events:none;z-index:440}
+body.ep-v624-peri #epV624PeriFx{display:block}
+
+/* v6.24 — tactical crew dialogue stays readable but no longer blanks the periscope. */
+#tacticalCrewBubbleV620{
+  background:rgba(5,10,13,.46)!important;
+  border-color:rgba(165,188,199,.30)!important;
+  box-shadow:0 4px 14px rgba(0,0,0,.28)!important;
+  backdrop-filter:blur(1.2px);
+}
+body.ep-v624-peri #tacticalCrewBubbleV620{
+  background:rgba(4,9,12,.34)!important;
+}
+#tacticalCrewBubbleV620 .v620role,
+#tacticalCrewBubbleV620 .v620text{
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 5px rgba(0,0,0,.55)
+}
+@media(max-width:560px){
+  #epV624MenuBtn{height:31px;min-width:48px;padding:0 8px;font-size:10px}
+  #epV624MenuCard{padding:11px}
+  #epV624MenuActions button,#epV624ConfirmActions button{min-height:46px}
+}
+
+</style>
+<script id="ep-v624-combat-ux">
+
+(function EP_V624_COMBAT_UX(){
+'use strict';
+if(window.__EP_V624_COMBAT_UX__) return;
+window.__EP_V624_COMBAT_UX__=true;
+
+const VERSION='6.24.0';
+const TRACE_KEY='ETERNAL_PATROL_BATTLE_TRACES_V624';
+const RETURN_KEY='EP_V624_RETURN_MAIN';
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let menuOpen=false, priorTs=1, modeHint='unknown', lastTactical=false, endRecorded=false, fxRAF=0, fxSeed=0x6240a11;
+let lastWorldSeen=0;
+
+function U(){ return window.UBOAT||null; }
+function G(){ try{return U()&&typeof U().state==='function'?U().state():null}catch(e){return null} }
+function isOn(id){const e=$(id);return !!(e&&e.classList.contains('on'))}
+function blockingOverlay(){
+  return ['ovStart','ovEnd','ovDiff','ovHistOps','ovPatrol','ovEnc'].some(isOn);
+}
+function tacticalVisible(){
+  if(document.body.classList.contains('inworld')||document.body.classList.contains('inhq')) return false;
+  const app=$('app');
+  if(!app||getComputedStyle(app).display==='none'||blockingOverlay()) return false;
+  return !!document.querySelector('.pane.on[data-pane]');
+}
+function periVisible(){
+  const p=document.querySelector('.pane.on[data-pane="peri"]');
+  const cv=$('cvPeri');
+  return !!(p&&cv&&getComputedStyle(cv).display!=='none'&&cv.getBoundingClientRect().width>20);
+}
+function currentTs(){
+  const on=document.querySelector('#tsRow button.on[data-ts]');
+  if(on&&isFinite(+on.dataset.ts)&&+on.dataset.ts>0) return +on.dataset.ts;
+  const g=G();
+  for(const k of ['timeScale','requestedTimeScale','ts']){
+    if(g&&isFinite(+g[k])&&+g[k]>0) return +g[k];
+  }
+  return 1;
+}
+function setTs(v){
+  try{const u=U();if(u&&typeof u.setTimeScale==='function')u.setTimeScale(v)}catch(e){}
+  document.querySelectorAll('#tsRow button[data-ts]').forEach(b=>b.classList.toggle('on',v>0&&+b.dataset.ts===v));
+}
+function langText(ko,en,ja){
+  const lang=(document.documentElement.lang||'ko').toLowerCase();
+  return lang.startsWith('ja')?ja:lang.startsWith('en')?en:ko;
+}
+function fmtAge(sec){
+  if(!isFinite(sec)||sec<0)return '';
+  if(sec<60)return Math.round(sec)+'초 전';
+  return Math.round(sec/60)+'분 전';
+}
+function simTime(){
+  const g=G(); return g&&isFinite(+g.time)?+g.time:null;
+}
+function contactKnownAge(c,g){
+  const now=g&&isFinite(+g.time)?+g.time:null;
+  const cand=[c&&c.visualUpdatedAt,c&&c.acousticUpdatedAt,c&&c.updatedAt,c&&c.t,c&&c.lastSeenAt]
+    .map(Number).filter(Number.isFinite);
+  if(now==null||!cand.length)return null;
+  return Math.max(0,now-Math.max.apply(null,cand));
+}
+function bearingOf(c){
+  const vals=[c&&c.bearing,c&&c.brg,c&&c.obsBearing,c&&c.bearingEstimate];
+  const v=vals.map(Number).find(Number.isFinite);
+  return v==null?null:((v%360)+360)%360;
+}
+function rangeOf(c){
+  const vals=[c&&c.rangeEstimate,c&&c.estRange,c&&c.observedRange,c&&c.rangeObs,c&&c.lastRange];
+  const v=vals.map(Number).find(Number.isFinite);
+  return v!=null&&v>0?v:null;
+}
+function speedOf(c){
+  const vals=[c&&c.speedEstimate,c&&c.estSpeed,c&&c.obsSpeed,c&&c.speedEst];
+  const v=vals.map(Number).find(Number.isFinite);
+  return v!=null&&v>=0?v:null;
+}
+function courseOf(c){
+  const vals=[c&&c.courseEstimate,c&&c.estCourse,c&&c.obsHeading,c&&c.headingEstimate];
+  const v=vals.map(Number).find(Number.isFinite);
+  return v==null?null:((v%360)+360)%360;
+}
+function sourceOf(c){
+  if(!c)return '';
+  if(c.visualUpdatedAt||c.observedRange||c.rangeObs||c.obs&&c.obs.length) return '시각/관측';
+  if(c.acousticUpdatedAt||c.rpmEstimate||c.strength!=null) return '청음 추정';
+  return '접촉 추정';
+}
+function notesHTML(){
+  const g=G();
+  if(!g)return '<div class="epV624Note epV624Dim">전술 상태를 불러올 수 없습니다.</div>';
+  const out=[];
+  const b=g.boat||{};
+  const depth=Number(b.depth);
+  const spd=Number(b.speed);
+  const hdg=Number(b.heading!=null?b.heading:b.course);
+  const self=[];
+  if(Number.isFinite(hdg))self.push('침로 '+String(Math.round(hdg)).padStart(3,'0')+'°');
+  if(Number.isFinite(spd))self.push(spd.toFixed(1)+' kt');
+  if(Number.isFinite(depth))self.push('심도 '+Math.round(depth)+' m');
+  self.push(b.periscope?'잠망경 노출':'잠망경 수납');
+  out.push('<div class="epV624Note"><b>자함</b> · '+esc(self.join(' · '))+'</div>');
+  const cs=Array.isArray(g.contacts)?g.contacts.slice():[];
+  cs.sort((a,b)=>(Number(b&&b.strength)||0)-(Number(a&&a.strength)||0));
+  cs.slice(0,3).forEach((c,i)=>{
+    const bits=[];
+    const br=bearingOf(c),rn=rangeOf(c),sp=speedOf(c),co=courseOf(c),age=contactKnownAge(c,g);
+    if(br!=null)bits.push('방위 '+String(Math.round(br)).padStart(3,'0')+'°');
+    bits.push(rn!=null?('거리 약 '+Math.round(rn)+' m'):'거리 미확정');
+    if(co!=null)bits.push('침로 '+String(Math.round(co)).padStart(3,'0')+'° 추정');
+    if(sp!=null)bits.push(sp.toFixed(1)+' kt 추정');
+    if(age!=null)bits.push('갱신 '+fmtAge(age));
+    const id=esc(c.id||('C'+(i+1)));
+    out.push('<div class="epV624Note"><b>'+id+'</b> <span class="epV624Dim">['+esc(sourceOf(c))+']</span> · '+esc(bits.join(' · '))+'</div>');
+  });
+  if(!cs.length)out.push('<div class="epV624Note epV624Dim">현재 유지 중인 접촉 없음.</div>');
+  return out.join('');
+}
+function loadTraces(){
+  try{const x=JSON.parse(localStorage.getItem(TRACE_KEY)||'[]');return Array.isArray(x)?x:[]}catch(e){return []}
+}
+function saveTraces(a){
+  try{localStorage.setItem(TRACE_KEY,JSON.stringify(a.slice(0,24)))}catch(e){}
+}
+function traceHTML(){
+  const a=loadTraces().slice(0,5);
+  if(!a.length)return '<div class="epV624Trace epV624Dim">아직 기록된 캠페인 교전 흔적이 없습니다.</div>';
+  return a.map(x=>{
+    const when=x.realAt?new Date(x.realAt).toLocaleString():'';
+    return '<div class="epV624Trace"><b>'+esc(x.title||'전투 기록')+'</b> · '+esc(x.summary||'결과 기록')+
+      (when?'<div class="epV624Dim">'+esc(when)+'</div>':'')+'</div>';
+  }).join('');
+}
+function campaignLikely(){
+  if(modeHint==='campaign')return true;
+  if(modeHint==='quick'||modeHint==='historical')return false;
+  return Date.now()-lastWorldSeen<120000;
+}
+function captureTrace(){
+  if(endRecorded||!campaignLikely())return;
+  endRecorded=true;
+  const end=$('ovEnd');
+  const txt=end?String(end.innerText||end.textContent||'').replace(/\s+/g,' ').trim():'';
+  const g=G();
+  const parts=[];
+  if(txt)parts.push(txt.slice(0,190));
+  const contacts=g&&Array.isArray(g.contacts)?g.contacts.length:null;
+  if(contacts!=null)parts.push('접촉 '+contacts);
+  const a=loadTraces();
+  a.unshift({
+    v:1, realAt:Date.now(), simAt:simTime(),
+    title:'초계 교전 흔적',
+    summary:(parts.join(' · ')||'교전 종료').slice(0,260)
+  });
+  saveTraces(a);
+}
+function refreshMenu(){
+  const n=$('epV624Notes'),t=$('epV624Traces');
+  if(n)n.innerHTML=notesHTML();
+  if(t)t.innerHTML=traceHTML();
+}
+function openMenu(){
+  if(menuOpen||!tacticalVisible())return;
+  menuOpen=true;priorTs=currentTs();setTs(0);
+  refreshMenu();
+  const ov=$('epV624MenuOverlay');if(ov)ov.classList.add('on');
+  const cf=$('epV624Confirm');if(cf)cf.classList.remove('on');
+}
+function closeMenu(){
+  if(!menuOpen)return;
+  menuOpen=false;
+  const ov=$('epV624MenuOverlay');if(ov)ov.classList.remove('on');
+  const cf=$('epV624Confirm');if(cf)cf.classList.remove('on');
+  if(tacticalVisible())setTs(priorTs||1);
+}
+function abandon(){
+  setTs(0);
+  try{sessionStorage.setItem(RETURN_KEY,'1')}catch(e){}
+  try{
+    const h=window.HistoricalScenarioDirector&&window.HistoricalScenarioDirector.state&&window.HistoricalScenarioDirector.state();
+    if(h&&h.active)h.active=false;
+  }catch(e){}
+  location.reload();
+}
+function createUI(){
+  if($('epV624MenuBtn'))return;
+  const btn=document.createElement('button');
+  btn.id='epV624MenuBtn';btn.type='button';btn.textContent='MENU';btn.setAttribute('aria-label','전투 메뉴');
+  document.body.appendChild(btn);
+  const ov=document.createElement('div');
+  ov.id='epV624MenuOverlay';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  ov.innerHTML=
+    '<div id="epV624MenuCard">'+
+      '<div id="epV624MenuHead"><b>전투 메뉴</b><span id="epV624PauseLamp">PAUSED</span></div>'+
+      '<div class="epV624Section"><h4>함장 메모 · 현재 알고 있는 정보</h4><div id="epV624Notes"></div></div>'+
+      '<div class="epV624Section"><h4>최근 캠페인 교전 흔적</h4><div id="epV624Traces"></div></div>'+
+      '<div id="epV624MenuActions"><button id="epV624Continue" type="button">전투 계속</button><button id="epV624AbandonAsk" class="danger" type="button">전투 포기 · 메인 화면</button></div>'+
+      '<div id="epV624Confirm"><p><b>현재 전투를 포기합니까?</b><br>이 전투의 진행상황과 전과는 정산하지 않고 메인 화면으로 돌아갑니다. 캠페인 저장 자체는 삭제하지 않습니다.</p>'+
+      '<div id="epV624ConfirmActions"><button id="epV624Cancel" type="button">취소</button><button id="epV624Abandon" class="danger" type="button">포기하고 돌아가기</button></div></div>'+
+    '</div>';
+  document.body.appendChild(ov);
+  const fx=document.createElement('canvas');fx.id='epV624PeriFx';fx.setAttribute('aria-hidden','true');document.body.appendChild(fx);
+  btn.addEventListener('click',openMenu);
+  $('epV624Continue').addEventListener('click',closeMenu);
+  $('epV624AbandonAsk').addEventListener('click',()=>{$('epV624Confirm').classList.add('on')});
+  $('epV624Cancel').addEventListener('click',()=>{$('epV624Confirm').classList.remove('on')});
+  $('epV624Abandon').addEventListener('click',abandon);
+  ov.addEventListener('click',e=>{if(e.target===ov)closeMenu()});
+}
+function modeHooks(){
+  const bind=(id,mode)=>{
+    const e=$(id); if(!e||e.dataset.epV624ModeHook)return;
+    e.dataset.epV624ModeHook='1';
+    e.addEventListener('click',()=>{modeHint=mode;endRecorded=false},{capture:true});
+  };
+  ['btnQuick','diffGo'].forEach(id=>bind(id,'quick'));
+  ['btnStart','btnResume','encGo'].forEach(id=>bind(id,'campaign'));
+  ['histOpsGo','btnHistOps','btnHistValidate'].forEach(id=>bind(id,'historical'));
+}
+function monitor(){
+  modeHooks();
+  if(document.body.classList.contains('inworld')){lastWorldSeen=Date.now();if(!menuOpen)modeHint='campaign'}
+  let tv=tacticalVisible();
+  document.body.classList.toggle('ep-v624-tactical',tv);
+  const pv=tv&&periVisible();
+  document.body.classList.toggle('ep-v624-peri',pv);
+  if(!tv&&menuOpen){menuOpen=false;const ov=$('epV624MenuOverlay');if(ov)ov.classList.remove('on')}
+  if(tv&&!lastTactical)endRecorded=false;
+  lastTactical=tv;
+  if(isOn('ovEnd'))captureTrace();
+}
+function seeded(){
+  fxSeed=(Math.imul(fxSeed,1664525)+1013904223)>>>0;return fxSeed/4294967296;
+}
+const drops=Array.from({length:18},()=>({x:seeded(),y:seeded(),r:.7+seeded()*2.4,s:.006+seeded()*.018,a:.15+seeded()*.35}));
+function drawFx(ts){
+  const cv=$('cvPeri'),fx=$('epV624PeriFx');
+  if(!cv||!fx){fxRAF=requestAnimationFrame(drawFx);return}
+  if(!periVisible()){fx.style.display='none';fxRAF=requestAnimationFrame(drawFx);return}
+  const r=cv.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+  if(r.width<20||r.height<20){fx.style.display='none';fxRAF=requestAnimationFrame(drawFx);return}
+  fx.style.display='block';fx.style.left=r.left+'px';fx.style.top=r.top+'px';fx.style.width=r.width+'px';fx.style.height=r.height+'px';
+  const w=Math.max(1,Math.round(r.width*dpr)),h=Math.max(1,Math.round(r.height*dpr));
+  if(fx.width!==w||fx.height!==h){fx.width=w;fx.height=h}
+  const c=fx.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,r.width,r.height);
+  const g=G(),sea=Number(g&&g.weather&&g.weather.sea)||1,wet=clamp((sea-1)/5,0,.9),t=ts/1000;
+  if(wet>.02){
+    drops.forEach((d,i)=>{
+      const yy=((d.y+t*d.s*(.6+wet*1.4))%1)*r.height;
+      const xx=d.x*r.width+Math.sin(t*.25+i)*1.2;
+      const rr=d.r*(1+wet*.65);
+      c.beginPath();c.ellipse(xx,yy,rr*.62,rr*1.35,0,0,Math.PI*2);
+      c.strokeStyle='rgba(210,230,236,'+(d.a*wet*.22).toFixed(3)+')';c.lineWidth=.7;c.stroke();
+      c.beginPath();c.moveTo(xx,yy+rr*.9);c.lineTo(xx+Math.sin(i)*.8,yy+rr*(2.1+wet*2.0));
+      c.strokeStyle='rgba(205,225,232,'+(d.a*wet*.11).toFixed(3)+')';c.stroke();
+    });
+  }
+  const swayX=Math.sin(t*.42)*1.1,swayY=Math.sin(t*.31+1.4)*.7;
+  const vg=c.createRadialGradient(r.width/2+swayX,r.height/2+swayY,Math.min(r.width,r.height)*.25,r.width/2,r.height/2,Math.max(r.width,r.height)*.68);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(.72,'rgba(0,0,0,.02)');vg.addColorStop(1,'rgba(0,0,0,.16)');
+  c.fillStyle=vg;c.fillRect(0,0,r.width,r.height);
+  const light=Number(g&&(g.light!=null?g.light:(g.weather&&g.weather.light)));
+  if(Number.isFinite(light)&&light<.42){
+    const bloom=c.createRadialGradient(r.width*.52,r.height*.44,0,r.width*.52,r.height*.44,Math.min(r.width,r.height)*.32);
+    bloom.addColorStop(0,'rgba(214,225,210,.035)');bloom.addColorStop(1,'rgba(214,225,210,0)');
+    c.fillStyle=bloom;c.fillRect(0,0,r.width,r.height);
+  }
+  fxRAF=requestAnimationFrame(drawFx);
+}
+function restoreMainIfRequested(){
+  let yes=false;try{yes=sessionStorage.getItem(RETURN_KEY)==='1';if(yes)sessionStorage.removeItem(RETURN_KEY)}catch(e){}
+  if(!yes)return;
+  setTimeout(()=>{
+    try{setTs(0)}catch(e){}
+    document.body.classList.remove('inworld','inhq','ep-v624-tactical','ep-v624-peri');
+    const world=$('world');if(world)world.classList.remove('on');
+    ['ovEnd','ovEnc','ovPatrol','ovDiff','ovHistOps'].forEach(id=>{const e=$(id);if(e)e.classList.remove('on')});
+    const h=$('histHud');if(h)h.classList.remove('on');
+    const s=$('ovStart');if(s)s.classList.add('on');
+  },50);
+}
+function init(){
+  createUI();restoreMainIfRequested();modeHooks();
+  setInterval(monitor,180);
+  const end=$('ovEnd');
+  if(end)new MutationObserver(()=>{if(isOn('ovEnd'))captureTrace()}).observe(end,{attributes:true,attributeFilter:['class']});
+  fxRAF=requestAnimationFrame(drawFx);
+  window.EP_V624_COMBAT_UX={
+    version:VERSION,openMenu,closeMenu,notes:()=>notesHTML(),traces:()=>loadTraces().slice(),
+    clearTraces:()=>{saveTraces([]);refreshMenu()}
+  };
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+
 </script>
 </body>
 </html>
