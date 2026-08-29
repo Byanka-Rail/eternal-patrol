@@ -64,6 +64,7 @@ jobs:
           from pathlib import Path
           import onnx
           from onnxruntime.transformers.float16 import convert_float_to_float16
+          from onnxruntime.transformers.onnx_model import OnnxModel
 
           src = Path(os.environ['RUNNER_TEMP']) / 'supertonic3_official_fp32' / 'onnx'
           out = Path(os.environ['RUNNER_TEMP']) / 'ep_voicepack_v2' / 'onnx'
@@ -82,10 +83,22 @@ jobs:
                   op_block_list=['Cast'],
                   disable_shape_infer=True,
               )
+
+              # keep_io_types=True can append boundary Cast nodes after consumers.
+              # Restore valid dependency order before ONNX validation/save.
+              wrapped = OnnxModel(model16)
+              wrapped.topological_sort()
+              model16 = wrapped.model
+
+              # Validate the sorted in-memory graph first, then save and validate
+              # the serialized file again so the published pack cannot contain an
+              # invalid ONNX graph.
+              onnx.checker.check_model(model16)
               onnx.save(model16, str(dst))
               onnx.checker.check_model(str(dst))
+
               shaped.unlink(missing_ok=True)
-              print(f'  -> {dst.stat().st_size / 1024 / 1024:.1f} MiB')
+              print(f'  -> {dst.stat().st_size / 1024 / 1024:.1f} MiB (topologically sorted)')
           PY
 
           # Ensure Android ONNX Runtime can parse every generated model before publish.
