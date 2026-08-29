@@ -1,0 +1,68 @@
+ETERNAL PATROL v6.24.5 변경사항
+================================
+
+기준본
+- 게임 HTML: v6.24.4 MENU 패널통합 A안
+- Android 네이티브 음성: v6.24.3 Supertonic 3 음성 무반응 진단/float PCM 수정
+
+1. 음성팩 런타임 배포처를 ETERNAL PATROL 쪽으로 이전
+- 기존: 게임 사용자가 Kyumdroid/supertonic-3-quant Hugging Face 저장소에서 파일을 직접 다운로드
+- 변경: 게임 사용자는 Byanka-Rail/eternal-patrol GitHub Release의 voicepack-v1만 사용
+- 업스트림 모델/FP16 파생의 저작권과 출처는 그대로 고지하며, ETERNAL PATROL이 모델 저작권을 주장하지 않음
+
+2. 음성팩을 단일 ZIP + manifest 방식으로 변경
+- Release manifest: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.json
+- Pack: ETERNAL_PATROL_SUPERTONIC3_FP16_V1.zip
+- SHA 기록: ETERNAL_PATROL_SUPERTONIC3_FP16_V1_SHA256.txt
+- 앱은 manifest를 먼저 읽고 허용된 ETERNAL PATROL Release URL인지 검사
+- ZIP의 byte size와 SHA-256을 확인한 뒤 설치
+- 압축 해제 시 경로 이탈(../ 등)을 차단
+- 기존 HTTP Range 이어받기 유지
+
+3. 우리 Release를 만드는 GitHub Actions 추가
+- .github/workflows/publish-voicepack.yml
+- 수동 실행 시 고정 upstream revision의 FP16 ONNX와 M1~M5 스타일, LICENSE를 가져와 voicepack-v1 Release 생성
+- 고정 upstream revision:
+  d9bfd0a9384b42a76f9256eafdd3d8a5cc4706ba
+- ETERNAL PATROL은 모델 가중치를 재변환하지 않고 해당 고정 파일을 배포용으로 재패키징
+- 음성팩 안에 LICENSE, THIRD_PARTY_NOTICES.txt, PACK_INFO.json 포함
+
+4. 사용자 표시 개선
+- 옵션 라이선스에 런타임 배포처가 ETERNAL PATROL GitHub Release임을 표시
+- 다운로드 단계에서 목록 확인 / 다운로드 / SHA-256 검증 / 설치 단계를 구분
+- 음성팩 설치 후에는 기존과 같이 완전 오프라인 합성
+
+5. v6.24.4 MENU A안 누적
+- 전투 화면에 떠 있던 독립 MENU 버튼 제거
+- 함장 명령 패널 헤더에서 MENU 진입
+- 전투 메뉴 헤더 우측에 전투 포기 / 닫기 배치
+- 전장 이탈은 함장 명령 본문 최상단 유지
+
+6. Android 버전
+- versionName: 6.24.5
+- versionCode: 62405
+- bundled game version: 6.24.5
+- APK: arm64-v8a
+- ONNX Runtime Android: 1.29.0
+
+7. 보존 사항
+- 기존 applicationId com.silentseas.game 유지
+- 기존 localStorage/save origin 유지
+- 기존 GitHub update.json HTML 업데이트 방식 유지
+- 기존에 설치되어 있는 supertonic3_fp16_v1 음성팩은 같은 앱 데이터가 유지되면 재다운로드하지 않음
+- 게임 시뮬레이션, AI, 판정, 저장 스키마는 변경하지 않음
+
+배포 순서
+1) 새 Android 프로젝트를 Byanka-Rail/eternal-patrol 저장소에 반영
+2) Actions > Publish Supertonic Voice Pack > Run workflow 를 최초 1회 실행
+3) Releases에 voicepack-v1과 ZIP/JSON/SHA 파일 생성 확인
+4) Actions > Build Android APK > Run workflow
+5) artifact ETERNAL_PATROL_v6.24.5_SELFHOST_VOICE_debug_apk 다운로드
+6) APK 설치 후 옵션 > 음성팩 받기 > 음성 시험
+
+검증
+- HTML inline JavaScript 28개 전체 node --check 통과
+- DOM ID 570개, 중복 0
+- VoicePackManager.java Java 17 stub 컴파일 통과
+- 음성팩 runtime URL은 Byanka-Rail/eternal-patrol release 경로로만 제한
+- 실제 Android assembleDebug는 GitHub Actions에서 최종 검증 필요

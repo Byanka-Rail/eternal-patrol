@@ -39,6 +39,10 @@ public final class EternalVoiceBridge implements Closeable {
     private volatile SupertonicEngine engine;
     private volatile AudioTrack currentTrack;
     private volatile String runtimeError;
+    private volatile String phase = "idle";
+    private volatile boolean speaking;
+    private volatile long lastSynthesisMs;
+    private volatile int lastSamples;
     private volatile boolean closed;
 
     public EternalVoiceBridge(Activity activity, WebView webView) {
@@ -51,14 +55,21 @@ public final class EternalVoiceBridge implements Closeable {
         return mergedStatus().toString();
     }
 
+    @JavascriptInterface public void clearError() {
+        runtimeError = null;
+        if (!speaking) phase = "idle";
+        notifyHtml();
+    }
+
     @JavascriptInterface public void requestDownload() {
         if (closed || packManager.isReady()) { notifyHtml(); return; }
         activity.runOnUiThread(() -> new AlertDialog.Builder(activity)
                 .setTitle("고품질 승조원 음성팩")
-                .setMessage("Supertonic 3 FP16 음성팩을 설치합니다. 약 200MB를 내려받고, 설치 중에는 추가 여유 공간이 필요합니다. 설치 후 합성은 기기 안에서 오프라인으로 동작합니다.\n\nWi-Fi 사용을 권장합니다.")
+                .setMessage("Supertonic 3 FP16 음성팩을 설치합니다. 약 200MB를 ETERNAL PATROL GitHub Release에서 내려받고, 설치 전 SHA-256을 검증합니다. 설치 중에는 추가 여유 공간이 필요합니다. 설치 후 합성은 기기 안에서 오프라인으로 동작합니다.\n\nWi-Fi 사용을 권장합니다.")
                 .setNegativeButton("취소", null)
                 .setPositiveButton("다운로드", (d, w) -> {
                     runtimeError = null;
+                    phase = "downloading";
                     packManager.startDownload();
                 }).show());
     }
@@ -73,6 +84,8 @@ public final class EternalVoiceBridge implements Closeable {
                     stop();
                     closeEngine();
                     packManager.removePack();
+                    runtimeError = null;
+                    phase = "idle";
                     Toast.makeText(activity, "음성팩을 삭제했습니다.", Toast.LENGTH_SHORT).show();
                 }).show());
     }
@@ -85,6 +98,7 @@ public final class EternalVoiceBridge implements Closeable {
         String v = normalizeVoice(voice);
         float s = (float) Math.max(0.72, Math.min(1.35, speed));
 
+        runtimeError = null;
         synchronized (queue) {
             long now = System.currentTimeMillis();
             String dedupe = role + "|" + clean;
@@ -102,12 +116,17 @@ public final class EternalVoiceBridge implements Closeable {
                 queue.addLast(new SpeechTask(role, v, clean, p, s));
             }
         }
+        phase = engine == null ? "loading" : "queued";
+        notifyHtml();
         startDrain();
     }
 
     @JavascriptInterface public void stop() {
         synchronized (queue) { queue.clear(); }
         interruptCurrent(true);
+        speaking = false;
+        if (runtimeError == null) phase = "idle";
+        notifyHtml();
     }
 
     private void startDrain() {
@@ -119,21 +138,46 @@ public final class EternalVoiceBridge implements Closeable {
                     synchronized (queue) { task = queue.pollFirst(); }
                     if (task == null) break;
                     try {
+                        speaking = true;
+                        phase = engine == null ? "loading" : "synthesizing";
+                        notifyHtml();
+                        long started = System.currentTimeMillis();
                         SupertonicEngine e = ensureEngine();
+                        phase = "synthesizing";
+                        notifyHtml();
                         float[] wav = e.synthesizeKorean(task.text, task.voice, task.speed);
-                        if (wav.length > 0) playBlocking(wav, e.getSampleRate());
+                        lastSynthesisMs = Math.max(0, System.currentTimeMillis() - started);
+                        lastSamples = wav.length;
+                        if (wav.length <= 0) throw new IllegalStateException("합성 결과가 비어 있습니다.");
+                        phase = "playing";
+                        notifyHtml();
+                        playBlocking(wav, e.getSampleRate());
                         runtimeError = null;
+                        phase = "idle";
+                        speaking = false;
+                        notifyHtml();
                     } catch (InterruptedException canceled) {
                         Thread.interrupted();
+                        speaking = false;
+                        if (runtimeError == null) phase = "idle";
+                        notifyHtml();
                     } catch (Throwable ex) {
                         runtimeError = friendly(ex);
+                        phase = "error";
+                        speaking = false;
                         notifyHtml();
+                        showErrorToast(runtimeError);
                     }
                 }
             } finally {
                 draining.set(false);
+                speaking = false;
                 synchronized (queue) {
                     if (!queue.isEmpty() && !closed) startDrain();
+                    else if (runtimeError == null && !closed) {
+                        phase = "idle";
+                        notifyHtml();
+                    }
                 }
             }
         });
@@ -142,45 +186,51 @@ public final class EternalVoiceBridge implements Closeable {
     private synchronized SupertonicEngine ensureEngine() throws Exception {
         if (engine != null) return engine;
         if (!packManager.isReady()) throw new IllegalStateException("음성팩이 설치되지 않았습니다.");
+        phase = "loading";
+        notifyHtml();
         engine = new SupertonicEngine(packManager.packRoot());
         return engine;
     }
 
+    /**
+     * Stream native float PCM directly to AudioTrack. This matches the model output
+     * and avoids an unnecessary float->int16 conversion in the Android path.
+     */
     private void playBlocking(float[] wav, int sampleRate) throws InterruptedException {
         final long generation = audioGeneration.get();
-        short[] pcm = new short[wav.length];
-        for (int i = 0; i < wav.length; i++) {
-            float v = Math.max(-1f, Math.min(1f, wav[i]));
-            pcm[i] = (short) Math.round(v * 32767f);
-        }
-        int min = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        int buffer = Math.max(min, 16 * 1024);
+        int min = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT);
+        if (min <= 0) throw new IllegalStateException("AudioTrack 초기화 실패: " + min);
+        int buffer = Math.max(min, 32 * 1024);
         AudioTrack track = new AudioTrack.Builder()
                 .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_GAME)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build())
                 .setAudioFormat(new AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
                         .setSampleRate(sampleRate)
                         .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
                         .build())
                 .setBufferSizeInBytes(buffer)
                 .setTransferMode(AudioTrack.MODE_STREAM)
                 .build();
+        if (track.getState() != AudioTrack.STATE_INITIALIZED) {
+            try { track.release(); } catch (Exception ignored) {}
+            throw new IllegalStateException("AudioTrack이 초기화되지 않았습니다.");
+        }
         currentTrack = track;
         try {
             track.setVolume(1.0f);
             track.play();
             int offset = 0;
-            while (offset < pcm.length && !closed) {
+            while (offset < wav.length && !closed) {
                 if (generation != audioGeneration.get() || Thread.currentThread().isInterrupted()) throw new InterruptedException("playback canceled");
-                int n = track.write(pcm, offset, Math.min(8192, pcm.length - offset), AudioTrack.WRITE_BLOCKING);
+                int count = Math.min(8192, wav.length - offset);
+                int n = track.write(wav, offset, count, AudioTrack.WRITE_BLOCKING);
                 if (n < 0) throw new IllegalStateException("AudioTrack write " + n);
                 offset += n;
             }
-            // WRITE_BLOCKING waits for buffer space, not for the speaker to finish the queued tail.
-            while (!closed && track.getPlaybackHeadPosition() < pcm.length) {
+            while (!closed && track.getPlaybackHeadPosition() < wav.length) {
                 if (generation != audioGeneration.get() || Thread.currentThread().isInterrupted()) throw new InterruptedException("playback canceled");
                 Thread.sleep(12L);
             }
@@ -202,8 +252,6 @@ public final class EternalVoiceBridge implements Closeable {
             try { t.flush(); } catch (Exception ignored) {}
             try { t.stop(); } catch (Exception ignored) {}
         }
-        // The executor thread cooperatively sees engine cancellation at each inference step.
-        // We avoid shutting down the executor so later reports can continue.
     }
 
     private JSONObject mergedStatus() {
@@ -212,6 +260,11 @@ public final class EternalVoiceBridge implements Closeable {
             if (runtimeError != null) o.put("error", runtimeError);
             o.put("engine", "Supertonic3-ONNX");
             o.put("voices", "M1,M2,M3,M4,M5");
+            o.put("phase", phase);
+            o.put("speaking", speaking);
+            o.put("engineLoaded", engine != null);
+            o.put("lastSynthesisMs", lastSynthesisMs);
+            o.put("lastSamples", lastSamples);
         } catch (Exception ignored) {}
         return o;
     }
@@ -224,6 +277,10 @@ public final class EternalVoiceBridge implements Closeable {
             String js = "try{if(window.EPVoice&&EPVoice.nativeStatus)EPVoice.nativeStatus(" + s.toString() + ");}catch(e){}";
             webView.evaluateJavascript(js, null);
         });
+    }
+
+    private void showErrorToast(String error) {
+        activity.runOnUiThread(() -> Toast.makeText(activity, "승조원 음성 오류: " + error, Toast.LENGTH_LONG).show());
     }
 
     public void onPageReady() { notifyHtml(); }
@@ -261,7 +318,8 @@ public final class EternalVoiceBridge implements Closeable {
     private static String friendly(Throwable t) {
         String s = t.getMessage();
         if (s == null || s.trim().isEmpty()) s = t.getClass().getSimpleName();
-        return s.length() > 120 ? s.substring(0, 120) : s;
+        s = s.replace('\n', ' ').replace('\r', ' ').replaceAll("\\s+", " ").trim();
+        return s.length() > 180 ? s.substring(0, 180) : s;
     }
 
     private static final class SpeechTask {

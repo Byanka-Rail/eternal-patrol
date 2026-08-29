@@ -1,26 +1,23 @@
 {
-  "package": "ETERNAL PATROL v6.24.2 Android Supertonic",
-  "applicationId": "com.silentseas.game",
-  "versionName": "6.24.2",
-  "versionCode": 62402,
-  "abi": ["arm64-v8a"],
-  "asset": "app/src/main/assets/index.html",
-  "assetBytes": 3216819,
-  "assetSha256": "757bcedaf66c45345f62071ccfaed81aa799dcd105b129db7daf98f7b3f12a7d",
-  "voice": {
-    "bridge": "window.EternalVoice",
-    "runtime": "com.microsoft.onnxruntime:onnxruntime-android:1.29.0",
-    "pack": "Kyumdroid/supertonic-3-quant fp16/onnx",
-    "packBundled": false,
-    "downloadOptIn": true,
-    "approxPackMB": 200,
-    "voices": ["M1","M2","M3","M4","M5"],
-    "offlineAfterInstall": true
-  },
-  "compatibility": {
-    "fixedOrigin": "https://silentseas.local",
-    "githubHtmlUpdater": true,
-    "saveBackupRestore": true,
-    "voicePackIndependentOfHtmlUpdates": true
+  "package": "ETERNAL PATROL v6.24.5 Android self-hosted Supertonic voice",
+  "gameVersion": "6.24.5",
+  "versionName": "6.24.5",
+  "versionCode": 62405,
+  "checks": {
+    "inlineJavaScriptBlocks": 28,
+    "javascriptSyntaxErrors": 0,
+    "domIds": 570,
+    "duplicateDomIds": 0,
+    "bundledHtmlMatchesStandaloneSha256": true,
+    "runtimeVoiceHost": "Byanka-Rail/eternal-patrol GitHub Release voicepack-v1",
+    "runtimeDirectHuggingFaceDownload": false,
+    "voicePackManifestSha256Verification": true,
+    "zipSlipProtection": true,
+    "voicePackManagerJava17StubCompile": "pass",
+    "workflowYamlParse": "pass",
+    "workflowShellSyntax": "pass",
+    "saveSchemaChanged": false,
+    "gameCoreChanged": false,
+    "androidAssembleDebug": "not run locally; GitHub Actions required"
   }
 }
