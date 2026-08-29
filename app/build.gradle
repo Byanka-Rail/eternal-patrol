@@ -10,8 +10,8 @@ android {
         applicationId 'com.silentseas.game'
         minSdk 24
         targetSdk 36
-        versionCode 62407
-        versionName '6.24.7'
+        versionCode 62408
+        versionName '6.24.8'
         // Supertonic inference is intended for modern 64-bit Android devices.
         // Keeping only arm64 avoids shipping unused ONNX Runtime native binaries.
         ndk {

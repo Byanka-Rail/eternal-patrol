@@ -45,7 +45,7 @@ public class MainActivity extends Activity {
     private static final String HOME_URL = ORIGIN + "/index.html";
     private static final String UPDATE_MANIFEST = "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/update.json";
     private static final String ALLOWED_UPDATE_PREFIX = "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/";
-    private static final String BUNDLED_GAME_VERSION = "6.24.7";
+    private static final String BUNDLED_GAME_VERSION = "6.24.8";
     private static final int FALLBACK_VERSION_CODE = 62405;
     private static final long UPDATE_INTERVAL_MS = 6L * 60L * 60L * 1000L;
     private static final int REQ_BACKUP = 401;
@@ -237,7 +237,7 @@ public class MainActivity extends Activity {
         c.setConnectTimeout(8000);
         c.setReadTimeout(15000);
         c.setInstanceFollowRedirects(true);
-        c.setRequestProperty("User-Agent", "ETERNAL-PATROL-Android/6.24.7");
+        c.setRequestProperty("User-Agent", "ETERNAL-PATROL-Android/6.24.8");
         int code = c.getResponseCode();
         if (code < 200 || code >= 300) throw new IllegalStateException("HTTP " + code);
         try (InputStream in = c.getInputStream()) { return readAll(in, limit); }

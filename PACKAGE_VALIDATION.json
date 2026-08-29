@@ -1,13 +1,27 @@
 {
-  "package": "ETERNAL PATROL v6.24.7 Android FP32 CPU-compatible self-hosted Supertonic voice",
-  "gameVersion": "6.24.7",
-  "versionName": "6.24.7",
-  "versionCode": 62407,
+  "package": "ETERNAL PATROL v6.24.8 Android FP32 voice + mood + licenses",
+  "gameVersion": "6.24.8",
+  "versionName": "6.24.8",
+  "versionCode": 62408,
   "voicePack": {
     "tag": "voicepack-v3",
     "variant": "FP32",
-    "packId": "supertonic3_fp32_ep_v3",
-    "modelWeightsModified": false,
-    "runtimeHost": "Byanka-Rail/eternal-patrol GitHub Release"
+    "packId": "supertonic3_fp32_ep_v3"
+  },
+  "voiceBridge": {
+    "styledApi": "speakStyled",
+    "moods": [
+      "CALM",
+      "ALERT",
+      "URGENT",
+      "STRAINED"
+    ]
+  },
+  "licenses": {
+    "supertonicCode": "MIT",
+    "supertonicModel": "BigScience OpenRAIL-M",
+    "onnxruntime": "MIT",
+    "onnxruntimeVersion": "1.29.0",
+    "thirdPartyNotices": "fetched at Android build from official Microsoft v1.29.0 source"
   }
 }

@@ -1,25 +1,32 @@
-ETERNAL PATROL v6.24.7 — THIRD-PARTY NOTICES
+ETERNAL PATROL v6.24.8 — THIRD-PARTY NOTICES
 ================================================
 
-Supertonic 3
-------------
+Supertonic 3 model
+------------------
 Original model: Supertone/supertonic-3
 Copyright: Supertone Inc.
 Pinned upstream revision: 724fb5abbf5502583fb520898d45929e62f02c0b
 Model license: BigScience OpenRAIL-M
+Runtime pack: voicepack-v3, official FP32 assets mirrored unchanged by ETERNAL PATROL.
+The official model LICENSE is included inside the downloadable voice pack.
+AI-generated crew speech is disclosed in the game UI.
 
-ETERNAL PATROL voicepack-v3 mirrors the official FP32 ONNX model assets without
-weight conversion, quantization, training, or fine-tuning. Runtime distribution
-is hosted by the Byanka-Rail/eternal-patrol GitHub Release. The model LICENSE is
-included inside the voice pack. AI-generated crew speech is disclosed in the UI.
-
-Reason for v3:
-The previous v2 FP16 pack could load on desktop validation but Android
-CPUExecutionProvider failed at runtime on FP16 operators such as
-com.microsoft.Gelu. v3 keeps official FP32 computation for CPU compatibility.
-
-ONNX Runtime Android
---------------------
-Artifact: com.microsoft.onnxruntime:onnxruntime-android:1.29.0
-Project: ONNX Runtime by Microsoft
+Supertonic sample / integration code
+-------------------------------------
+Copyright (c) 2025 Supertone Inc.
 License: MIT
+Full text: assets/licenses/LICENSE_SUPERTONIC_CODE_MIT.txt
+
+ONNX Runtime Android 1.29.0
+---------------------------
+Artifact: com.microsoft.onnxruntime:onnxruntime-android:1.29.0
+Copyright (c) Microsoft Corporation
+License: MIT
+Full text: assets/licenses/LICENSE_ONNXRUNTIME_MIT.txt
+Official ONNX Runtime ThirdPartyNotices.txt is fetched from the Microsoft
+v1.29.0 source by the Android build workflow and bundled at:
+assets/licenses/ONNXRUNTIME_ThirdPartyNotices.txt
+
+The voice acting profile layer in ETERNAL PATROL changes only local synthesis
+speed, playback gain, and post-speech pause. It does not modify or train the
+Supertonic model weights.

@@ -1,0 +1,1 @@
+BUILD MARKER: android-build.yml replaces this file with the official Microsoft ONNX Runtime v1.29.0 ThirdPartyNotices.txt before assembleDebug.

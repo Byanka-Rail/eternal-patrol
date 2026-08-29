@@ -1,0 +1,34 @@
+ETERNAL PATROL v6.24.8 변경사항
+================================
+
+[상황별 승조원 발화]
+- CALM / ALERT / URGENT / STRAINED 4단계 프로필 추가.
+- 같은 역할은 같은 M1~M5 음색을 유지하고, 속도·재생 음량·발화 후 휴지만 조절.
+- 프로필 값은 HTML의 EPVoice.MOOD에 있어 이후 HTML 업데이트만으로 튜닝 가능.
+- 판정은 보고 P0/P1/P2와 자함의 공개 상태만 사용.
+  · P2 기본: CALM
+  · P1 기본: ALERT
+  · P0 또는 긴급명령: URGENT
+  · 중대한 자함 손상/전지/공기 부족에서 기관·손상통제·P1 보고: STRAINED
+  · P0 직후 18초 동안 뒤따르는 평시 보고는 ALERT로 완충
+- 숨은 적 실제 위치·거리·센서 능력·미공개 탐지값은 mood 판정에 사용하지 않음.
+- 옵션에 평시/경계/긴급/피로·손상 4종 시험 버튼 추가.
+
+[Android 음성 브리지]
+- 새 speakStyled(role, voice, text, priority, speed, gain, pauseMs, mood) 추가.
+- 기존 speak(...)는 호환용으로 유지.
+- AudioTrack 볼륨과 보고 사이 휴지를 task별 적용.
+- 상태 JSON에 lastMood 추가.
+
+[라이선스]
+- Supertonic 코드 MIT 전문을 APK assets/licenses에 포함.
+- ONNX Runtime Android 1.29.0 Microsoft MIT 전문을 APK assets/licenses에 포함.
+- Android GitHub Actions 빌드 직전에 Microsoft ONNX Runtime v1.29.0 공식 소스에서
+  LICENSE와 ThirdPartyNotices.txt를 받아 APK에 포함하고 내용/크기를 검증.
+- 옵션의 제3자 라이선스 영역에 Supertonic MIT와 Microsoft MIT 전문을 표시.
+- Supertonic 3 모델 OpenRAIL-M은 기존 voicepack-v3 안의 공식 LICENSE 유지.
+
+[유지]
+- voicepack-v3 공식 FP32 자체호스팅 구조 유지.
+- MENU A안 유지.
+- 전투 계산, AI, 탐지, 무장, 역사전, Campaign/War 저장 구조 변경 없음.

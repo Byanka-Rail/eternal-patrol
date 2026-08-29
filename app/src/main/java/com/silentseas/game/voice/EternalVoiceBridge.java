@@ -43,6 +43,7 @@ public final class EternalVoiceBridge implements Closeable {
     private volatile boolean speaking;
     private volatile long lastSynthesisMs;
     private volatile int lastSamples;
+    private volatile String lastMood = "CALM";
     private volatile boolean closed;
 
     public EternalVoiceBridge(Activity activity, WebView webView) {
@@ -91,12 +92,21 @@ public final class EternalVoiceBridge implements Closeable {
     }
 
     @JavascriptInterface public void speak(String role, String voice, String text, String priority, double speed) {
+        // Backward-compatible entry point for older HTML updates.
+        speakStyled(role, voice, text, priority, speed, 0.90, 90, "CALM");
+    }
+
+    @JavascriptInterface public void speakStyled(String role, String voice, String text, String priority,
+                                                 double speed, double gain, int pauseMs, String mood) {
         if (closed || !packManager.isReady()) return;
         String clean = normalizeText(text);
         if (clean.isEmpty()) return;
         String p = normalizePriority(priority);
         String v = normalizeVoice(voice);
+        String m = normalizeMood(mood);
         float s = (float) Math.max(0.72, Math.min(1.35, speed));
+        float g = (float) Math.max(0.55, Math.min(1.0, gain));
+        int pause = Math.max(0, Math.min(400, pauseMs));
 
         runtimeError = null;
         synchronized (queue) {
@@ -107,13 +117,14 @@ public final class EternalVoiceBridge implements Closeable {
             recentText.put(dedupe, now);
             recentText.entrySet().removeIf(e -> now - e.getValue() > 30_000);
 
+            SpeechTask task = new SpeechTask(role, v, clean, p, s, g, pause, m);
             if ("P0".equals(p)) {
                 queue.clear();
                 interruptCurrent(false);
-                queue.addFirst(new SpeechTask(role, v, clean, p, s));
+                queue.addFirst(task);
             } else {
                 while (queue.size() >= 6) queue.pollLast();
-                queue.addLast(new SpeechTask(role, v, clean, p, s));
+                queue.addLast(task);
             }
         }
         phase = engine == null ? "loading" : "queued";
@@ -151,7 +162,15 @@ public final class EternalVoiceBridge implements Closeable {
                         if (wav.length <= 0) throw new IllegalStateException("합성 결과가 비어 있습니다.");
                         phase = "playing";
                         notifyHtml();
-                        playBlocking(wav, e.getSampleRate());
+                        lastMood = task.mood;
+                        playBlocking(wav, e.getSampleRate(), task.gain);
+                        if (task.pauseMs > 0) {
+                            long until = System.currentTimeMillis() + task.pauseMs;
+                            while (System.currentTimeMillis() < until) {
+                                if (closed || Thread.currentThread().isInterrupted()) throw new InterruptedException("speech pause canceled");
+                                Thread.sleep(Math.min(20L, Math.max(1L, until - System.currentTimeMillis())));
+                            }
+                        }
                         runtimeError = null;
                         phase = "idle";
                         speaking = false;
@@ -196,7 +215,7 @@ public final class EternalVoiceBridge implements Closeable {
      * Stream native float PCM directly to AudioTrack. This matches the model output
      * and avoids an unnecessary float->int16 conversion in the Android path.
      */
-    private void playBlocking(float[] wav, int sampleRate) throws InterruptedException {
+    private void playBlocking(float[] wav, int sampleRate, float gain) throws InterruptedException {
         final long generation = audioGeneration.get();
         int min = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT);
         if (min <= 0) throw new IllegalStateException("AudioTrack 초기화 실패: " + min);
@@ -220,7 +239,7 @@ public final class EternalVoiceBridge implements Closeable {
         }
         currentTrack = track;
         try {
-            track.setVolume(1.0f);
+            track.setVolume(Math.max(0.55f, Math.min(1.0f, gain)));
             track.play();
             int offset = 0;
             while (offset < wav.length && !closed) {
@@ -265,6 +284,7 @@ public final class EternalVoiceBridge implements Closeable {
             o.put("engineLoaded", engine != null);
             o.put("lastSynthesisMs", lastSynthesisMs);
             o.put("lastSamples", lastSamples);
+            o.put("lastMood", lastMood);
         } catch (Exception ignored) {}
         return o;
     }
@@ -315,6 +335,11 @@ public final class EternalVoiceBridge implements Closeable {
         return switch (v) { case "M1", "M2", "M3", "M4", "M5" -> v; default -> "M3"; };
     }
 
+    private static String normalizeMood(String mood) {
+        String m = mood == null ? "CALM" : mood.toUpperCase(Locale.ROOT).trim();
+        return switch (m) { case "CALM", "ALERT", "URGENT", "STRAINED" -> m; default -> "CALM"; };
+    }
+
     private static String friendly(Throwable t) {
         String s = t.getMessage();
         if (s == null || s.trim().isEmpty()) s = t.getClass().getSimpleName();
@@ -323,10 +348,12 @@ public final class EternalVoiceBridge implements Closeable {
     }
 
     private static final class SpeechTask {
-        final String role, voice, text, priority;
-        final float speed;
-        SpeechTask(String role, String voice, String text, String priority, float speed) {
-            this.role = role; this.voice = voice; this.text = text; this.priority = priority; this.speed = speed;
+        final String role, voice, text, priority, mood;
+        final float speed, gain;
+        final int pauseMs;
+        SpeechTask(String role, String voice, String text, String priority, float speed, float gain, int pauseMs, String mood) {
+            this.role = role; this.voice = voice; this.text = text; this.priority = priority;
+            this.speed = speed; this.gain = gain; this.pauseMs = pauseMs; this.mood = mood;
         }
     }
 }
