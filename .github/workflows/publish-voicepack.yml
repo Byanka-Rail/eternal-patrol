@@ -209,7 +209,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: voicepack-v2
+          RELEASE_TAG: voicepack-v2        
           ZIP_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.zip
           MANIFEST_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json
           SHA_NAME: ETERNAL_PATROL_SUPERTONIC3_FP16_V2_SHA256.txt
