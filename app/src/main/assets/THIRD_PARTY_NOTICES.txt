@@ -1,4 +1,4 @@
-ETERNAL PATROL v6.24.5 — THIRD-PARTY NOTICES
+ETERNAL PATROL v6.24.6 — THIRD-PARTY NOTICES
 ==============================================
 
 승조원 음성은 선택 기능이며 AI 음성합성으로 생성됩니다. 실제 사람의 녹음이 아닙니다.
@@ -7,29 +7,25 @@ ETERNAL PATROL v6.24.5 — THIRD-PARTY NOTICES
 Runtime distribution
 --------------------
 - 플레이 중 음성팩 다운로드 출처:
-  https://github.com/Byanka-Rail/eternal-patrol/releases/tag/voicepack-v1
-- 게임 클라이언트는 Kyumdroid/Hugging Face에 직접 연결하지 않습니다.
-- Release manifest의 byte size와 SHA-256을 확인한 뒤 설치합니다.
-- 이 변경은 배포 호스팅을 ETERNAL PATROL 쪽으로 고정한 것이며, 모델 저작권/출처를 ETERNAL PATROL이 취득했다는 뜻이 아닙니다.
+  https://github.com/Byanka-Rail/eternal-patrol/releases/tag/voicepack-v2
+- 게임 클라이언트는 제3자 변환모델 저장소에 연결하지 않습니다.
+- Release manifest의 byte size와 SHA-256을 확인하고, PACK_INFO.json의 공식 원본 revision/변환 주체를 확인한 뒤 설치합니다.
 
 1) Supertonic 3 model
    Provider: Supertone Inc.
    Source: https://huggingface.co/Supertone/supertonic-3
-   Project: https://github.com/supertone-inc/supertonic
+   Pinned official revision:
+   724fb5abbf5502583fb520898d45929e62f02c0b
    Model license: BigScience OpenRAIL-M
    Official project/example code license: MIT
 
-2) Supertonic 3 FP16 ONNX derivative used by the optional Android voice pack
-   Provider / conversion: Kyumdroid
-   Source: https://huggingface.co/Kyumdroid/supertonic-3-quant
-   Pinned revision used by voicepack-v1:
-   d9bfd0a9384b42a76f9256eafdd3d8a5cc4706ba
-   Variant: fp16/onnx
-   License: OpenRAIL-M inherited from the original model
-
-   ETERNAL PATROL voicepack-v1 does not modify these model weights.
-   It repackages the pinned FP16 ONNX files, M1-M5 preset style files,
-   license, provenance, and pack metadata into a stable game-owned Release asset.
+2) ETERNAL PATROL Supertonic 3 FP16 ONNX derivative
+   Conversion: ETERNAL PATROL GitHub Actions
+   Input: the four official FP32 ONNX files from the pinned revision above
+   Output: FP16 ONNX, with FP32 I/O retained for runtime compatibility
+   No model training or fine-tuning is performed.
+   No third-party converted model-weight files are downloaded or repackaged.
+   The derivative remains subject to the original model's OpenRAIL-M terms and use restrictions.
 
 3) ONNX Runtime for Android
    Provider: Microsoft
@@ -41,6 +37,7 @@ Distribution design
 -------------------
 - Model weights are NOT bundled inside the ETERNAL PATROL APK or HTML.
 - The player must explicitly choose "음성팩 받기" before model files are downloaded.
-- The optional pack is stored in the app-private data directory and can be removed in Options.
-- The pack itself includes the upstream model LICENSE and THIRD_PARTY_NOTICES.txt.
+- voicepack-v2 is created once on GitHub Actions from the pinned official model and then hosted by the ETERNAL PATROL GitHub Release.
+- Normal players download only from the ETERNAL PATROL Release.
+- The optional pack includes the official model LICENSE, THIRD_PARTY_NOTICES.txt, CONVERSION_NOTES.txt, and PACK_INFO.json.
 - This game uses supplied preset M1-M5 styles and does not clone a real person's voice.

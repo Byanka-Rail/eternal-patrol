@@ -1,6 +1,5 @@
 {
-  "gameVersion": "6.24.5",
-  "androidVersionCode": 62405,
-  "url": "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/ETERNAL_PATROL_v6.24.5_자체호스팅_승조원음성_MENU통합.html",
-  "sha256": "fd847645050ee65e800f78c2ca713ff9c987deb14ee5a80e8aecafb7f4d99273"
+  "gameVersion": "6.24.6",
+  "sha256": "8a9195c12b32251779a4fd4fdb1eaf5bdf674671ca2a2e2e913ed6fb6bc4d362",
+  "url": "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/ETERNAL_PATROL_v6.24.6_공식원본_FP16_자체호스팅_MENU통합.html"
 }

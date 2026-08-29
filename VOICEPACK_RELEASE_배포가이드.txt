@@ -1,42 +1,48 @@
-ETERNAL PATROL v6.24.5 — 음성팩 우리 GitHub Release 배포 순서
-===============================================================
+ETERNAL PATROL v6.24.6 — 공식 원본 기반 음성팩 배포
+====================================================
 
 목표
-- 게임 사용자는 Kyumdroid/Hugging Face에서 직접 음성팩을 받지 않음
-- Byanka-Rail/eternal-patrol GitHub Release의 voicepack-v1에서만 다운로드
-- upstream 출처와 OpenRAIL-M 라이선스는 그대로 고지
+----
+- 원 제작자/제3자 저장소를 게임 사용자의 다운로드 서버로 사용하지 않음.
+- 제3자 변환 바이너리에도 의존하지 않음.
+- Supertone 공식 Supertonic 3를 ETERNAL PATROL GitHub Actions가 최초 1회 받아 직접 FP16으로 변환.
+- 이후 플레이어는 우리 GitHub Release의 voicepack-v2만 사용.
 
 최초 1회
-1. ETERNAL_PATROL_v6.24.5_ANDROID_SELFHOST_VOICE 프로젝트 내용을
-   Byanka-Rail/eternal-patrol 저장소 루트에 반영한다.
+---------
+1. 이 프로젝트 ZIP 내용을 Byanka-Rail/eternal-patrol 저장소에 업로드/교체.
+2. GitHub → Actions → Publish Official Supertonic Voice Pack.
+3. Run workflow.
+4. workflow가 공식 Supertonic 3 고정 revision을 다운로드하고 FP16 변환/검증/패키징함.
+5. Releases에서 voicepack-v2 확인.
 
-2. GitHub → Actions → Publish Supertonic Voice Pack → Run workflow
+생성되는 Release assets
+-----------------------
+- ETERNAL_PATROL_SUPERTONIC3_FP16_V2.zip
+- ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json
+- ETERNAL_PATROL_SUPERTONIC3_FP16_V2_SHA256.txt
 
-3. 완료 후 GitHub → Releases에서 voicepack-v1 확인
-   아래 3개가 있어야 한다.
-   - ETERNAL_PATROL_SUPERTONIC3_FP16_V1.zip
-   - ETERNAL_PATROL_SUPERTONIC3_FP16_V1.json
-   - ETERNAL_PATROL_SUPERTONIC3_FP16_V1_SHA256.txt
+정상이라면 이 workflow는 모델을 바꾸기 전까지 다시 실행할 필요가 없음.
+게임 HTML/APK 버전이 올라가도 voicepack-v2를 계속 재사용할 수 있음.
 
-4. 이 음성팩 Release는 같은 voicepack-v1을 계속 쓸 동안 다시 만들 필요가 없다.
-
-APK 빌드
+APK
+---
 1. Actions → Build Android APK → Run workflow
-2. artifact: ETERNAL_PATROL_v6.24.5_SELFHOST_VOICE_debug_apk
-3. 내부 app-debug.apk 설치
+2. artifact: ETERNAL_PATROL_v6.24.6_OFFICIAL_SELFHOST_VOICE_debug_apk
+3. APK 설치 후 옵션 → 승조원 음성 → 음성팩 받기
+4. 앱은 voicepack-v2 manifest → ZIP → SHA-256 → PACK_INFO 순으로 검증
+5. 설치 후 음성 시험
 
-실기기 확인
-1. 옵션 → 승조원 음성
-2. 음성팩 받기
-3. 화면에 목록 확인 → 다운로드 → SHA-256 검증 → 설치 단계가 진행되는지 확인
-4. 음성 시험
+기존 voicepack-v1 설치자
+------------------------
+- v6.24.6은 PACK_INFO의 pack id, 공식 revision, convertedBy 값을 검사함.
+- 예전 voicepack-v1은 새 공식직접변환 팩으로 인정되지 않음.
+- 새 팩 설치가 완료될 때 기존 저장경로를 원자적으로 교체하므로 최종적으로 중복 모델을 남기지 않음.
+- 새 설치 과정에는 ZIP+압축해제 공간이 필요하므로 약 430MB 이상의 여유 공간을 권장.
 
-기존 v6.24.3/6.24.4 APK에서 이미 음성팩을 받은 경우
-- 같은 applicationId와 앱 데이터가 유지되면 기존 supertonic3_fp16_v1 팩을 그대로 사용한다.
-- 따라서 덮어쓰기 설치 후에는 200MB를 다시 받을 필요가 없을 수 있다.
-- 앱을 삭제한 뒤 재설치하면 앱 전용 데이터도 사라질 수 있으므로 다시 받아야 한다.
-
-참고
-- 런타임 다운로드 호스트만 ETERNAL PATROL 쪽으로 옮긴 것이다.
-- 원 모델은 Supertone/supertonic-3, FP16 파생은 Kyumdroid/supertonic-3-quant이며
-  해당 출처와 라이선스 고지는 제거하면 안 된다.
+라이선스
+--------
+- 원 모델: Supertone/supertonic-3, BigScience OpenRAIL-M
+- 공식 코드/예제: MIT
+- Android 런타임: Microsoft ONNX Runtime, MIT
+- ETERNAL PATROL FP16 변환본은 원 모델 라이선스와 사용 제한을 승계함.

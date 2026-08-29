@@ -34,13 +34,15 @@ public final class VoicePackManager {
     public static final String VARIANT = "FP16";
     public static final int DISPLAY_MB = 200;
 
-    private static final String PACK_NAME = "supertonic3_fp16_v1";
-    private static final String RELEASE_TAG = "voicepack-v1";
+    private static final String STORAGE_NAME = "supertonic3_fp16_v1"; // keep path so legacy pack can be replaced atomically
+    private static final String EXPECTED_PACK_ID = "supertonic3_fp16_ep_v2";
+    private static final String OFFICIAL_REVISION = "724fb5abbf5502583fb520898d45929e62f02c0b";
+    private static final String RELEASE_TAG = "voicepack-v2";
     private static final String RELEASE_BASE =
             "https://github.com/Byanka-Rail/eternal-patrol/releases/download/" + RELEASE_TAG + "/";
-    private static final String MANIFEST_URL = RELEASE_BASE + "ETERNAL_PATROL_SUPERTONIC3_FP16_V1.json";
+    private static final String MANIFEST_URL = RELEASE_BASE + "ETERNAL_PATROL_SUPERTONIC3_FP16_V2.json";
     private static final String ALLOWED_PACK_PREFIX = RELEASE_BASE;
-    private static final long MIN_FREE_BYTES = 360L * 1024L * 1024L;
+    private static final long MIN_FREE_BYTES = 430L * 1024L * 1024L;
 
     private final Context context;
     private final Listener listener;
@@ -57,10 +59,10 @@ public final class VoicePackManager {
         this.listener = listener;
     }
 
-    public File packRoot() { return new File(context.getFilesDir(), PACK_NAME); }
-    private File workRoot() { return new File(context.getFilesDir(), PACK_NAME + ".download"); }
-    private File zipPart() { return new File(context.getFilesDir(), PACK_NAME + ".zip.part"); }
-    private File zipReady() { return new File(context.getFilesDir(), PACK_NAME + ".zip"); }
+    public File packRoot() { return new File(context.getFilesDir(), STORAGE_NAME); }
+    private File workRoot() { return new File(context.getFilesDir(), STORAGE_NAME + ".download"); }
+    private File zipPart() { return new File(context.getFilesDir(), STORAGE_NAME + ".zip.part"); }
+    private File zipReady() { return new File(context.getFilesDir(), STORAGE_NAME + ".zip"); }
 
     public synchronized JSONObject status() {
         JSONObject o = new JSONObject();
@@ -94,7 +96,25 @@ public final class VoicePackManager {
                 && good(new File(root, "voice_styles/M4.json"), 50_000L)
                 && good(new File(root, "voice_styles/M5.json"), 50_000L)
                 && good(new File(root, "LICENSE"), 500L)
-                && good(new File(root, "THIRD_PARTY_NOTICES.txt"), 100L);
+                && good(new File(root, "THIRD_PARTY_NOTICES.txt"), 100L)
+                && good(new File(root, "CONVERSION_NOTES.txt"), 100L)
+                && validPackInfo(root);
+    }
+
+    private static boolean validPackInfo(File root) {
+        File infoFile = new File(root, "PACK_INFO.json");
+        if (!good(infoFile, 100L)) return false;
+        try (FileInputStream in = new FileInputStream(infoFile)) {
+            byte[] raw = readLimited(in, 32 * 1024);
+            JSONObject o = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+            return EXPECTED_PACK_ID.equals(o.optString("pack", ""))
+                    && "Supertone/supertonic-3".equals(o.optString("originalModel", ""))
+                    && OFFICIAL_REVISION.equals(o.optString("officialRevision", ""))
+                    && "ETERNAL PATROL GitHub Actions".equals(o.optString("convertedBy", ""))
+                    && "FP16".equalsIgnoreCase(o.optString("variant", ""));
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public void startDownload() {
@@ -109,7 +129,7 @@ public final class VoicePackManager {
             try {
                 long free = context.getFilesDir().getUsableSpace();
                 if (free > 0 && free < MIN_FREE_BYTES) {
-                    throw new IllegalStateException("저장공간이 부족합니다. 약 360MB 이상 여유 공간이 필요합니다.");
+                    throw new IllegalStateException("저장공간이 부족합니다. 약 430MB 이상 여유 공간이 필요합니다.");
                 }
 
                 PackManifest manifest = fetchManifest();
@@ -192,7 +212,7 @@ public final class VoicePackManager {
             String url = o.optString("url", "");
             String hash = o.optString("sha256", "").trim();
             long len = o.optLong("bytes", 0L);
-            if (schema != 1 || !PACK_NAME.equals(pack) || url.isEmpty() || hash.isEmpty() || len <= 0) {
+            if (schema != 2 || !EXPECTED_PACK_ID.equals(pack) || url.isEmpty() || hash.isEmpty() || len <= 0) {
                 throw new IllegalStateException("음성팩 목록 형식이 올바르지 않습니다.");
             }
             return new PackManifest(url, hash, len);
@@ -262,7 +282,7 @@ public final class VoicePackManager {
             c.setConnectTimeout(20_000);
             c.setReadTimeout(60_000);
             c.setInstanceFollowRedirects(false);
-            c.setRequestProperty("User-Agent", "ETERNAL-PATROL-VoicePack/6.24.5");
+            c.setRequestProperty("User-Agent", "ETERNAL-PATROL-VoicePack/6.24.6");
             c.setRequestProperty("Accept", "application/octet-stream,application/json,*/*");
             if (rangeStart > 0) c.setRequestProperty("Range", "bytes=" + rangeStart + "-");
             int code = c.getResponseCode();
@@ -343,7 +363,9 @@ public final class VoicePackManager {
                 && good(new File(root, "voice_styles/M1.json"), 50_000L)
                 && good(new File(root, "voice_styles/M5.json"), 50_000L)
                 && good(new File(root, "LICENSE"), 500L)
-                && good(new File(root, "THIRD_PARTY_NOTICES.txt"), 100L);
+                && good(new File(root, "THIRD_PARTY_NOTICES.txt"), 100L)
+                && good(new File(root, "CONVERSION_NOTES.txt"), 100L)
+                && validPackInfo(root);
     }
 
     private static boolean good(File f, long min) { return f.isFile() && f.length() >= min; }
