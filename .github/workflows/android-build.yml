@@ -29,5 +29,5 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: ETERNAL_PATROL_v6.24.2_SUPERTONIC_debug_apk
+          name: ETERNAL_PATROL_v6.24.5_SELFHOST_VOICE_debug_apk
           path: app/build/outputs/apk/debug/app-debug.apk
