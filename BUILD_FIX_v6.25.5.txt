@@ -1,0 +1,20 @@
+ETERNAL PATROL Android build fix v6.25.5
+
+원인
+- GitHub 저장소에 예전 app/src/main/java/com/silentseas/game/voice/SupertonicEngine.java가 남아 있었음.
+- 새 updater 패키지는 이 구형 음성 엔진을 사용하지 않지만, GitHub 파일 업로드는 기존 파일을 자동 삭제하지 않으므로 Gradle이 함께 컴파일함.
+- 해당 파일은 ai.onnxruntime.*를 요구하지만 현재 경량 updater 빌드에는 ONNX Runtime을 포함하지 않아 44개 javac 오류 발생.
+
+수정
+- app/build.gradle의 android.sourceSets.main.java에서 com/silentseas/game/voice/**를 명시적으로 제외.
+- 현재 MainActivity 및 updater 동작은 voice 패키지에 의존하지 않으므로 기능 손실 없음.
+- 구형 voice 폴더가 저장소에 남아 있어도 빌드에 영향 없음.
+
+GitHub 적용
+1. 이 패키지의 app/build.gradle을 저장소의 app/build.gradle 위에 덮어쓰기.
+2. Commit changes.
+3. Actions > Build Android APK > Run workflow.
+
+선택 정리
+- 나중에 저장소를 깔끔하게 정리하고 싶다면 app/src/main/java/com/silentseas/game/voice/ 폴더를 삭제해도 됨.
+- 삭제하더라도 현재 updater APK에는 영향 없음.
