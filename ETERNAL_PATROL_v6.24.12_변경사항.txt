@@ -1,0 +1,22 @@
+ETERNAL PATROL v6.24.12 변경사항
+=================================
+
+[잠망경/함교 화면 검은 판 수정]
+- 원인 확정: v6.24부터 추가된 물방울·비네트 효과용 #epV624PeriFx도 canvas 요소인데,
+  전역 canvas CSS의 background:var(--chartBg)와 border를 상속하고 있었다.
+- 이 효과 canvas는 실제 잠망경 캔버스 위에 z-index 440으로 올라오므로,
+  clearRect로 픽셀을 투명하게 지워도 CSS 배경색은 검게 남아 실제 시야를 통째로 덮었다.
+- #epV624PeriFx에 background:transparent!important, border:0!important,
+  border-radius:0!important, box-shadow:none!important를 명시해 순수 투명 효과층으로 분리했다.
+
+[유지]
+- v6.24.11 canvas 높이 고정/점증 확대 버그 수정 유지
+- v6.24.10 관측 캔버스 복구 안전망 유지
+- 부상 함교 시야, 잠망경 시야, 물방울/비네트 효과 자체 유지
+- 오디오 믹서, TTS 발음 보정, 상황별 발화 유지
+
+[변경하지 않음]
+- 탐지/관측 판정
+- 잠망경 노출도
+- 전투 AI/어뢰/저장 구조
+- voicepack-v3

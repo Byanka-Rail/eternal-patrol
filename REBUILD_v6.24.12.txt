@@ -1,0 +1,15 @@
+ETERNAL PATROL v6.24.12 Android full rebuild
+=============================================
+
+This package is based on the v6.24.11 Android package and includes:
+- bundled complete game HTML v6.24.12
+- periscope/bridge FX overlay transparency fix
+- v6.24.11 canvas height lock/recovery
+- FP32 voicepack-v3 bridge
+- CALM/ALERT/URGENT/STRAINED crew-voice profiles
+- effects / ambience / crew-voice mixer
+- TTS pronunciation normalization
+- Supertonic and ONNX Runtime license notices
+
+Voice pack v3 itself is unchanged and does NOT need to be republished.
+Upload this project to GitHub and run only Build Android APK.

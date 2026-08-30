@@ -5,9 +5,23 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.24.8</title>
+<title>ETERNAL PATROL: Silent Seas — v6.24.12</title>
 <!--
   PATCH RECORD — 2026-08-30
+  V6.24.12 PERISCOPE FX FIX 잠망경/함교 위에 얹는 물방울·비네트 효과 canvas가 공통 canvas 배경색을 상속해 검은 판으로 시야를 덮던 원인을 수정. #epV624PeriFx를 강제 투명·무테두리로 분리.
+  V6.24.12 SAFE 잠망경 렌더링·탐지·관측 판정·노출도 계산은 변경하지 않음.
+  V6.24.11 CANVAS SIZE LOCK canvas 요소의 CSS 높이를 명시적으로 고정하고 resize()가 clientHeight 대신 실제 표시 높이(getBoundingClientRect)를 기준으로 backing size를 갱신하도록 수정.
+  V6.24.11 CANVAS GROWTH FIX 탭 전환·재렌더 때 canvas height 속성이 누적 반영되어 관측 화면이 점점 커지던 버그를 수정.
+  V6.24.11 SAFE 관측 시야·표적 판정·오디오 믹서·TTS 로직은 변경하지 않음.
+  V6.24.10 OBS CANVAS 잠망경/함교 관측 캔버스가 WebView에서 검은 상자로 남는 경우를 복구. 탭 전환 다음 프레임 재측정·backing canvas 재설정·즉시 재렌더를 추가.
+  V6.24.10 OBS HEARTBEAT 메인 30fps UI paint와 별개로 관측 탭이 열려 있는데 마지막 draw가 오래되면 관측 캔버스만 재렌더하는 안전망 추가.
+  V6.24.10 OBS FALLBACK 공통 바다 렌더러 오류가 나더라도 최소 하늘·수평선·바다·진단문구를 남겨 완전한 검은 화면을 방지.
+  V6.24.10 SAFE 관측/탐지 판정값·전투·AI·어뢰·저장 구조는 변경하지 않음.
+  V6.24.9 BRIDGE SURFACE 함교 견시가 쓰는 시정거리와 실제 함교 시야 렌더링의 시정거리를 통일. 부상 중 선택/강한 접촉을 자동으로 시야 중심에 두고, 빈 시야에는 시정·견시 상태를 표시.
+  V6.24.9 AUDIO MIX 효과음·배경음·승조원 음성을 독립 슬라이더로 조절. 두 UI(옵션/함장명령)가 같은 저장값을 공유.
+  V6.24.9 VOICE PRONOUNCE TTS 전용 발음 정규화를 추가해 kn/kt/kts→노트, km/m→킬로미터/미터, °→도, %→퍼센트, rpm→알피엠 등 게임 단위를 자연스럽게 읽도록 함.
+  V6.24.9 VOICE ROOM Android PCM 재생 전에 약한 대역 제한·소프트 컴프레션·초기반사를 적용해 지나치게 건조한 합성음을 완화. 음성 볼륨 하한도 낮춰 실제 믹싱 가능.
+  V6.24.9 SAFE 전투 계산·AI·탐지 확률·무장·역사전·Campaign/War 저장 구조는 변경하지 않음.
   V6.24.8 VOICE MOOD 승조원 음성에 CALM/ALERT/URGENT/STRAINED 4단계 상황 발화 프로필을 추가. 표시 대사의 의미는 바꾸지 않고 속도·음량·발화 후 휴지만 조절.
   V6.24.8 VOICE SAFE 프로필 판정은 보고 중요도와 자함의 공개 상태(긴급명령·선체·전지·공기·손상)만 사용하며 숨은 적 실제값은 참조하지 않음.
   V6.24.8 BRIDGE Android EternalVoice에 speakStyled(...)를 추가하고 기존 speak(...)는 호환 유지. 향후 프로필 수치와 판정 기준은 HTML만 업데이트해 조정 가능.
@@ -80,7 +94,14 @@
   V6.23.3 UI 좁은 화면에서는 작전 역할 문구를 한 줄 말줄임 처리해 청음표·접촉 목록의 세로 공간을 침범하지 않음.
 
   PATCH RECORD — 2026-08-22
-  V6.23.2 UI 역사전 CSS가 </style> 뒤에 노출되어 CSS 원문이 전술 화면에 그대로 표시되던 오류를 수정. 역사전 전용 CSS를 독립 style 블록 안으로 격리.
+  V6.23.2 UI 역사전 CSS가 
+  .audioMixV6249{margin-top:8px;padding:8px 9px;border:1px solid var(--steel);border-radius:7px;background:rgba(4,10,13,.28)}
+  .audioMixV6249 .mixLine{display:grid;grid-template-columns:72px 1fr 42px;gap:8px;align-items:center;min-height:34px;font-size:11px;color:var(--dim)}
+  .audioMixV6249 .mixLine b{font-weight:600;color:var(--ink)}
+  .audioMixV6249 input[type=range]{width:100%;min-width:0}
+  .audioMixV6249 output{text-align:right;color:var(--blue);font-variant-numeric:tabular-nums}
+
+</style> 뒤에 노출되어 CSS 원문이 전술 화면에 그대로 표시되던 오류를 수정. 역사전 전용 CSS를 독립 style 블록 안으로 격리.
   V6.23.2 UI 역사전 전술 HUD에서 체크리스트·점수·시드·scenario ID·contacts/class/solution·런타임 오류 등 개발용 계측문을 화면에서 전부 제거.
   V6.23.2 UI 역사전 전술 화면에는 작전명/잠수함 역할과 접촉 보고 버튼만 남기는 얇은 단일 행을 사용. 별도 접기/검증저장 버튼도 제거.
   V6.23.2 VALIDATION 검증 모드의 내부 판정·고정시드·오류수집·자동 검증기록은 유지하며 화면에만 노출하지 않음.
@@ -812,6 +833,12 @@
   .pane.on{ display:flex; }
   canvas{ display:block; width:100%; background:var(--chartBg);
           border:1px solid var(--steel); border-radius:7px; }
+  /* canvas intrinsic height를 backing store 재계산에 쓰지 않도록 CSS 높이를 분리 고정한다. */
+  #cvHydro{ height:320px; }
+  #cvPeri{ height:230px; }
+  #cvChart{ height:380px; }
+  #cvSect{ height:420px; }
+  #cvReplay{ height:300px; }
 
   /* 1층 — 바탕 위의 판. 테두리는 여기서부터 모든 층이 갖는다. */
   .card{ background:var(--el1); border:1px solid var(--steel); border-radius:7px; padding:9px; }
@@ -1945,7 +1972,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <!-- 폰 화면에서 접촉 여덟이 같은 방위에 몰리면 이름표가 서로를 덮는다.
            크게 볼 길과, 하나만 볼 길을 함께 둔다. -->
 <div id="hydroSlot" style="position:relative">
-<canvas height="320" id="cvHydro"></canvas>
+<canvas height="320" id="cvHydro" style="height:320px"></canvas>
 <button class="chartBig" id="btnHydroBig" title="청음표 크게 보기">⤢</button>
 </div>
 <div class="card">
@@ -1994,7 +2021,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 </div>
 <!-- ═══ 2. 잠망경 ═══ -->
 <div class="pane" data-pane="peri">
-<canvas height="230" id="cvPeri"></canvas>
+<canvas height="230" id="cvPeri" style="height:230px"></canvas>
 <div class="card">
 <div class="row" id="obsDepthQuick">
 <button class="mini go" id="btnObsPeriDepth">잠망경 심도로</button>
@@ -2034,7 +2061,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div class="pane" data-pane="chart">
 <div id="chartHome">
 <div id="chartSlot">
-<canvas height="380" id="cvChart"></canvas>
+<canvas height="380" id="cvChart" style="height:380px"></canvas>
 <div id="chartTip"></div>
 <div aria-label="해도 속력 조절" id="chartSpeedCtl">
 <button aria-label="증속" class="mini" id="btnChartSpdUp" title="기관전령 한 단계 증속">▲</button>
@@ -2187,7 +2214,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <button class="mini on" data-sect="sea">바다 단면</button>
 <button class="mini" data-sect="boat">배 단면</button>
 </div>
-<canvas height="420" id="cvSect"></canvas>
+<canvas height="420" id="cvSect" style="height:420px"></canvas>
 <!-- ═══ 단면에서 바로 심도를 잡는다 ═══
            깊이는 단면에서 읽고 조작은 함내 탭에서 하는 것은 앞뒤가 맞지 않는다.
            보는 자리에서 바꿀 수 있어야 한다. 압궤심도까지 내려가는 선택도
@@ -2491,6 +2518,12 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <button class="mini" data-snd="cinematic">영화적</button>
 </div>
 <div class="cp-note sndNote" id="sndNoteCp"></div>
+<div class="audioMixV6249" data-audio-mix>
+  <div class="mixLine"><b>효과음</b><input type="range" min="0" max="100" step="5" data-audio-vol="effects"/><output data-audio-out="effects">100%</output></div>
+  <div class="mixLine"><b>배경음</b><input type="range" min="0" max="100" step="5" data-audio-vol="ambience"/><output data-audio-out="ambience">75%</output></div>
+  <div class="mixLine"><b>승조원</b><input type="range" min="0" max="100" step="5" data-audio-vol="voice"/><output data-audio-out="voice">55%</output></div>
+</div>
+
 </div>
 <div class="cp-sec">
 <label>함내 조명</label>
@@ -2982,6 +3015,12 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <button class="mini" data-snd="cinematic">영화적</button>
 </div>
 <div class="startOptNote sndNote" id="sndNote"></div>
+<div class="audioMixV6249" data-audio-mix>
+  <div class="mixLine"><b>효과음</b><input type="range" min="0" max="100" step="5" data-audio-vol="effects"/><output data-audio-out="effects">100%</output></div>
+  <div class="mixLine"><b>배경음</b><input type="range" min="0" max="100" step="5" data-audio-vol="ambience"/><output data-audio-out="ambience">75%</output></div>
+  <div class="mixLine"><b>승조원</b><input type="range" min="0" max="100" step="5" data-audio-vol="voice"/><output data-audio-out="voice">55%</output></div>
+</div>
+
 </div>
 <!-- 언어 — 한국어를 모르는 사람도 이것이 언어 설정임을 알아야 하므로 영어를 병기한다.
          선택지 자체는 늘 그 언어로 적는다(English 는 English 로, 日本語 는 日本語 로). -->
@@ -15953,6 +15992,12 @@ window.UBOAT = (function () {
   /* opts.render 를 준 호출만 실루엣 규격을 받는다 — 이것은 **화면에 그릴 때만**
      쓰는 값이다. 승조원 AI 는 이 인자를 주지 않으므로(1830행) 예전과 똑같이
      각도와 겉보기 크기만 본다. 정답 함급이 자동화로 새지 않는다. */
+  function bridgeVisualMax() {
+    /* 함교 견시와 화면이 같은 수평선을 보게 한다. 이전에는 견시는 11km계,
+       화면은 잠망경의 8km계를 써서 '봤는데 화면에는 없음'이 생겼다. */
+    return 11000 * G.weather.vis * (0.35 + 0.65 * (1 - (G.night || 0)));
+  }
+
   function getPeriscopeVisuals(viewBearing, halfAngle, opts) {
     const render = !!(opts && opts.render);
     const b = G.boat;
@@ -15961,7 +16006,7 @@ window.UBOAT = (function () {
     const surfaceView = !!(opts && opts.surface) && isSurfaced(b);
     if (!surfaceView && (!b.periscope || b.depth > UB.periscopeDepth + 2)) return [];
     const half = halfAngle || 20;
-    const visMax = 8000 * G.weather.vis;
+    const visMax = surfaceView ? bridgeVisualMax() : 8000 * G.weather.vis;
     const out = [];
     for (const u of units()) {
       if (!u.alive) continue;
@@ -16065,7 +16110,7 @@ window.UBOAT = (function () {
     if (u.submarineTarget && !u.mastVisible)
       return { ok: false, err: '수중표적의 잠망경·스노클이 보이지 않습니다. 청음으로 계속 추적하십시오.' };
     const r = dist(b.x, b.y, u.x, u.y);
-    const visMax = 8000 * G.weather.vis;
+    const visMax = uzo ? bridgeVisualMax() : 8000 * G.weather.vis;
     if (r > visMax) return { ok: false, err: '시야 밖입니다. 더 접근해야 합니다.' };
 
     /* 마스트 각도로 거리를 잰다 — 각도 측정 오차가 곧 거리 오차.
@@ -25549,6 +25594,8 @@ window.Snd = (function () {
   'use strict';
 
   const KEY = 'uboat.sound';
+  const MIX_KEY = 'uboat.sound.mix.v6249';
+  let userMix = { effects:1.00, ambience:0.75 };
   const PROFILES = {
     off:       { master: 0.00, combat: 0.00, mechanics: 0.00, contacts: 0.00, alerts: 0.00 },
     quiet:     { master: 0.38, combat: 1.00, mechanics: 0.30, contacts: 0.42, alerts: 0.85 },
@@ -25558,7 +25605,7 @@ window.Snd = (function () {
   };
   const LEVELS = Object.fromEntries(Object.keys(PROFILES).map(k => [k, PROFILES[k].master]));
   let level = 'off';
-  let AC = null, master = null, noiseBuf = null;
+  let AC = null, master = null, sfxBus = null, ambBus = null, noiseBuf = null;
   let bed = null;                      /* 스크류 — 계속 도는 하나 */
   let bedOsc = null, bedGain = null, bedFilt = null;
   let lastCreak = 0, lastDeepGroan = 0, lastRivetPop = 0, t0 = 0;
@@ -25570,12 +25617,24 @@ window.Snd = (function () {
   function jitter(v, amount) { return v * (1 + (Math.random() * 2 - 1) * amount); }
   function route(node, opts) {
     const panValue = opts && opts.pan;
+    const bus = opts && opts.bus === 'ambience' ? ambBus : sfxBus;
     if (panValue != null && AC.createStereoPanner) {
       const p = AC.createStereoPanner(); p.pan.value = clampPan(panValue);
-      node.connect(p); p.connect(master); return p;
+      node.connect(p); p.connect(bus || master); return p;
     }
-    node.connect(master); return null;
+    node.connect(bus || master); return null;
   }
+  function applyUserMix() {
+    if (sfxBus) sfxBus.gain.value = Math.max(0, Math.min(1.5, userMix.effects));
+    if (ambBus) ambBus.gain.value = Math.max(0, Math.min(1.5, userMix.ambience));
+  }
+  function setMix(which, value, save) {
+    if (which !== 'effects' && which !== 'ambience') return;
+    userMix[which] = Math.max(0, Math.min(1, Number(value) || 0));
+    applyUserMix();
+    if (save !== false) try { localStorage.setItem(MIX_KEY, JSON.stringify(userMix)); } catch(e) {}
+  }
+  function getMix() { return {effects:userMix.effects, ambience:userMix.ambience}; }
 
   /* ── 소리통을 연다 ── 사람이 한 번 건드린 뒤에만 열린다 */
   function open() {
@@ -25585,6 +25644,8 @@ window.Snd = (function () {
     try { AC = new C(); } catch (e) { return false; }
     master = AC.createGain();
     master.gain.value = vol() * 0.8;
+    sfxBus = AC.createGain(); ambBus = AC.createGain();
+    sfxBus.connect(master); ambBus.connect(master); applyUserMix();
     /* 마지막에 리미터를 하나 둔다 — 폭뢰 여러 발이 겹치는 순간에 소리가
        찢어지지 않게 한다. 겹치는 일은 드물지만, 드문 순간이 하필 제일 중요한
        순간이다(폭뢰 세례 한가운데). */
@@ -25965,7 +26026,7 @@ window.Snd = (function () {
     const depth = AC.createGain(); depth.gain.value = 0.5;
     const mod = AC.createGain(); mod.gain.value = 0.5;
     bedOsc.connect(depth); depth.connect(mod.gain);
-    bed.connect(bedFilt); bedFilt.connect(mod); mod.connect(bedGain); bedGain.connect(master);
+    bed.connect(bedFilt); bedFilt.connect(mod); mod.connect(bedGain); bedGain.connect(ambBus || master);
     bed.start(); bedOsc.start();
   }
   function bedOff() {
@@ -26164,26 +26225,26 @@ window.Snd = (function () {
     const wave=AC.createBufferSource(); wave.buffer=noiseBuf; wave.loop=true;
     const waveF=AC.createBiquadFilter(); waveF.type='bandpass'; waveF.frequency.value=420; waveF.Q.value=.55;
     const waveG=AC.createGain(); waveG.gain.value=.0001;
-    wave.connect(waveF); waveF.connect(waveG); waveG.connect(master); wave.start();
+    wave.connect(waveF); waveF.connect(waveG); waveG.connect(ambBus || master); wave.start();
 
     const wind=AC.createBufferSource(); wind.buffer=noiseBuf; wind.loop=true;
     const windF=AC.createBiquadFilter(); windF.type='bandpass'; windF.frequency.value=980; windF.Q.value=.42;
     const windG=AC.createGain(); windG.gain.value=.0001;
-    wind.connect(windF); windF.connect(windG); windG.connect(master); wind.start();
+    wind.connect(windF); windF.connect(windG); windG.connect(ambBus || master); wind.start();
 
     const prop=AC.createBufferSource(); prop.buffer=noiseBuf; prop.loop=true;
     const propF=AC.createBiquadFilter(); propF.type='lowpass'; propF.frequency.value=230; propF.Q.value=.8;
     const propG=AC.createGain(); propG.gain.value=.0001;
-    prop.connect(propF); propF.connect(propG); propG.connect(master); prop.start();
+    prop.connect(propF); propF.connect(propG); propG.connect(ambBus || master); prop.start();
 
     const diesel1=AC.createOscillator(), diesel2=AC.createOscillator();
     diesel1.type='triangle'; diesel2.type='sine'; diesel1.frequency.value=44; diesel2.frequency.value=88;
-    const dieselG=AC.createGain(); dieselG.gain.value=.0001; diesel1.connect(dieselG); diesel2.connect(dieselG); dieselG.connect(master);
+    const dieselG=AC.createGain(); dieselG.gain.value=.0001; diesel1.connect(dieselG); diesel2.connect(dieselG); dieselG.connect(ambBus || master);
     diesel1.start(); diesel2.start();
 
     const motor=AC.createOscillator(); motor.type='sine'; motor.frequency.value=74;
     const motor2=AC.createOscillator(); motor2.type='triangle'; motor2.frequency.value=148;
-    const motorG=AC.createGain(); motorG.gain.value=.0001; motor.connect(motorG); motor2.connect(motorG); motorG.connect(master);
+    const motorG=AC.createGain(); motorG.gain.value=.0001; motor.connect(motorG); motor2.connect(motorG); motorG.connect(ambBus || master);
     motor.start(); motor2.start();
     scene={wave,waveF,waveG,wind,windF,windG,prop,propF,propG,diesel1,diesel2,dieselG,motor,motor2,motorG};
   }
@@ -26282,7 +26343,14 @@ window.Snd = (function () {
 
   function boot() {
     let saved = null;
-    try { saved = localStorage.getItem(KEY); } catch (e) {}
+    try {
+      saved = localStorage.getItem(KEY);
+      const mx = JSON.parse(localStorage.getItem(MIX_KEY) || 'null');
+      if (mx && typeof mx === 'object') {
+        if (Number.isFinite(+mx.effects)) userMix.effects = Math.max(0,Math.min(1,+mx.effects));
+        if (Number.isFinite(+mx.ambience)) userMix.ambience = Math.max(0,Math.min(1,+mx.ambience));
+      }
+    } catch (e) {}
     level = LEVELS[saved] != null ? saved : 'quiet'; /* v6.18.4 새 설치는 은은한 환경음부터 시작. 기존 저장 설정은 그대로 유지 */
     /* 첫 조작에 맞춰 연다. 그 전에는 브라우저가 소리를 막는다. */
     const wake = () => { if (vol() > 0) unlock(); };
@@ -26295,6 +26363,7 @@ window.Snd = (function () {
     boot: boot, set: set, unlock: unlock, preview: preview,
     event: event, ambience: ambience, voyage: voyage, scene: sceneSound,
     get: function () { return level; },
+    setMix: setMix, getMix: getMix,
     ready: function () { return ok(); },
     state: function () { return AC ? AC.state : 'not-created'; },
     /* 지금 몇 개의 적 스크류가 울고 있는가 — 검증에서만 쓴다 */
@@ -28082,6 +28151,15 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
   const PERI_HALF = 20;                       /* 배율과 무관한 곳(청음 등)이 쓰는 기본 반각 */
   /* 잠망경(겸 청음) 방위는 시뮬레이션이 들고 있다 — 자동 관측원도 이것을 돌린다 */
   const periBrg = () => { const g = U.state(); return g ? g.boat.periscopeBearing : 250; };
+  function opticalBrg() {
+    const g = U.state(); if (!g) return periBrg();
+    if (g.boat.depth <= 3 && g.autocrew && g.autocrew.observer) {
+      const sel = g.contacts.find(c => c.id === ui.sel);
+      const best = sel || g.contacts.slice().sort((a,b)=>(b.strength||0)-(a.strength||0))[0];
+      if (best && best.bearing != null) return best.bearing;
+    }
+    return periBrg();
+  }
   function takeManualPeriscopeControl() {
     const g = U.state(); if (!g) return;
     if (g.autocrew && g.autocrew.observer) {
@@ -28127,6 +28205,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     $('viewRow').classList.toggle('on', tab === 'situ');
     dockChartForPane(pane);
     resize();
+    if (pane === 'peri') forcePeriCanvasV62410();
     if (pane === 'boat' || pane === 'chart') requestAnimationFrame(() => { resize(); drawChart(); navSync(); });
   }
   window.showPane = showPane;
@@ -32579,8 +32658,9 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     const g = U.state(); if (!g) return null;
     const surfaceView = g.boat.depth <= 3;
     if (!surfaceView && !g.boat.periscope) return null;
-    const half = surfaceView ? 60 : periMag().half;
-    const vis = U.getPeriscopeVisuals(periBrg(), half, surfaceView ? { surface:true } : undefined);
+    const half = surfaceView ? 90 : periMag().half;
+    const ob = surfaceView ? opticalBrg() : periBrg();
+    const vis = U.getPeriscopeVisuals(ob, half, surfaceView ? { surface:true } : undefined);
     let best = null, bd = half + 1;
     for (const v of vis) {
       const d = Math.abs(v.relativeBearing);
@@ -32718,6 +32798,27 @@ window.Lang.add('ja', {
     }));
   window.Snd.boot();
   setSnd(window.Snd.get(), false);
+  function syncAudioMixUIV6249(){
+    const sm=window.Snd&&window.Snd.getMix?window.Snd.getMix():{effects:1,ambience:.75};
+    const vv=window.EPVoice&&window.EPVoice.getVolume?window.EPVoice.getVolume():.55;
+    const vals={effects:sm.effects,ambience:sm.ambience,voice:vv};
+    document.querySelectorAll('[data-audio-vol]').forEach(el=>{
+      const k=el.dataset.audioVol, v=Math.round((vals[k]==null?1:vals[k])*100);
+      if(document.activeElement!==el) el.value=String(v);
+    });
+    document.querySelectorAll('[data-audio-out]').forEach(el=>{
+      const k=el.dataset.audioOut, v=Math.round((vals[k]==null?1:vals[k])*100);
+      el.textContent=v+'%';
+    });
+  }
+  document.querySelectorAll('[data-audio-vol]').forEach(el=>el.addEventListener('input',()=>{
+    const k=el.dataset.audioVol, v=Math.max(0,Math.min(100,+el.value||0))/100;
+    if(k==='voice'&&window.EPVoice) window.EPVoice.setVolume(v);
+    else if(window.Snd&&window.Snd.setMix) window.Snd.setMix(k,v);
+    syncAudioMixUIV6249();
+  }));
+  syncAudioMixUIV6249();
+
   /* 판이 내놓는 사건을 그대로 소리로 옮긴다 — 시뮬은 소리를 모른다 */
   U.on((kind, data) => {
     try {
@@ -32824,6 +32925,8 @@ window.Lang.add('ja', {
      ══════════════════════════════════════════════════════════════ */
   window.EPVoice = (function(){
     const MODE_KEY='ep.voice.mode.v6241';
+    const VOL_KEY='ep.voice.volume.v6249';
+    let voiceVolume=0.55;
     const ROLE = {
       exec:{voice:'M2',speed:0.92},
       nav:{voice:'M4',speed:0.98},
@@ -32845,8 +32948,18 @@ window.Lang.add('ja', {
     let status={available:false,ready:false,downloading:false,progress:0,bytes:0,error:null,variant:'FP32',packMB:400,phase:'idle',packPhase:'idle',source:'ETERNAL PATROL GitHub Release',speaking:false,engineLoaded:false,lastSynthesisMs:0,lastSamples:0,lastMood:'CALM'};
     function native(){ return window.EternalVoice || null; }
     function loadMode(){
-      try{ const v=localStorage.getItem(MODE_KEY); if(v==='important'||v==='all'||v==='off') mode=v; }catch(e){}
+      try{
+        const v=localStorage.getItem(MODE_KEY); if(v==='important'||v==='all'||v==='off') mode=v;
+        const vv=Number(localStorage.getItem(VOL_KEY));
+        if(Number.isFinite(vv)) voiceVolume=Math.max(0,Math.min(1,vv));
+      }catch(e){}
       return mode;
+    }
+    function setVolume(v,save){
+      voiceVolume=Math.max(0,Math.min(1,Number(v)||0));
+      if(save!==false) try{localStorage.setItem(VOL_KEY,String(voiceVolume));}catch(e){}
+      if(typeof syncAudioMixUIV6249==='function') syncAudioMixUIV6249();
+      return voiceVolume;
     }
     function saveMode(v){
       mode=(v==='important'||v==='all')?v:'off';
@@ -32946,11 +33059,29 @@ window.Lang.add('ja', {
       const speed=Math.max(0.72,Math.min(1.35,Number(cfg.speed||1)*m.speedMul));
       return {mood,voice:cfg.voice,speed,gain:m.gain,pauseMs:m.pauseMs};
     }
+    function speechText(text){
+      let s=String(text==null?'':text)
+        .replace(/\*\*/g,'')
+        .replace(/[—–]/g,', ')
+        .replace(/\s+/g,' ').trim();
+      /* 표시 텍스트는 그대로 두고 TTS로 넘기는 복사본만 읽기 좋게 바꾼다. */
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*(?:kn|kts|kt)\b/gi,'$1 노트');
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*km\b/gi,'$1 킬로미터');
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*m\b/gi,'$1 미터');
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*rpm\b/gi,'$1 알피엠');
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*%/g,'$1 퍼센트');
+      s=s.replace(/(\d+(?:[.,]\d+)?)\s*°/g,'$1 도');
+      s=s.replace(/\bC(\d+)\b/g,'씨 $1');
+      s=s.replace(/\bU[- ]?boat\b/gi,'유보트');
+      s=s.replace(/\bASDIC\b/g,'애즈딕');
+      s=s.replace(/\bHF\/DF\b/gi,'에이치에프 디에프');
+      return s.replace(/\s+/g,' ').trim();
+    }
     function nativeSpeak(role,voice,text,priority,style){
       const n=native(); if(!n) return false;
       if(n.speakStyled){
         n.speakStyled(String(role),String(voice),String(text||''),String(priority||'P2'),
-          Number(style.speed||1),Number(style.gain||1),Number(style.pauseMs||0),String(style.mood||'CALM'));
+          Number(style.speed||1),Number(style.gain||1)*voiceVolume,Number(style.pauseMs||0),String(style.mood||'CALM'));
         return true;
       }
       if(n.speak){ n.speak(String(role),String(voice),String(text||''),String(priority||'P2'),Number(style.speed||1)); return true; }
@@ -32968,7 +33099,7 @@ window.Lang.add('ja', {
       if(!shouldSpeak(r)) return false;
       try{
         const st=styledArgs(r);
-        return nativeSpeak(r.who,st.voice,r.text,r.priority,st);
+        return nativeSpeak(r.who,st.voice,speechText(r.text),r.priority,st);
       }catch(e){ status.error=String(e&&e.message||e); syncUI(); return false; }
     }
     function requestDownload(){
@@ -32990,7 +33121,7 @@ window.Lang.add('ja', {
         if(n.clearError) n.clearError();
         const fake={who:'exec',priority:mood==='URGENT'?'P0':'P1'};
         const st=styledArgs(fake,mood);
-        nativeSpeak('exec','M2',sample,fake.priority,st);
+        nativeSpeak('exec','M2',speechText(sample),fake.priority,st);
         setTimeout(refresh,250);
         return true;
       }catch(e){ status.error=String(e&&e.message||e); status.speaking=false; status.phase='error'; syncUI(); return false; }
@@ -33010,7 +33141,7 @@ window.Lang.add('ja', {
       window.addEventListener('focus',()=>setTimeout(refresh,120));
       syncUI();
     }
-    return {boot,refresh,nativeStatus:parseStatus,onReport,setMode:saveMode,getMode:()=>mode,status:()=>Object.assign({},status),test,testMood,stop,ROLE,MOOD,inferMood};
+    return {boot,refresh,nativeStatus:parseStatus,onReport,setMode:saveMode,getMode:()=>mode,setVolume,getVolume:()=>voiceVolume,status:()=>Object.assign({},status),test,testMood,stop,ROLE,MOOD,inferMood,speechText};
   })();
   window.EPVoice.boot();
 
@@ -36137,9 +36268,11 @@ window.Lang.add('ja', {
   function resize() {
     for (const cv of [cvH, cvP, cvC, cvS]) {
       const r = cv.getBoundingClientRect();
-      if (!r.width) continue;
+      if (!(r.width > 0) || !(r.height > 0)) continue;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
-      cv.width = Math.round(r.width * dpr); cv.height = Math.round(cv.clientHeight * dpr);
+      const bw = Math.max(1, Math.round(r.width * dpr));
+      const bh = Math.max(1, Math.round(r.height * dpr));
+      if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
       cv.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
     }
   }
@@ -36368,12 +36501,55 @@ window.Lang.add('ja', {
     c.fillStyle = '#3dffa0'; c.beginPath(); c.arc(cx, cy, 4, 0, 7); c.fill();
   }
 
+  let periCanvasLastDrawV62410 = 0;
+  let periCanvasLastErrorV62410 = '';
+
+  function syncCanvasBackingV62410(cv) {
+    if (!cv) return null;
+    const r = cv.getBoundingClientRect();
+    if (!(r.width > 20) || !(r.height > 20)) return null;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const bw = Math.max(1, Math.round(r.width * dpr));
+    const bh = Math.max(1, Math.round(r.height * dpr));
+    const ctx = cv.getContext('2d');
+    if (!ctx) return null;
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, W:r.width, H:r.height, dpr };
+  }
+
+  function paintPeriFallbackV62410(c, W, H, g, surfaced, message) {
+    const vis = Math.max(.2, Math.min(1, Number(g && g.weather && g.weather.vis) || .5));
+    const sky = c.createLinearGradient(0,0,0,H*.58);
+    sky.addColorStop(0, vis>.6 ? '#20323d' : '#334047');
+    sky.addColorStop(1, vis>.6 ? '#455c67' : '#657177');
+    c.fillStyle=sky; c.fillRect(0,0,W,H*.60);
+    c.fillStyle='#11232b'; c.fillRect(0,H*.60,W,H*.40);
+    c.strokeStyle='rgba(155,190,202,.35)'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(0,H*.60); c.lineTo(W,H*.60); c.stroke();
+    c.textAlign='center'; c.fillStyle='rgba(219,231,236,.76)';
+    c.font='11px system-ui,-apple-system,"Malgun Gothic",sans-serif';
+    c.fillText(surfaced ? LL('함교 시야 · 수평선','Bridge view · horizon','艦橋視界・水平線') : LL('잠망경 시야 · 수평선','Periscope view · horizon','潜望鏡視界・水平線'), W/2, 18);
+    if (message) { c.fillStyle='rgba(255,191,118,.78)'; c.font='10px system-ui,-apple-system,"Malgun Gothic",sans-serif'; c.fillText(String(message).slice(0,80), W/2, H-12); }
+  }
+
+  function forcePeriCanvasV62410() {
+    if (ui.pane !== 'peri') return;
+    requestAnimationFrame(() => {
+      resize(); try { drawPeri(); } catch(e) {}
+      requestAnimationFrame(() => { resize(); try { drawPeri(); } catch(e) {} });
+    });
+  }
+
   function drawPeri() {
-    const g = U.state(), c = cvP.getContext('2d');
-    const W = cvP.clientWidth, H = cvP.clientHeight;
-    if (W < 40 || H < 40) return;
+    const g = U.state();
+    const cs = syncCanvasBackingV62410(cvP);
+    if (!cs) return;
+    const c = cs.ctx, W = cs.W, H = cs.H;
     c.clearRect(0, 0, W, H);
     const surfaced = !!(g && g.boat.depth <= 3);
+    paintPeriFallbackV62410(c, W, H, g, surfaced, '');
+    periCanvasLastDrawV62410 = performance.now();
     const up = g && g.boat.periscope && g.boat.depth <= U.UB.periscopeDepth + 2;
     if (!surfaced && !up) {
       c.fillStyle = '#0a0e10'; c.fillRect(0, 0, W, H);
@@ -36383,13 +36559,23 @@ window.Lang.add('ja', {
     }
     const now = performance.now() / 1000;
     const OV = window.ObservationVisuals;
-    const env = OV.paintBase(c, W, H, { visibility: g.weather.vis, seaState: g.weather.sea,
-                                                   time: now, phase: 0.37, horizonRatio: 0.58 });
+    let env = null;
+    try {
+      if (!OV || typeof OV.paintBase !== 'function') throw new Error('ObservationVisuals unavailable');
+      env = OV.paintBase(c, W, H, { visibility: g.weather.vis, seaState: g.weather.sea,
+                                   time: now, phase: 0.37, horizonRatio: 0.58 });
+      periCanvasLastErrorV62410 = '';
+    } catch (e) {
+      periCanvasLastErrorV62410 = e && e.message ? e.message : String(e);
+      paintPeriFallbackV62410(c, W, H, g, surfaced, LL('관측 렌더 복구 모드','Observation render recovery mode','観測描画復旧モード'));
+      env = { baseY:H*.60, frame:{scopeX:0,targetBob:0}, visibility:g.weather.vis, seaState:g.weather.sea, time:now, phase:.37 };
+    }
     const mag = periMag();
     /* 부상하면 잠망경 광학계가 아니라 함교에서 보는 넓은 수평선이다. */
-    const half = surfaced ? 60 : mag.half;
+    const half = surfaced ? 90 : mag.half;
+    const viewBrg = surfaced ? opticalBrg() : periBrg();
     const pxPerDeg = (W / 2 - 10) / half;
-    const vlist = U.getPeriscopeVisuals(periBrg(), half, surfaced ? { render:true, surface:true } : { render:true })
+    const vlist = U.getPeriscopeVisuals(viewBrg, half, surfaced ? { render:true, surface:true } : { render:true })
       .slice().sort((a, b) => b.range - a.range);
     for (const v of vlist) {
       const phase = OV.phaseOf(v.contactId || v.tag || v.silClass || v.silType);
@@ -36425,7 +36611,7 @@ window.Lang.add('ja', {
        차트에만 있던 정보를 함교/잠망경에서도 같은 실제 좌표로 보이게 한다. */
     const viewFx = (x, y) => {
       const br = Math.atan2(x - g.boat.x, y - g.boat.y) * 180 / Math.PI;
-      let rel = ((br - periBrg() + 540) % 360) - 180;
+      let rel = ((br - viewBrg + 540) % 360) - 180;
       if (Math.abs(rel) > half) return null;
       return { x: W / 2 + rel * pxPerDeg, r: Math.hypot(x - g.boat.x, y - g.boat.y) };
     };
@@ -36460,8 +36646,28 @@ window.Lang.add('ja', {
       c.fillStyle = rg; c.fillRect(W*.5-48,H*.86-44,96,60); c.restore();
     }
 
-    OV.paintForeground(c, W, H, env);
-    OV.paintFog(c, W, H, g.weather.vis);
+    if (surfaced) {
+      c.save();
+      c.fillStyle = 'rgba(185,205,214,.72)'; c.font = '9px system-ui'; c.textAlign = 'center';
+      for (let d=-60; d<=60; d+=30) {
+        const bx=W/2+d*pxPerDeg;
+        if (bx<8||bx>W-8) continue;
+        c.fillText(String(Math.round((viewBrg+d+360)%360)).padStart(3,'0')+'°', bx, 13);
+      }
+      if (!vlist.length) {
+        const km = Math.max(0.3, (11000 * g.weather.vis * (0.35 + 0.65 * (1 - (g.night || 0)))) / 1000);
+        c.fillStyle='rgba(198,215,222,.78)'; c.font='12px system-ui';
+        c.fillText(LL('함교 견시 · 이 방위에 육안 표적 없음', 'Bridge lookout · no visual target in this sector', '艦橋見張・この方位に視認目標なし'), W/2, H*.43);
+        c.fillStyle='rgba(130,154,166,.82)'; c.font='10px system-ui';
+        c.fillText(LL('현재 시정 약 ', 'Current visual horizon about ', '現在の視程 約')+km.toFixed(1)+'km', W/2, H*.43+18);
+      }
+      c.restore();
+    }
+
+    try {
+      if (OV && OV.paintForeground) OV.paintForeground(c, W, H, env);
+      if (OV && OV.paintFog) OV.paintFog(c, W, H, g.weather.vis);
+    } catch(e) { periCanvasLastErrorV62410 = e && e.message ? e.message : String(e); }
     if (!surfaced) {
       /* 잠망경에만 십자선과 광학 비네팅을 둔다. */
       c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 1;
@@ -36474,7 +36680,7 @@ window.Lang.add('ja', {
     }
     c.fillStyle = 'rgba(160,186,200,.85)'; c.font = '10px system-ui'; c.textAlign = 'right';
     c.fillText(surfaced
-      ? LL('함교 시야 · 방위 ', 'Bridge view · bearing ', '艦橋視界・方位 ') + String(Math.round(periBrg())).padStart(3,'0') + '° · ' + LL('해상 ', 'Sea ', '海況 ') + g.weather.sea
+      ? LL('함교 시야 · 방위 ', 'Bridge view · bearing ', '艦橋視界・方位 ') + String(Math.round(viewBrg)).padStart(3,'0') + '° · ' + LL('해상 ', 'Sea ', '海況 ') + g.weather.sea
       : L(mag.ko) + ' · ±' + half + '° · ' + LL('해상 ', 'Sea ', '海況 ') + g.weather.sea, W - 8, H - 8);
   }
 
@@ -37748,7 +37954,7 @@ window.Lang.add('ja', {
         $('btnPeri').disabled = surfaceView;
         $('btnPeri').textContent = surfaceView ? LL('부상 · 함교 시야', 'Surfaced · bridge view', '浮上・艦橋視界') : (b.periscope ? L('잠망경 내림') : L('잠망경 올림'));
         $('btnPeriMag').disabled = surfaceView;
-        if (surfaceView) $('btnPeriMag').textContent = LL('함교 광각 · 120°', 'Bridge wide view · 120°', '艦橋広角・120°'); else syncPeriMag();
+        if (surfaceView) $('btnPeriMag').textContent = LL('함교 광각 · 180°', 'Bridge wide view · 180°', '艦橋広角・180°'); else syncPeriMag();
         $('btnObserve').textContent = surfaceView ? LL('함교 관측 기록', 'Record bridge observation', '艦橋観測を記録') : L('관측 기록');
         const returnDepth = Math.round(ui.obsReturnDepth || 30);
         $('btnObsDive').textContent = LL('잠항 ' + returnDepth + 'm', 'Dive to ' + returnDepth + ' m', returnDepth + 'mへ潜航');
@@ -38640,9 +38846,21 @@ window.Lang.add('ja', {
     }
     requestAnimationFrame(tick);
   }
+  function periCanvasHeartbeatV62410(ts) {
+    if (ui.pane === 'peri' && U.state() && ts - periCanvasLastDrawV62410 > 280) {
+      try { drawPeri(); } catch(e) {
+        periCanvasLastErrorV62410 = e && e.message ? e.message : String(e);
+        const cs=syncCanvasBackingV62410(cvP);
+        if(cs) paintPeriFallbackV62410(cs.ctx,cs.W,cs.H,U.state(),U.state().boat.depth<=3,LL('관측화면 복구 중','Recovering observation view','観測画面を復旧中'));
+      }
+    }
+    requestAnimationFrame(periCanvasHeartbeatV62410);
+  }
+
   resize();
   showPane('hydro');
   initSlides();
+  requestAnimationFrame(periCanvasHeartbeatV62410);
   requestAnimationFrame(tick);
 })();
 </script>
@@ -40264,7 +40482,7 @@ if(oldAbort){Campaign.abortEncounter=function(){var C=Campaign.state(),id=C&&C.p
 #epV624Confirm.on{display:block}
 #epV624Confirm p{margin:0 0 9px;font-size:12px;line-height:1.5}
 #epV624ConfirmActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-#epV624PeriFx{position:fixed;display:none;pointer-events:none;z-index:440}
+#epV624PeriFx{position:fixed;display:none;pointer-events:none;z-index:440;background:transparent!important;border:0!important;border-radius:0!important;box-shadow:none!important}
 body.ep-v624-peri #epV624PeriFx{display:block}
 
 /* v6.24 — tactical crew dialogue stays readable but no longer blanks the periscope. */
@@ -40297,7 +40515,7 @@ body.ep-v624-peri #tacticalCrewBubbleV620{
 if(window.__EP_V624_COMBAT_UX__) return;
 window.__EP_V624_COMBAT_UX__=true;
 
-const VERSION='6.24.8';
+const VERSION='6.24.12';
 const TRACE_KEY='ETERNAL_PATROL_BATTLE_TRACES_V624';
 const RETURN_KEY='EP_V624_RETURN_MAIN';
 const $=id=>document.getElementById(id);

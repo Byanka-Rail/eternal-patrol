@@ -1,8 +1,8 @@
 {
-  "package": "ETERNAL PATROL v6.24.8 Android FP32 voice + mood + licenses",
-  "gameVersion": "6.24.8",
-  "versionName": "6.24.8",
-  "versionCode": 62408,
+  "package": "ETERNAL PATROL v6.24.12 periscope FX overlay transparency + canvas lock + audio mixer + TTS pronunciation",
+  "gameVersion": "6.24.12",
+  "versionName": "6.24.12",
+  "versionCode": 62412,
   "voicePack": {
     "tag": "voicepack-v3",
     "variant": "FP32",
@@ -23,5 +23,10 @@
     "onnxruntime": "MIT",
     "onnxruntimeVersion": "1.29.0",
     "thirdPartyNotices": "fetched at Android build from official Microsoft v1.29.0 source"
+  },
+  "periscopeFxFix": {
+    "overlayCanvas": "epV624PeriFx",
+    "background": "transparent",
+    "border": "none"
   }
 }

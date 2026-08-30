@@ -1,0 +1,19 @@
+ETERNAL PATROL v6.24.11 변경사항
+=================================
+
+[관측 화면 점증 확대 버그 수정]
+- 잠망경/함교/해도/단면 canvas가 재측정될 때 clientHeight를 기반으로 backing size를 다시 잡던 구조를 수정.
+- 일부 Android WebView에서는 canvas의 height 속성값이 곧 CSS 높이로 반영되므로, 재렌더마다 높이가 누적되어 화면이 점점 커질 수 있었다.
+- 이제 resize()는 getBoundingClientRect()로 실제 표시 크기를 읽고, 그 값으로만 backing canvas를 갱신한다.
+- 또한 주요 canvas(#cvHydro, #cvPeri, #cvChart, #cvSect, #cvReplay)에 CSS 높이를 명시적으로 고정해 intrinsic size와 표시 높이가 서로 증폭되지 않게 했다.
+
+[유지되는 기능]
+- v6.24.10 관측 캔버스 복구 로직 유지
+- 부상 함교 시야 / 잠망경 시야 전환 유지
+- 효과음 / 배경음 / 승조원 음성 독립 볼륨 유지
+- TTS 발음 보정 및 상황별 발화 유지
+
+[변경하지 않음]
+- 탐지·관측 판정
+- 전투 AI / 어뢰 / 저장 구조
+- 음성팩 voicepack-v3 구성

@@ -105,7 +105,7 @@ public final class EternalVoiceBridge implements Closeable {
         String v = normalizeVoice(voice);
         String m = normalizeMood(mood);
         float s = (float) Math.max(0.72, Math.min(1.35, speed));
-        float g = (float) Math.max(0.55, Math.min(1.0, gain));
+        float g = (float) Math.max(0.02, Math.min(1.0, gain));
         int pause = Math.max(0, Math.min(400, pauseMs));
 
         runtimeError = null;
@@ -163,7 +163,7 @@ public final class EternalVoiceBridge implements Closeable {
                         phase = "playing";
                         notifyHtml();
                         lastMood = task.mood;
-                        playBlocking(wav, e.getSampleRate(), task.gain);
+                        playBlocking(shapeSpeech(wav, e.getSampleRate(), task.mood), e.getSampleRate(), task.gain);
                         if (task.pauseMs > 0) {
                             long until = System.currentTimeMillis() + task.pauseMs;
                             while (System.currentTimeMillis() < until) {
@@ -212,6 +212,40 @@ public final class EternalVoiceBridge implements Closeable {
     }
 
     /**
+     * Keep the model voice recognizable while taking the sterile edge off raw TTS.
+     * A light 80 Hz high-pass, ~7.4 kHz low-pass, soft compression and two tiny
+     * early reflections approximate speech heard inside a steel compartment.
+     */
+    private static float[] shapeSpeech(float[] input, int sampleRate, String mood) {
+        if (input == null || input.length == 0) return input;
+        float[] out = new float[input.length];
+        final float dt = 1f / Math.max(8000, sampleRate);
+        final float rcHp = 1f / (2f * (float)Math.PI * 80f);
+        final float aHp = rcHp / (rcHp + dt);
+        final float rcLp = 1f / (2f * (float)Math.PI * 7400f);
+        final float aLp = dt / (rcLp + dt);
+        float prevX = 0f, hp = 0f, lp = 0f;
+        for (int i = 0; i < input.length; i++) {
+            float x = input[i];
+            hp = aHp * (hp + x - prevX); prevX = x;
+            lp += aLp * (hp - lp);
+            float y = (float)Math.tanh(lp * 1.10f) / 1.10f;
+            out[i] = y;
+        }
+        int d1 = Math.max(1, Math.round(sampleRate * 0.013f));
+        int d2 = Math.max(1, Math.round(sampleRate * 0.029f));
+        float r1 = "URGENT".equals(mood) ? 0.035f : 0.055f;
+        float r2 = "URGENT".equals(mood) ? 0.018f : 0.032f;
+        for (int i = 0; i < out.length; i++) {
+            float y = out[i];
+            if (i >= d1) y += out[i - d1] * r1;
+            if (i >= d2) y += out[i - d2] * r2;
+            out[i] = Math.max(-0.98f, Math.min(0.98f, y));
+        }
+        return out;
+    }
+
+    /**
      * Stream native float PCM directly to AudioTrack. This matches the model output
      * and avoids an unnecessary float->int16 conversion in the Android path.
      */
@@ -239,7 +273,7 @@ public final class EternalVoiceBridge implements Closeable {
         }
         currentTrack = track;
         try {
-            track.setVolume(Math.max(0.55f, Math.min(1.0f, gain)));
+            track.setVolume(Math.max(0.02f, Math.min(1.0f, gain)));
             track.play();
             int offset = 0;
             while (offset < wav.length && !closed) {
