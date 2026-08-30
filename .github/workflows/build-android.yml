@@ -1,14 +1,7 @@
-name: Build Android APK
+name: Build Android APK - FP32 Voice Safe (legacy alias)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'app/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - '.github/workflows/build-android.yml'
 
 jobs:
   build:
@@ -22,14 +15,48 @@ jobs:
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
+          gradle-version: '8.13'
+
+      - name: Validate v6.25.5 + FP32 voice baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmp ETERNAL_PATROL.html app/src/main/assets/index.html
+          grep -q 'V6.25.5 WORLD AUDIO' ETERNAL_PATROL.html
+          grep -q "versionCode 62505" app/build.gradle
+          grep -q "versionName '6.25.5'" app/build.gradle
+          grep -q "onnxruntime-android:1.29.0" app/build.gradle
+          grep -q 'BUNDLED_GAME_VERSION = "6.25.5"' app/src/main/java/com/silentseas/game/MainActivity.java
+          test -f app/src/main/java/com/silentseas/game/voice/EternalVoiceBridge.java
+          test -f app/src/main/java/com/silentseas/game/voice/SupertonicEngine.java
+          test -f app/src/main/java/com/silentseas/game/voice/VoicePackManager.java
+          echo "Game SHA256: $(sha256sum ETERNAL_PATROL.html | cut -d' ' -f1)"
+          echo "Safe merge validation passed."
+
+      - name: Remove obsolete lightweight-wrapper leftovers from build workspace
+        shell: bash
+        run: |
+          rm -f app/src/main/assets/ETERNAL_PATROL.html
+          rm -f app/src/main/res/values/styles.xml
+
+      - name: Bundle ONNX Runtime license notices
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/assets/licenses
+          BASE="https://raw.githubusercontent.com/microsoft/onnxruntime/v1.29.0"
+          curl -L --fail --retry 5 "$BASE/LICENSE" -o app/src/main/assets/licenses/LICENSE_ONNXRUNTIME_MIT.txt
+          curl -L --fail --retry 5 "$BASE/ThirdPartyNotices.txt" -o app/src/main/assets/licenses/ONNXRUNTIME_ThirdPartyNotices.txt
+          grep -q "MIT License" app/src/main/assets/licenses/LICENSE_ONNXRUNTIME_MIT.txt
+          grep -q "THIRD PARTY SOFTWARE NOTICES" app/src/main/assets/licenses/ONNXRUNTIME_ThirdPartyNotices.txt
+          test $(wc -c < app/src/main/assets/licenses/ONNXRUNTIME_ThirdPartyNotices.txt) -gt 10000
+
       - name: Build debug APK
-        run: gradle --no-daemon assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+        run: gradle --no-daemon :app:assembleDebug
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: ETERNAL_PATROL_v6.25.5_GITHUB_UPDATER_debug_apk
+          name: ETERNAL_PATROL_v6.25.5_FP32_MOOD_LIVING_SEA_debug_apk
           path: app/build/outputs/apk/debug/app-debug.apk
