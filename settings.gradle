@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = 'ETERNAL_PATROL_v6_24_5_SELFHOST_VOICE'
+rootProject.name = 'ETERNAL_PATROL'
 include ':app'

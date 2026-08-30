@@ -1,0 +1,35 @@
+ETERNAL PATROL v6.25.5 Android GitHub Updater
+=============================================
+
+기준 게임
+- ETERNAL_PATROL_v6.25.5_WORLD_AUDIO_CHART_FILL.html
+- APK asset: ETERNAL_PATROL.html
+- SHA-256: 6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f
+
+Android
+- applicationId: com.silentseas.game
+- versionName: 6.25.5
+- versionCode: 62505
+- minSdk 24 / targetSdk 36 / compileSdk 36
+- Java 17
+
+업데이트 기능
+- APK 화면 우측 상단에 네이티브 [업데이트 확인] 버튼 상시 표시
+- HTML 메뉴와 독립적이므로 게임 HTML이 바뀌어도 버튼 유지
+- manifest: Byanka-Rail/eternal-patrol main/update.json
+- 앱 시작 시 최대 6시간 간격 자동 확인
+- update.json의 url 및 gameUrl 양쪽 필드명 호환
+- 허용 다운로드 경로를 Byanka-Rail/eternal-patrol raw GitHub로 제한
+- ETERNAL_PATROL.html만 허용
+- SHA-256 검증 후 내부 저장소에 원자적 교체
+- 검증 실패/다운로드 실패 시 기존 게임 유지
+- 업데이트 성공 후 WebView 즉시 다시 로드
+
+저장
+- 모든 번들/업데이트 HTML을 동일한 BASE_ORIGIN에서 로드
+- 앱 일시정지 시 Campaign.save / War.save 호출 시도
+
+검증
+- AndroidManifest.xml / values XML 파싱 대상 생성 완료
+- MainActivity.java 괄호/문자열 구조 정적 검사 대상 생성 완료
+- 실제 assembleDebug는 GitHub Actions workflow에서 수행
