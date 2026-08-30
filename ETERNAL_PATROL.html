@@ -5,7 +5,40 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.24.12</title>
+<title>ETERNAL PATROL: Silent Seas — v6.25.2 Naval Activity</title>
+<!--
+  PATCH RECORD — 2026-08-30
+  V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
+  V6.25.2 INDEPENDENT RNG seaActivity 전용 seed/hash를 War.rnd 및 Campaign.rnd와 완전히 분리. 해도/함교 표시 여부와 관계없이 게임시간 12시간 버킷에서만 갱신하며 기존 조우·항공·기상·임무 난수열을 소비하지 않음.
+  V6.25.2 INTEL MAP 패킷의 실제 위치는 지도에 표시하지 않고 무전/정찰로 얻은 추정 흔적만 최대 3개 표시. 호송 추정 이동·대잠 수색 활동·최근 교전은 보고 시점 이후 오차원이 커지고 투명도가 감소하며 오래되면 삭제됨.
+  V6.25.2 BACKGROUND BATTLE 서로 적대하는 작전 패킷이 같은 해역에서 겹칠 때 낮은 확률로 추상 교전을 기록. 결과는 War 점수·항로 기억·호위·항공밀도·Campaign 조우 확률을 바꾸지 않고 세계 보고와 최근 교전 흔적만 생성.
+  V6.25.2 BRIDGE ECHO 플레이어 가까이에서 최근 추상 교전이 있었고 함교 전방 시야에 들어올 때 낮에는 먼 연기, 밤에는 작은 섬광으로만 표현. 전술 접촉/C1/강제 전투를 만들지 않음.
+  V6.25.2 SAVE 구세이브에 War.seaActivity가 없으면 선택 필드로 자동 생성. 저장 대상은 seed, packets, intel, recentBattles 및 갱신시점뿐이며 픽셀/연기/섬광 프레임은 저장하지 않음.
+  V6.25.2 SAFE v6.25.1 자동저장·Living Sea, v6.24.11 canvas 크기 잠금, v6.24.12 잠망경 FX 투명화, 기존 전투/탐지/조우 밸런스는 변경하지 않음.
+-->
+
+<!--
+  PATCH RECORD — 2026-08-30
+  V6.25.1 DEFAULT CHART 전략 초계 진입·이어하기·전술전 복귀의 기본 시점을 해도로 고정. 항해 시작이 함교로 자동 전환하던 동작을 제거하고 함교는 사용자가 직접 선택할 때만 연다.
+  V6.25.1 AUTOSAVE 전략 초계/사령부에서 30초 주기 + 화면 숨김/pagehide + 주요 전환 시 Campaign/War를 자동저장. 전투는 전체 전술상태를 직렬화하지 않으므로 전투 직전 체크포인트를 저장하고 IN_ACTION 중에는 Campaign 자동저장 덮어쓰기를 금지.
+  V6.25.1 RESUME 저장된 pendingEncounter가 있으면 이어하기 시 같은 접촉 확인창을 다시 열어 전투 직전 체크포인트를 실제로 복원할 수 있게 함.
+  V6.25.1 LIVING SEA Stage 2 함교 몽타주에 조건부 바닷새·철새·먼 어선·배경 항공기·스콜/폭풍 비기둥을 추가. 위치·위도·계절·해안거리·항로·날씨·전구 항공밀도를 읽되 Living Sea 전용 해시만 사용.
+  V6.25.1 QUIET SEA 특수 배경 객체가 없는 장면을 기본 60% 이상으로 유지하고, 새/어선/항공기/철새에는 실시간 반복 쿨다운을 적용. 배경 어선·항공기는 C1/전술 접촉을 만들지 않으며 탐지정보를 누설하지 않음.
+  V6.25.1 AUDIO 기존 WebAudio의 갈매기/먼 항공기 효과를 조건부 배경 장면에만 1회 연결. 새 볼륨 슬라이더와 외부 음원은 추가하지 않음.
+  V6.25.1 SAFE 기존 Campaign.rnd/Encounter/air/weather/combat 난수열, 전투 밸런스, v6.24.11 canvas 크기 잠금, v6.24.12 잠망경 FX 투명화는 변경하지 않음.
+-->
+
+<!--
+  PATCH RECORD — 2026-08-30
+  V6.25.0 STAGE 1 VOYAGE BRIDGE 전략항해 화면에 [해도]/[함교] 시점 전환을 추가. 부상 시 함교 사용 가능, 잠항/스노클 시 해도로 안전 복귀하며 사용자가 해도를 직접 선택한 경우 재부상해도 강제 함교 전환하지 않음.
+  V6.25.0 BRIDGE RENDER 기존 ObservationVisuals의 바다/파도 렌더와 현재 Campaign 날씨·Sea State를 재사용하고, 실제 THEATERS.isLand 해안 판정만으로 수평선 육지 실루엣을 생성. 랜덤 섬은 생성하지 않음.
+  V6.25.0 MONTAGE 고배속 전략항해에서 낮/밤·날씨가 번쩍이지 않도록 약 7~10초 장면 유지 + 약 1초 교차전환의 항해 몽타주를 사용. 게임 시간·조우 계산 속도는 변경하지 않음.
+  V6.25.0 RNG Living Sea 전용 seed를 기존 Campaign RNG를 소비하지 않는 해시로 분리. Stage 1 렌더는 전용 해시 난수만 사용하며 기존 조우·항공·기상·임무 RNG를 호출하지 않음.
+  V6.25.0 SAVE Campaign.livingSea 선택 필드(seed/viewPreference)만 추가하고 구세이브 로드 시 자동 보완. 픽셀·구름 프레임·몽타주 런타임 상태는 저장하지 않음.
+  V6.25.0 CANVAS #cvVoyageBridge는 CSS 표시 높이를 명시하고 getBoundingClientRect()+DPR로 backing size를 갱신. 함교가 숨겨지면 RAF를 즉시 중지.
+  V6.25.0 SAFE v6.24.11 canvas 높이 점증 방지와 v6.24.12 #epV624PeriFx 투명화, 전투/조우/항공/기상 확률과 native 음성 구조는 변경하지 않음.
+-->
+
 <!--
   PATCH RECORD — 2026-08-30
   V6.24.12 PERISCOPE FX FIX 잠망경/함교 위에 얹는 물방울·비네트 효과 canvas가 공통 canvas 배경색을 상속해 검은 판으로 시야를 덮던 원인을 수정. #epV624PeriFx를 강제 투명·무테두리로 분리.
@@ -57,6 +90,10 @@
   PATCH RECORD — 2026-08-29
   V6.24.0 MENU 전술 교전 중 MENU를 추가. 메뉴가 열린 동안 UBOAT time scale을 0으로 두고 닫을 때 직전 배속을 복원.
   V6.24.0 ABANDON 전장 이탈과 별개인 '전투 포기 · 메인 화면'을 추가. 포기 시 전과를 정산하지 않고 런타임을 재시작해 전투 루프·음향·임시 UI를 깨끗이 종료하며 캠페인 저장은 삭제하지 않음.
+  V6.25.5 WORLD AUDIO 전구 해도에서 원양 생활 랜덤 효과음(voyage foley)을 끄고 지속 추진음만 유지. 함교 시점에서만 생활/기상 이산 효과음을 허용해 뒤에서 다른 장면이 도는 듯한 반복음을 제거.
+  V6.25.5 BIG CHART 큰 전술 해도 진입 시 cvChart의 인라인 380px 높이를 해제해 본문 남은 높이를 전부 채우고, 닫을 때 380px로 복원.
+  V6.25.4 DIALOG 전술 승조원 말풍선의 재등장 빈도를 대폭 줄이고, 새 정보가 들어와도 전역 쿨다운을 둬 전투 중 과도한 반복을 억제함.
+  V6.25.3 DIALOG 전술 승조원 말풍선을 1줄 압축형으로 축소하고 자동 소거되게 바꿔 전투 중 시야 가림과 피로도를 줄임.
   V6.24.0 DIALOG 전술 승조원 말풍선을 반투명화하고 잠망경 화면에서는 투명도를 더 높여 시야 가림을 줄임.
   V6.24.0 PERISCOPE 기존 파도/시야 물리는 유지하면서 해상상태에 연동한 약한 습윤 렌즈·비네팅·야간 미세 블룸을 별도 오버레이로 추가. 조준/관측 판정에는 관여하지 않음.
   V6.24.0 NOTES MENU에 자함 상태와 현재 플레이어가 가진 접촉 추정치만 이용한 자동 함장 메모를 표시. 숨은 실제 표적값은 사용하지 않음.
@@ -1228,6 +1265,26 @@
             border-radius:0; touch-action:none; }
   #cvOceanFx{ position:fixed; display:block; pointer-events:none; z-index:3;
               background:transparent; border:0; opacity:.9; }
+
+  /* ══════════ v6.25.0 Stage 1 · Voyage Bridge ══════════
+     전략항해의 같은 자리를 해도와 함교 두 시점으로 본다. 새 canvas도 표시 높이를
+     CSS로 고정해 backing-size 피드백 루프가 다시 생기지 않게 한다. */
+  #wViewSwitch{ flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:1px;
+                min-height:44px; padding:4px 6px; background:var(--steel);
+                border-bottom:1px solid var(--steel); }
+  #wViewSwitch button{ min-height:36px; padding:4px 8px; border-radius:5px;
+                       border:1px solid transparent; background:var(--panel); color:var(--dim);
+                       font-size:12px; }
+  #wViewSwitch button.on{ color:var(--sky); border-color:var(--selBd); background:var(--selBg); }
+  #wViewBridge:disabled{ opacity:.38; color:var(--dim); border-color:transparent; }
+  #cvVoyageBridge{ flex:0 0 auto; width:100%; height:46vh; min-height:240px; display:none;
+                   background:transparent; border:0; border-bottom:1px solid var(--steel);
+                   border-radius:0; touch-action:none; }
+  #world.bridge-view #cvWorld{ display:none; }
+  #world.bridge-view #cvVoyageBridge{ display:block; }
+  #world.bridge-view #cvOceanFx{ display:none !important; }
+  #world.bridge-view #wZoom{ display:none; }
+  #world.bridge-view.bigmap #cvVoyageBridge{ flex:0 0 auto; height:46vh; min-height:240px; }
   /* V6.1 — 전략 초계 지도 크게 보기. 별도 캔버스를 복제하지 않고 같은 cvWorld가
      남은 화면을 전부 차지한다. 입력·카메라·경로 선택이 두 벌로 갈라지지 않는다. */
   #world.bigmap #cvWorld{ flex:1 1 auto; height:auto; min-height:0; }
@@ -1236,8 +1293,8 @@
                        border-top:1px solid #2f4c63; border-bottom:0; }
   #world.bigmap #wZoom{ z-index:9; }
   #world.bigmap #wExitQuick{ z-index:10; }
-  #wZoom{ position:absolute; right:8px; top:52px; display:flex; flex-direction:column; gap:6px; z-index:4; }
-  #wExitQuick{ position:absolute; left:8px; top:52px; z-index:5; min-height:44px; padding:0 14px;
+  #wZoom{ position:absolute; right:8px; top:96px; display:flex; flex-direction:column; gap:6px; z-index:4; }
+  #wExitQuick{ position:absolute; left:8px; top:96px; z-index:5; min-height:44px; padding:0 14px;
                border-color:var(--amber); color:var(--amber); background:rgba(31,24,8,.90);
                font-size:12px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.35); }
   #wExitQuick:active{ background:rgba(62,44,8,.96); }
@@ -1595,6 +1652,7 @@
 .chartBigBar .mini{ min-height:44px; padding:0 16px; }
 #chartBigBody{ flex:1 1 auto; position:relative; min-height:0; }
 #chartBigBody canvas{ width:100%; height:100%; display:block; }
+#chartBigBody > #cvChart{height:100%!important;min-height:0!important;}
 #chartBigBody #chartTip{ position:absolute; left:10px; bottom:10px; }
 #chartBigBody .chartBig{ display:none; }
 /* v7: 큰 해도 안에서 바로 기관전령을 한 눈금씩 올리고 내린다.
@@ -2734,11 +2792,17 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div><b id="wHull">100</b><span>선체 %</span></div>
 <div><b id="wTons">0</b><span>격침 톤</span></div>
 <div id="wAlertBox"><b id="wAlert">0</b><span>적 경계 %</span></div>
+<div id="wAutoSaveBox"><b id="wAutoSave">자동</b><span>자동저장</span></div>
 </div>
 <div class="fadeL"></div><div class="fadeR"></div>
 <div class="arrL">◀</div><div class="arrR">▶</div>
 </div>
+<div id="wViewSwitch" aria-label="전략항해 시점">
+<button class="on" id="wViewChart" type="button">해도</button>
+<button id="wViewBridge" type="button">함교</button>
+</div>
 <canvas id="cvWorld"></canvas>
+<canvas aria-label="전략항해 함교 시야" id="cvVoyageBridge"></canvas>
 <canvas aria-hidden="true" id="cvOceanFx"></canvas>
 <div aria-live="polite" id="wCrewChat"></div>
 <button aria-label="초계에서 나가기" id="wExitQuick">나가기</button>
@@ -19576,6 +19640,32 @@ window.Campaign = (function () {
   const lerp = (r, t) => r[0] + (r[1] - r[0]) * t;
   const norm360 = a => { a %= 360; return a < 0 ? a + 360 : a; };
 
+  /* v6.25 Stage 1 — Living Sea 전용 seed. 기존 rnd()를 한 번도 호출하지 않는다.
+     화면을 보거나 전환하는 행위가 조우/항공/기상 난수열을 밀지 않게 하기 위함이다. */
+  function livingSeaHashV625(text, seed0) {
+    let h = ((seed0 >>> 0) ^ 0x6250A5C3) >>> 0;
+    const q = String(text == null ? '' : text);
+    for (let i=0;i<q.length;i++) { h ^= q.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d) >>> 0; h ^= h >>> 15;
+    return (h >>> 0) || 0x6250A5C3;
+  }
+  function ensureLivingSeaV625() {
+    if (!C) return null;
+    if (!C.livingSea || typeof C.livingSea !== 'object') C.livingSea = {};
+    if (!Number.isFinite(C.livingSea.seed))
+      C.livingSea.seed = livingSeaHashV625((C.theater||'')+'|'+(C.boatId||'')+'|'+(C.homePort||''), _seed);
+    C.livingSea.seed = C.livingSea.seed >>> 0;
+    if (!['AUTO','CHART','BRIDGE'].includes(C.livingSea.viewPreference)) C.livingSea.viewPreference = 'CHART';
+    if (C.livingSea.viewPreference === 'AUTO') C.livingSea.viewPreference = 'CHART';
+    C.livingSea.version = 1;
+    return C.livingSea;
+  }
+  function setLivingSeaViewV625(pref) {
+    const q=ensureLivingSeaV625(); if(!q) return null;
+    q.viewPreference=['CHART','BRIDGE'].includes(pref)?pref:'CHART';
+    return q;
+  }
+
   let C = null;
 
   /* ══════════ v6.11 승조원 경력 · 원양 대화 ══════════
@@ -20637,6 +20727,7 @@ window.Campaign = (function () {
       status: 'AT_SEA', endReason: null,
       _nextId: 1,
     };
+    ensureLivingSeaV625();
     if (C.orders && C.orders.special) {
       if (C.orders.code === 'MINE') {
         C.specialCargo={kind:'MINES',mines:C.orders.mines||6};
@@ -22392,6 +22483,7 @@ window.Campaign = (function () {
       if (!o || o.v !== 1 || !validSavedCampaign(o.C)) { C = null; return null; }
       C = o.C;
       _seed = Number.isFinite(o.seed) ? (o.seed >>> 0) : 1;
+      ensureLivingSeaV625();
       /* v5 좌표판 저장은 도시 표식과 항해 좌표를 함께 썼다. 육지에 저장된
          초계는 해당 항구의 해상 정박점 또는 가장 가까운 바다로 옮겨 복구한다. */
       if (T().isLand(C.theater, C.x, C.y)) {
@@ -22456,6 +22548,7 @@ window.Campaign = (function () {
 
   return {
     newPatrol: newPatrol, state: function () { return C; },
+    livingSea: function(){ return ensureLivingSeaV625(); }, setLivingSeaView: setLivingSeaViewV625,
     setRoute: setRoute, addWaypoint: addWaypoint, clearRoute: clearRoute,
     startVoyage: startVoyage, stopVoyage: stopVoyage, setSurfaced: setSurfaced,
     setSnorkel: setSnorkel, charge: charge, cruiseKn: cruiseKn,
@@ -22530,6 +22623,155 @@ window.War = (function () {
   }
 
   let W = null;
+
+  /* ══════════ v6.25.2 추상 해군 활동 ══════════
+     세계의 모든 함선을 전술 개체로 굴리지 않는다. 작전 패킷은 전구의 실제 항로를 따라
+     움직이는 배경 상태일 뿐이며, 전과·호위·항공·조우 계산에는 절대 입력하지 않는다.
+     여기의 난수는 _seed를 읽어 초기 seed를 만들기만 하고 rnd()는 단 한 번도 소비하지 않는다. */
+  const SEA_ACTIVITY_TYPES_V6252=['CONVOY','ESCORT_SWEEP','SURFACE_GROUP','SUB_PATROL','AIR_PATROL'];
+  const SEA_SIDES_V6252={
+    ATLANTIC:{player:'AXIS',other:'ALLIED',labels:{AXIS:'추축국',ALLIED:'연합군'}},
+    MEDITERRANEAN:{player:'AXIS',other:'ALLIED',labels:{AXIS:'추축국',ALLIED:'연합군'}},
+    PACIFIC:{player:'ALLIED',other:'JAPAN',labels:{ALLIED:'연합군',JAPAN:'일본'}},
+    EASTPAC:{player:'JAPAN',other:'ALLIED',labels:{JAPAN:'일본',ALLIED:'연합군'}}
+  };
+  const SEA_PURPOSE_V6252={
+    CONVOY:'수송선단 이동', ESCORT_SWEEP:'대잠 수색·호위', SURFACE_GROUP:'수상함대 기동',
+    SUB_PATROL:'잠수함 초계', AIR_PATROL:'해상 항공초계'
+  };
+  function seaHashV6252(seed0,a,b,c){
+    let x=((seed0>>>0)^0x6252A71D)>>>0;
+    x^=Math.imul(((a|0)+0x9E37)>>>0,0x85ebca6b)>>>0;
+    x^=Math.imul(((b|0)+0x51ED)>>>0,0xc2b2ae35)>>>0;
+    x^=Math.imul(((c|0)+0x7F4A)>>>0,0x27d4eb2d)>>>0;
+    x^=x>>>16;x=Math.imul(x,0x7feb352d)>>>0;x^=x>>>15;x=Math.imul(x,0x846ca68b)>>>0;x^=x>>>16;
+    return (x>>>0)||0x6252A71D;
+  }
+  function seaRandV6252(seed0,a,b,c){ return seaHashV6252(seed0,a,b,c)/4294967296; }
+  function seaTriV6252(v){ v=((v%2)+2)%2; return v>1?2-v:v; }
+  function seaRoutePointV6252(th,routeIndex,progress){
+    const rs=th&&th.routes||[],r=rs.length?rs[Math.max(0,Math.min(rs.length-1,routeIndex|0))]:null;
+    if(!r||!Array.isArray(r.pts)||r.pts.length<2) return {x:th.grid.w*.5,y:th.grid.h*.5,course:0,progress:0,route:null};
+    const lens=[];let total=0;
+    for(let i=1;i<r.pts.length;i++){const a=r.pts[i-1],b=r.pts[i],d=Math.hypot(b[0]-a[0],b[1]-a[1]);lens.push(d);total+=d;}
+    let want=Math.max(0,Math.min(1,progress))*Math.max(.0001,total),seg=0;
+    while(seg<lens.length-1&&want>lens[seg]){want-=lens[seg];seg++;}
+    const a=r.pts[seg],b=r.pts[seg+1],f=lens[seg]>0?want/lens[seg]:0;
+    const dx=b[0]-a[0],dy=b[1]-a[1];
+    return {x:a[0]+dx*f,y:a[1]+dy*f,course:(Math.atan2(dx,-dy)*180/Math.PI+360)%360,progress:progress,route:r};
+  }
+  function ensureSeaActivityV6252(day){
+    if(!W)return null;
+    const d=Number.isFinite(day)?Math.max(0,day):Math.max(0,Number(W.warDay)||Number(W.months||0)*30);
+    if(!W.seaActivity||typeof W.seaActivity!=='object')W.seaActivity={};
+    const s=W.seaActivity;
+    if(!Number.isFinite(s.seed))s.seed=seaHashV6252(_seed,W.theater?W.theater.length:0,0x6252,0xA71D);
+    s.seed=s.seed>>>0;s.version=1;
+    if(!Array.isArray(s.packets))s.packets=[];
+    if(!Array.isArray(s.intel))s.intel=[];
+    if(!Array.isArray(s.recentBattles))s.recentBattles=[];
+    if(!Number.isFinite(s.lastBucket))s.lastBucket=Math.max(-1,Math.floor(d*2)-1);
+    if(!Number.isFinite(s.lastNewsDay))s.lastNewsDay=-999;
+    if(!Number.isFinite(s.lastDay))s.lastDay=d;
+    return s;
+  }
+  function seaTypeV6252(seed0,bucket,slot,theater){
+    const weights=theater==='EASTPAC'?[.30,.24,.10,.17,.19]:theater==='PACIFIC'?[.31,.19,.14,.17,.19]:theater==='MEDITERRANEAN'?[.28,.24,.18,.12,.18]:[.34,.24,.16,.13,.13];
+    let r=seaRandV6252(seed0,bucket,slot,31),sum=0;for(let i=0;i<weights.length;i++){sum+=weights[i];if(r<=sum)return SEA_ACTIVITY_TYPES_V6252[i];}
+    return 'CONVOY';
+  }
+  function seaPacketPosV6252(p,day){
+    const th=T().THEATERS[W.theater],elapsed=Math.max(0,day-p.startDay),raw=Number(p.progress0||0)+elapsed*Number(p.rate||.18)*Number(p.dir||1);
+    const prog=seaTriV6252(raw),q=seaRoutePointV6252(th,p.routeIndex,prog);return Object.assign(q,{progress:prog});
+  }
+  function seaSpawnPacketV6252(s,bucket,slot,force){
+    const th=T().THEATERS[W.theater];if(!th||!th.routes||!th.routes.length||s.packets.length>=9)return null;
+    if(!force&&seaRandV6252(s.seed,bucket,slot,1)>.69)return null;
+    const kind=seaTypeV6252(s.seed,bucket,slot,W.theater),side=SEA_SIDES_V6252[W.theater]||SEA_SIDES_V6252.ATLANTIC;
+    const friendlyChance={CONVOY:.24,ESCORT_SWEEP:.35,SURFACE_GROUP:.46,SUB_PATROL:.50,AIR_PATROL:.35}[kind]||.4;
+    const faction=seaRandV6252(s.seed,bucket,slot,41)<friendlyChance?side.player:side.other;
+    const routeIndex=Math.floor(seaRandV6252(s.seed,bucket,slot,47)*th.routes.length)%th.routes.length;
+    const startDay=Math.max(0,bucket/2),duration=1.7+seaRandV6252(s.seed,bucket,slot,53)*4.4;
+    const p={id:'SA'+bucket.toString(36).toUpperCase()+'-'+slot,kind:kind,faction:faction,routeIndex:routeIndex,
+      area:th.routes[routeIndex].name,purpose:SEA_PURPOSE_V6252[kind],startDay:+startDay.toFixed(3),endDay:+(startDay+duration).toFixed(3),
+      duration:+duration.toFixed(3),progress0:+seaRandV6252(s.seed,bucket,slot,59).toFixed(4),progress:0,
+      dir:seaRandV6252(s.seed,bucket,slot,61)<.5?-1:1,rate:+(.10+seaRandV6252(s.seed,bucket,slot,67)*({AIR_PATROL:.32,SURFACE_GROUP:.20,SUB_PATROL:.15,ESCORT_SWEEP:.13,CONVOY:.11}[kind]||.15)).toFixed(4),
+      intensity:+(.32+seaRandV6252(s.seed,bucket,slot,71)*.68).toFixed(3),lastIntelDay:-999,lastBattleDay:-999};
+    const q=seaPacketPosV6252(p,startDay);p.progress=q.progress;p.x=+q.x.toFixed(4);p.y=+q.y.toFixed(4);p.course=+q.course.toFixed(1);
+    s.packets.push(p);return p;
+  }
+  function seaIntelForPacketV6252(s,p,day,bucket,salt,force){
+    const sides=SEA_SIDES_V6252[W.theater]||SEA_SIDES_V6252.ATLANTIC;if(p.faction===sides.player)return null;
+    const chance={CONVOY:.58,ESCORT_SWEEP:.50,SURFACE_GROUP:.20,SUB_PATROL:.08,AIR_PATROL:.10}[p.kind]||.10;
+    if(!force&&seaRandV6252(s.seed,bucket,salt,101)>chance)return null;
+    if(day-(Number(p.lastIntelDay)||-999)<1.1)return null;
+    const th=T().THEATERS[W.theater],q=seaPacketPosV6252(p,day),ang=seaRandV6252(s.seed,bucket,salt,103)*Math.PI*2;
+    const baseErr=.32+seaRandV6252(s.seed,bucket,salt,107)*.75,off=baseErr*(.35+.45*seaRandV6252(s.seed,bucket,salt,109));
+    const x=clamp(q.x+Math.cos(ang)*off,.05,th.grid.w-.05),y=clamp(q.y+Math.sin(ang)*off,.05,th.grid.h-.05);
+    const label=p.kind==='CONVOY'?'호송선단 추정 이동':p.kind==='ESCORT_SWEEP'?'대잠 수색 활동':p.kind==='SURFACE_GROUP'?'수상함 활동 정황':'해상 활동 정황';
+    const it={id:'SI'+bucket.toString(36).toUpperCase()+'-'+salt,kind:p.kind,observedDay:+day.toFixed(3),x:+x.toFixed(4),y:+y.toFixed(4),baseError:+baseErr.toFixed(3),course:+q.course.toFixed(1),label:label,source:'RADIO'};
+    s.intel.push(it);p.lastIntelDay=day;if(s.intel.length>18)s.intel.splice(0,s.intel.length-18);return it;
+  }
+  function seaBattleIntelV6252(s,b,day,bucket,salt){
+    const th=T().THEATERS[W.theater],ang=seaRandV6252(s.seed,bucket,salt,151)*Math.PI*2,baseErr=.55+seaRandV6252(s.seed,bucket,salt,157)*.95;
+    const x=clamp(b.x+Math.cos(ang)*baseErr*.45,.05,th.grid.w-.05),y=clamp(b.y+Math.sin(ang)*baseErr*.45,.05,th.grid.h-.05);
+    const it={id:'SIB'+b.id,kind:'BATTLE',observedDay:+day.toFixed(3),x:+x.toFixed(4),y:+y.toFixed(4),baseError:+baseErr.toFixed(3),course:null,label:'최근 교전',source:'BATTLE'};
+    s.intel.push(it);if(s.intel.length>18)s.intel.splice(0,s.intel.length-18);return it;
+  }
+  function seaTryBattlesV6252(s,day,bucket,news){
+    const th=T().THEATERS[W.theater],a=s.packets,cap={ESCORT_SWEEP:1,SURFACE_GROUP:1,SUB_PATROL:1,AIR_PATROL:1};
+    for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++){
+      const p=a[i],q=a[j];if(p.faction===q.faction||(!cap[p.kind]&&!cap[q.kind]))continue;
+      if(day-(p.lastBattleDay||-999)<1.25||day-(q.lastBattleDay||-999)<1.25)continue;
+      const pp=seaPacketPosV6252(p,day),qq=seaPacketPosV6252(q,day),dnm=Math.hypot(pp.x-qq.x,pp.y-qq.y)*th.grid.nmPerCell;
+      if(dnm>185)continue;
+      const chance=.035+.055*((p.intensity+q.intensity)*.5);
+      if(seaRandV6252(s.seed,bucket,i*17+j,211)>chance)continue;
+      let x=(pp.x+qq.x)*.5,y=(pp.y+qq.y)*.5;if(T().isLand&&T().isLand(W.theater,x,y)){x=pp.x;y=pp.y;}
+      const b={id:'SB'+bucket.toString(36).toUpperCase()+'-'+i+'-'+j,day:+day.toFixed(3),x:+x.toFixed(4),y:+y.toFixed(4),
+        intensity:+clamp((p.intensity+q.intensity)*.5,.25,1).toFixed(3),a:p.kind,b:q.kind,factions:[p.faction,q.faction]};
+      s.recentBattles.push(b);if(s.recentBattles.length>12)s.recentBattles.splice(0,s.recentBattles.length-12);
+      p.lastBattleDay=q.lastBattleDay=day;seaBattleIntelV6252(s,b,day,bucket,i*31+j);
+      if(day-s.lastNewsDay>.45){news.push({kind:'BATTLE',x:b.x,y:b.y,ko:'해상 교전 보고. 자세한 것은 불명.',en:'Naval engagement reported. Details unknown.',ja:'海上交戦の報告。詳細不明。'});s.lastNewsDay=day;}
+    }
+  }
+  function advanceSeaActivityV6252(day){
+    if(!W)return {news:[],packets:[],battles:[]};
+    const d=Math.max(0,Number(day)||0),s=ensureSeaActivityV6252(d),news=[],target=Math.floor(d*2);
+    /* 처음 생성된 구세이브도 빈 바다처럼 보이지 않도록 현재 시점에 3개 패킷만 부트스트랩한다. */
+    if(!s.bootstrapped){for(let i=0;i<3;i++)seaSpawnPacketV6252(s,target,80+i,true);s.bootstrapped=true;}
+    let from=Math.max(s.lastBucket+1,target-16); /* 오래된 구세이브는 최근 8일만 재구성 */
+    for(let b=from;b<=target;b++){
+      const bd=b/2;s.packets=s.packets.filter(p=>p.endDay>bd-.001);
+      const slots=seaRandV6252(s.seed,b,0,301)<.22?2:1;for(let k=0;k<slots;k++)seaSpawnPacketV6252(s,b,k,false);
+      for(let i=0;i<s.packets.length;i++){
+        const p=s.packets[i],q=seaPacketPosV6252(p,bd);p.progress=+q.progress.toFixed(4);p.x=+q.x.toFixed(4);p.y=+q.y.toFixed(4);p.course=+q.course.toFixed(1);
+        const it=seaIntelForPacketV6252(s,p,bd,b,i*13+7,false);
+        if(it&&bd-s.lastNewsDay>1.0&&(p.kind==='CONVOY'||p.kind==='ESCORT_SWEEP')){
+          const n=p.kind==='CONVOY'?{ko:'무전 정보 · 호송선단 추정 이동. 위치 오차 큼.',en:'Radio intelligence: probable convoy movement. Position uncertain.',ja:'無線情報・船団移動の推定。位置誤差大。'}:{ko:'정보 보고 · 대잠 수색 활동 정황.',en:'Intelligence report: signs of anti-submarine search activity.',ja:'情報報告・対潜捜索活動の兆候。'};
+          news.push(Object.assign({kind:'INTEL',x:it.x,y:it.y},n));s.lastNewsDay=bd;
+        }
+      }
+      seaTryBattlesV6252(s,bd,b,news);s.lastBucket=b;
+    }
+    for(const p of s.packets){const q=seaPacketPosV6252(p,d);p.progress=+q.progress.toFixed(4);p.x=+q.x.toFixed(4);p.y=+q.y.toFixed(4);p.course=+q.course.toFixed(1);}
+    s.packets=s.packets.filter(p=>p.endDay>d-.001).slice(-9);
+    s.intel=s.intel.filter(x=>d-x.observedDay<=5.2).slice(-18);
+    s.recentBattles=s.recentBattles.filter(x=>d-x.day<=4.2).slice(-12);
+    s.lastDay=d;return {news:news,packets:s.packets,recentBattles:s.recentBattles};
+  }
+  function seaActivityIntelV6252(day,max){
+    if(!W)return[];const d=Math.max(0,Number(day)||0),s=ensureSeaActivityV6252(d),th=T().THEATERS[W.theater];
+    return s.intel.map(x=>{const age=Math.max(0,d-x.observedDay),op=clamp(.78-age*.12,.12,.78),err=x.baseError+age*.22;
+      return Object.assign({},x,{ageDays:age,opacity:op,errorCells:err,errorNm:err*th.grid.nmPerCell});})
+      .filter(x=>x.ageDays<=5.0).sort((a,b)=>{const pa=a.kind==='BATTLE'?2:a.kind==='ESCORT_SWEEP'?1:0,pb=b.kind==='BATTLE'?2:b.kind==='ESCORT_SWEEP'?1:0;return (pb-pa)||(b.observedDay-a.observedDay);}).slice(0,Math.max(1,Math.min(3,max||3)));
+  }
+  function nearbySeaBattleV6252(x,y,day){
+    if(!W)return null;const d=Math.max(0,Number(day)||0),s=ensureSeaActivityV6252(d),th=T().THEATERS[W.theater];let best=null;
+    for(const b of s.recentBattles){const age=d-b.day;if(age<0||age>1.35)continue;const nm=Math.hypot(Number(x)-b.x,Number(y)-b.y)*th.grid.nmPerCell;if(nm>220)continue;if(!best||nm<best.distanceNm)best=Object.assign({},b,{ageDays:age,distanceNm:nm});}
+    return best;
+  }
+  function seaActivitySnapshotV6252(){if(!W)return null;const s=ensureSeaActivityV6252();return JSON.parse(JSON.stringify(s));}
 
   /* ══════════ 전구별 목표 ══════════
      숫자는 역사가 아니라 한 전역의 길이를 위해 줄인 것이다. 교범 H19 에 밝혀 두었다. */
@@ -23119,6 +23361,7 @@ window.War = (function () {
     W.orders = makeOrders(th, W);
     W.sideObjective = makeSideObjective(th, W);
     W.lastSideId = W.sideObjective.id;
+    ensureSeaActivityV6252(0);
     return W;
   }
 
@@ -23663,6 +23906,7 @@ window.War = (function () {
       if (typeof W.lastOrderWasSpecial!=='boolean') W.lastOrderWasSpecial=!!(W.history&&W.history[0]&&W.history[0].specialPatrol);
 
       W.routeMemory=ensureRouteMemory(T().THEATERS[W.theater],W.routeMemory);
+      ensureSeaActivityV6252(Number.isFinite(W.warDay)?W.warDay:Math.max(0,W.months*30));
       if (!W.sideObjective) {
         const th=T().THEATERS[W.theater];
         W.sideObjective=makeSideObjective(th,W); W.lastSideId=W.sideObjective.id;
@@ -23685,6 +23929,8 @@ window.War = (function () {
     routeMemory: routeMemorySnapshot, memoryStateName: memoryStateName,
     crewCareer: crewCareerSnapshot, crewLevelName: crewLevelName, CREW_ROLES: CREW_ROLES,
     rivalBoard: rivalBoard, recentRivalNews: recentRivalNews, eternalPatrol: eternalPatrol, RIVAL_POOLS: RIVAL_POOLS,
+    seaActivityAdvance: advanceSeaActivityV6252, seaActivityIntel: seaActivityIntelV6252, nearbySeaBattle: nearbySeaBattleV6252,
+    seaActivity: seaActivitySnapshotV6252, SEA_ACTIVITY_TYPES: SEA_ACTIVITY_TYPES_V6252,
     snorkelIssued: snorkelIssued, homingIssued: homingIssued,
     finishPatrol: finishPatrol, objectiveProgress: objectiveProgress,
     makeOrders: function () { return W ? makeOrders(T().THEATERS[W.theater], W) : null; },
@@ -32822,6 +33068,9 @@ window.Lang.add('ja', {
   /* 판이 내놓는 사건을 그대로 소리로 옮긴다 — 시뮬은 소리를 모른다 */
   U.on((kind, data) => {
     try {
+      /* v6.25.5 — 전략 전구/사령부 뒤에 남은 전술 상태가 지연 이벤트를 내더라도
+         화면 밖 전투 효과음은 재생하지 않는다. */
+      if(document.body.classList.contains('inworld') || document.body.classList.contains('inhq')) return;
       const gs = U.state();
       window.Snd.event(kind, Object.assign({}, data || {}, { timeScale: gs && gs.timeScale || 1 }));
     } catch (e) {}
@@ -33261,9 +33510,328 @@ window.Lang.add('ja', {
      전략 초계 지도 — 전술 교전 사이의 바다
      ══════════════════════════════════════════════════════════ */
   const Campaign = window.Campaign, TH = window.THEATERS;
+
+  /* ══════════ v6.25.1 자동저장 ══════════
+     전술전 전체 상태는 별도 직렬화 구조가 없으므로 IN_ACTION 상태를 전략 세이브에
+     덮어쓰지 않는다. 전투 시작 직전의 pendingEncounter 체크포인트를 보존한다. */
+  let autoSaveTimerV625=0, autoSaveLastV625=0, autoSaveReasonV625='';
+  function updateAutoSaveBadgeV625(ok){
+    const e=$('wAutoSave'); if(!e) return;
+    if(ok===false){ e.textContent='실패'; const b=$('wAutoSaveBox'); if(b)b.className='bad'; return; }
+    const b=$('wAutoSaveBox'); if(b)b.className='';
+    e.textContent=autoSaveLastV625?'완료':'자동';
+    e.title=autoSaveLastV625?('마지막 자동저장 · '+autoSaveReasonV625):'자동저장 대기';
+  }
+  function autoSaveV625(reason, force){
+    const warApi=window.War, c=Campaign.state&&Campaign.state(), w=warApi&&warApi.state&&warApi.state();
+    let ok=true, wrote=false;
+    /* 전투 중에는 전투 직전 Campaign 체크포인트를 의도적으로 보존한다. */
+    if(c && c.status!=='IN_ACTION'){ ok=Campaign.save()&&ok; wrote=true; }
+    if(w&&warApi){ ok=warApi.save()&&ok; wrote=true; }
+    if(wrote && ok){ autoSaveLastV625=Date.now(); autoSaveReasonV625=reason||'주기'; }
+    updateAutoSaveBadgeV625(wrote?ok:null);
+    return wrote&&ok;
+  }
+  function startAutoSaveV625(){
+    if(autoSaveTimerV625) return;
+    autoSaveTimerV625=setInterval(()=>{ if(!document.hidden) autoSaveV625('30초 주기'); },30000);
+  }
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden) autoSaveV625('화면 숨김',true); });
+  window.addEventListener('pagehide',()=>autoSaveV625('앱 종료',true));
+  window.addEventListener('beforeunload',()=>autoSaveV625('종료 직전',true));
+  startAutoSaveV625();
+
   const cvW = $('cvWorld');
+  const cvBridgeV625 = $('cvVoyageBridge');
   const cvOcean = $('cvOceanFx');
   let worldTimer = null;
+
+  /* ══════════ v6.25.0 Stage 1 · Voyage Bridge ══════════
+     전투 엔진의 접촉 객체는 읽지 않는다. Campaign의 공개 상태, 현재 날씨/해상,
+     실제 육지 판정만 사용한다. 몽타주용 난수도 Campaign.rnd와 무관한 순수 해시다. */
+  const voyageBridgeV625 = {
+    raf:0,lastFrame:0,scene:null,prev:null,sceneSeq:0,nextAt:0,fadeAt:0,
+    coastKey:'',coast:null,wasSurface:null,lastKindAt:Object.create(null),lastAudioKind:null
+  };
+  function lsMixV625(seed,n){
+    let x=((seed>>>0) ^ Math.imul((n+1)>>>0,0x9E3779B1))>>>0;
+    x^=x>>>16; x=Math.imul(x,0x7feb352d)>>>0; x^=x>>>15; x=Math.imul(x,0x846ca68b)>>>0; x^=x>>>16;
+    return (x>>>0)/4294967296;
+  }
+  function lsStateV625(){ return Campaign.livingSea ? Campaign.livingSea() : null; }
+  function bridgeAllowedV625(C){ return !!(C && C.surfaced && !C.snorkel && C.status==='AT_SEA'); }
+  function effectiveWorldViewV625(C){
+    if(!bridgeAllowedV625(C)) return 'CHART';
+    const ls=lsStateV625(), p=ls&&ls.viewPreference||'AUTO';
+    return p==='BRIDGE'?'BRIDGE':'CHART';
+  }
+  function weatherVisV625(kind,ty){
+    if(ty==='CORE') return .22; if(ty==='GALE') return .36; if(ty==='EYE') return .62;
+    return ({clear:1,haze:.70,fog:.30,squall:.55,gale:.45,typhoon:.28})[kind]||.72;
+  }
+  function weatherNameV625(kind,ty){
+    if(ty==='EYE') return '태풍의 눈'; if(ty==='CORE') return '태풍 폭풍권'; if(ty==='GALE') return '태풍 강풍권';
+    return ({clear:'맑음',haze:'연무',fog:'안개',squall:'스콜',gale:'돌풍'})[kind]||String(kind||'해상');
+  }
+  function sceneSnapshotV625(){
+    const C=Campaign.state(); if(!C) return null;
+    const sea=Campaign.sea?Campaign.sea():null, t=TH.THEATERS[C.theater];
+    const wd=(Number.isFinite(C.warDayStart)?C.warDayStart:Math.max(0,(Number(C.warMonths)||0)*30))+(Number(C.hours)||0)/24;
+    const date=(window.EVENTS&&window.EVENTS.isoDateAtDay)?window.EVENTS.isoDateAtDay(C.theater,wd):('초계 '+(Math.floor(C.hours/24)+1)+'일');
+    const geo=(window.COASTLINES&&COASTLINES.toGeo)?COASTLINES.toGeo(C.theater,C.x,C.y):null;
+    const month=(/^\d{4}-(\d{2})-/.exec(date)||[])[1];
+    let coastNm=999, routeNm=999, nearPort=false;
+    try{ const d=TH.coastDist&&t?TH.coastDist(t,C.x,C.y,Math.max(1,90/t.grid.nmPerCell)):null; if(Number.isFinite(d))coastNm=d*t.grid.nmPerCell; }catch(e){}
+    try{ const rp=TH.routeProximity&&t?TH.routeProximity(t,C.x,C.y):null; if(rp&&Number.isFinite(rp.dist))routeNm=rp.dist*t.grid.nmPerCell; }catch(e){}
+    try{ nearPort=!!(Campaign.portsNear&&Campaign.portsNear(Math.max(.3,45/t.grid.nmPerCell)).length); }catch(e){}
+    let navalEcho=null; try{ if(window.War&&War.nearbySeaBattle) navalEcho=War.nearbySeaBattle(C.x,C.y,wd); }catch(e){}
+    return {theater:C.theater,x:C.x,y:C.y,course:C.course||0,hours:C.hours||0,date:date,
+      weather:C.weather||'clear',seaState:sea&&sea.seaState!=null?sea.seaState:(C.seaState||1),
+      waveDir:sea&&sea.waveDir!=null?sea.waveDir:(C.waveDir||90),typhoonBand:C.typhoonBand||null,
+      seed:(lsStateV625()&&lsStateV625().seed)||0x6250A5C3,lat:geo?geo.lat:(TH.latOf?TH.latOf(C.theater,C.y):0),
+      month:month?Number(month):1,coastNm:coastNm,routeNm:routeNm,nearPort:nearPort,
+      airPatrol:t&&Number.isFinite(t.airPatrol)?t.airPatrol:.4,alert:Number(C.alert)||0,navalEcho:navalEcho};
+  }
+  function livingKindV625(sc,now){
+    if(!sc) return null;
+    const vis=weatherVisV625(sc.weather,sc.typhoonBand), night=nightV625(sc.hours);
+    const harsh=sc.weather==='gale'||!!sc.typhoonBand||sc.seaState>=4.7;
+    const base=1000+voyageBridgeV625.sceneSeq*31;
+    /* 전체 장면의 60% 이상은 아무 특별한 객체도 없다. */
+    if(lsMixV625(sc.seed,base)<.62) return null;
+    const cand=[];
+    const coast=Math.max(0,1-Math.min(1,sc.coastNm/80));
+    const route=Math.max(0,1-Math.min(1,sc.routeNm/55));
+    if(!harsh && vis>.38){
+      cand.push(['BIRDS',.10+.27*coast+(sc.nearPort?.16:0)]);
+      if(sc.coastNm<55 || sc.nearPort || route>.62) cand.push(['FISHING',(.05+.16*coast+.08*route)*(night>.72?.35:1)]);
+      const migration=[3,4,5,9,10,11].includes(sc.month)&&Math.abs(sc.lat)>=18&&Math.abs(sc.lat)<=62;
+      if(migration&&night<.45) cand.push(['MIGRANTS',.045]);
+      if(night<.78) cand.push(['AIRCRAFT',.035*sc.airPatrol*(.65+sc.alert*.7)*vis]);
+    }
+    if(!cand.length) return null;
+    let total=cand.reduce((a,q)=>a+q[1],0),r=lsMixV625(sc.seed,base+1)*total,kind=null;
+    for(const q of cand){ r-=q[1]; if(r<=0){kind=q[0];break;} }
+    kind=kind||cand[cand.length-1][0];
+    const gap={BIRDS:45000,FISHING:90000,AIRCRAFT:120000,MIGRANTS:180000}[kind]||45000;
+    if(voyageBridgeV625.lastKindAt[kind] && now-voyageBridgeV625.lastKindAt[kind]<gap) return null;
+    voyageBridgeV625.lastKindAt[kind]=now;
+    return kind;
+  }
+  function livingAudioV625(kind){
+    if(!kind||voyageBridgeV625.lastAudioKind===kind||!window.Snd||!Snd.event) return;
+    voyageBridgeV625.lastAudioKind=kind;
+    try{ if(kind==='BIRDS')Snd.event('gull',{}); else if(kind==='AIRCRAFT')Snd.event('distantair',{}); }catch(e){}
+  }
+  function newBridgeSceneV625(now){
+    voyageBridgeV625.prev=voyageBridgeV625.scene;
+    voyageBridgeV625.scene=sceneSnapshotV625();
+    voyageBridgeV625.sceneSeq++;
+    if(voyageBridgeV625.scene) voyageBridgeV625.scene.livingKind=livingKindV625(voyageBridgeV625.scene,now);
+    livingAudioV625(voyageBridgeV625.scene&&voyageBridgeV625.scene.livingKind);
+    const seed=voyageBridgeV625.scene?voyageBridgeV625.scene.seed:0x6250A5C3;
+    voyageBridgeV625.fadeAt=now;
+    voyageBridgeV625.nextAt=now+7000+lsMixV625(seed,voyageBridgeV625.sceneSeq)*3000;
+    voyageBridgeV625.coastKey=''; voyageBridgeV625.coast=null;
+  }
+  function resizeVoyageBridgeV625(){
+    if(!cvBridgeV625) return false;
+    const r=cvBridgeV625.getBoundingClientRect();
+    if(!(r.width>0)||!(r.height>0)) return false;
+    const dpr=Math.min(2,window.devicePixelRatio||1), w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+    if(cvBridgeV625.width!==w) cvBridgeV625.width=w;
+    if(cvBridgeV625.height!==h) cvBridgeV625.height=h;
+    cvBridgeV625.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+    return true;
+  }
+  function coastProfileV625(sc){
+    if(!sc) return null;
+    const t=TH.THEATERS[sc.theater]; if(!t) return null;
+    const vis=weatherVisV625(sc.weather,sc.typhoonBand), maxNm=Math.max(10,Math.min(42,8+34*vis));
+    const maxCells=maxNm/t.grid.nmPerCell;
+    const key=[sc.theater,sc.x.toFixed(3),sc.y.toFixed(3),Math.round(sc.course/4)*4,Math.round(maxNm)].join('|');
+    if(voyageBridgeV625.coastKey===key) return voyageBridgeV625.coast;
+    /* 원양이면 비싼 방위별 탐색 자체를 건너뛴다. */
+    if(TH.coastDist && TH.coastDist(t,sc.x,sc.y,maxCells)>=maxCells){
+      voyageBridgeV625.coastKey=key; voyageBridgeV625.coast=[]; return voyageBridgeV625.coast;
+    }
+    const out=[];
+    for(let rel=-90;rel<=90;rel+=3){
+      const br=(sc.course+rel+360)%360, a=br*Math.PI/180;
+      let hit=null;
+      const steps=28;
+      for(let k=1;k<=steps;k++){
+        const nm=maxNm*(k/steps), dc=nm/t.grid.nmPerCell;
+        const x=sc.x+Math.sin(a)*dc, y=sc.y-Math.cos(a)*dc;
+        if(TH.isLand(sc.theater,x,y)){ hit=nm; break; }
+      }
+      out.push({rel:rel,nm:hit,maxNm:maxNm});
+    }
+    voyageBridgeV625.coastKey=key; voyageBridgeV625.coast=out; return out;
+  }
+  function nightV625(hours){
+    const h=((hours%24)+24)%24;
+    if(h<5||h>=20) return 1;
+    if(h<7) return 1-(h-5)/2;
+    if(h>=18) return (h-18)/2;
+    return 0;
+  }
+  function cloudBlobV625(c,x,y,w,h,a){
+    c.save(); c.globalAlpha*=a; c.beginPath();
+    c.ellipse(x-w*.22,y,w*.28,h*.46,0,0,Math.PI*2); c.ellipse(x+w*.04,y-h*.10,w*.34,h*.58,0,0,Math.PI*2);
+    c.ellipse(x+w*.30,y,w*.30,h*.42,0,0,Math.PI*2); c.fill(); c.restore();
+  }
+  function drawCloudsV625(c,W,H,sc,alpha){
+    const kind=sc.weather, rough=(kind==='gale'||kind==='squall'||sc.typhoonBand), fog=kind==='fog';
+    if(fog) return;
+    const count=rough?5:(kind==='clear'?3:4), n=nightV625(sc.hours), seed=sc.seed^Math.floor(sc.hours/3)^voyageBridgeV625.sceneSeq;
+    c.fillStyle=n>.6?'rgba(36,43,49,.78)':rough?'rgba(58,68,73,.86)':'rgba(195,205,207,.60)';
+    for(let i=0;i<count;i++){
+      const r1=lsMixV625(seed,i*3),r2=lsMixV625(seed,i*3+1),r3=lsMixV625(seed,i*3+2);
+      const x=(r1*1.2-.1)*W, y=(.10+r2*.30)*H, w=(.14+r3*.20)*W, h=(rough?.10:.075)*H;
+      cloudBlobV625(c,x,y,w,h,alpha*(.62+.25*r2));
+    }
+    if(kind==='squall'||sc.typhoonBand==='CORE'||sc.typhoonBand==='GALE'){
+      c.save(); c.globalAlpha*=alpha; const g=c.createLinearGradient(W*.68,H*.25,W*.72,H*.68);
+      g.addColorStop(0,'rgba(35,42,46,.58)');g.addColorStop(1,'rgba(55,67,72,0)');c.fillStyle=g;c.fillRect(W*.50,H*.22,W*.48,H*.52);c.restore();
+    }
+  }
+  function drawCoastV625(c,W,H,env,sc,alpha){
+    const p=coastProfileV625(sc); if(!p||!p.some(q=>q.nm!=null)) return;
+    c.save(); c.globalAlpha*=alpha; c.fillStyle=nightV625(sc.hours)>.55?'#050708':'#101717';
+    c.beginPath(); c.moveTo(0,H);
+    let started=false,lastX=0,lastY=env.baseY;
+    for(const q of p){
+      const x=(q.rel+90)/180*W;
+      const near=q.nm==null?0:Math.max(0,1-q.nm/q.maxNm);
+      const ridge=q.nm==null?0:(2+24*Math.pow(near,.72))*(.82+.28*lsMixV625(sc.seed,Math.round(q.rel)+97));
+      const y=env.baseY-ridge;
+      if(!started){c.lineTo(x,env.baseY);started=true;}
+      c.lineTo(x,y); lastX=x; lastY=y;
+    }
+    c.lineTo(lastX,env.baseY+2); c.lineTo(W,H); c.closePath(); c.fill(); c.restore();
+  }
+  function drawWeatherWallV625(c,W,H,sc,alpha){
+    if(!(sc.weather==='squall'||sc.weather==='gale'||sc.typhoonBand)) return;
+    c.save(); c.globalAlpha*=alpha;
+    const side=lsMixV625(sc.seed,701+voyageBridgeV625.sceneSeq)>.5?1:-1;
+    const cx=side>0?W*.72:W*.28, bw=W*(sc.typhoonBand?.42:.28), y0=H*.28, y1=H*.72;
+    const g=c.createLinearGradient(cx,y0,cx,y1); g.addColorStop(0,'rgba(33,39,43,.68)');g.addColorStop(.55,'rgba(55,65,70,.30)');g.addColorStop(1,'rgba(80,94,98,0)');
+    c.fillStyle=g;c.fillRect(cx-bw*.5,y0,bw,y1-y0);
+    c.strokeStyle=sc.typhoonBand?'rgba(205,220,224,.22)':'rgba(205,220,224,.15)';c.lineWidth=1;
+    const n=sc.typhoonBand?32:18;for(let i=0;i<n;i++){const r=lsMixV625(sc.seed,740+i+voyageBridgeV625.sceneSeq*7),x=cx-bw*.5+r*bw,y=y0+lsMixV625(sc.seed,800+i)*(y1-y0);c.beginPath();c.moveTo(x,y);c.lineTo(x-3,y+10+8*r);c.stroke();}
+    c.restore();
+  }
+  function drawBirdsV625(c,W,H,sc,alpha,migrant){
+    c.save();c.globalAlpha*=alpha;c.strokeStyle=nightV625(sc.hours)>.55?'rgba(214,222,226,.62)':'rgba(24,30,32,.72)';c.lineWidth=1.2;
+    const n=migrant?19:Math.round(8+lsMixV625(sc.seed,910)*12), bx=W*(.18+lsMixV625(sc.seed,911)*.62), by=H*(migrant?.22:(.18+lsMixV625(sc.seed,912)*.26));
+    for(let i=0;i<n;i++){let x,y;if(migrant){const side=i%2?1:-1,rank=Math.ceil(i/2);x=bx+side*rank*7;y=by+rank*3.2;}else{x=bx+(lsMixV625(sc.seed,930+i)-.5)*W*.20;y=by+(lsMixV625(sc.seed,980+i)-.5)*H*.10;}c.beginPath();c.moveTo(x-3,y+1);c.quadraticCurveTo(x-1,y-2,x,y);c.quadraticCurveTo(x+1,y-2,x+3,y+1);c.stroke();}
+    c.restore();
+  }
+  function drawFishingV625(c,W,H,sc,alpha){
+    const x=W*(.18+lsMixV625(sc.seed,1040)*.64), y=H*(.57+lsMixV625(sc.seed,1041)*.055), k=.75+lsMixV625(sc.seed,1042)*.55;
+    c.save();c.globalAlpha*=alpha;c.fillStyle=nightV625(sc.hours)>.6?'rgba(7,9,10,.86)':'rgba(20,27,29,.88)';
+    c.beginPath();c.moveTo(x-13*k,y);c.lineTo(x+13*k,y);c.lineTo(x+8*k,y+4*k);c.lineTo(x-10*k,y+4*k);c.closePath();c.fill();
+    c.fillRect(x-1*k,y-12*k,2*k,12*k);c.fillRect(x+1*k,y-8*k,7*k,2*k);
+    c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';c.fillStyle='rgba(190,205,208,.58)';c.textAlign='center';c.fillText('배경 · 먼 어선',x,y+16);c.restore();
+  }
+  function drawAircraftV625(c,W,H,sc,alpha){
+    const x=W*(.20+lsMixV625(sc.seed,1080)*.60), y=H*(.18+lsMixV625(sc.seed,1081)*.22), k=.8+lsMixV625(sc.seed,1082)*.7;
+    c.save();c.globalAlpha*=alpha;c.strokeStyle=nightV625(sc.hours)>.55?'rgba(205,216,220,.62)':'rgba(29,35,37,.68)';c.lineWidth=1.4;
+    c.beginPath();c.moveTo(x-12*k,y);c.lineTo(x+12*k,y);c.moveTo(x,y-3*k);c.lineTo(x,y+4*k);c.moveTo(x-4*k,y+3*k);c.lineTo(x+4*k,y+3*k);c.stroke();
+    c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';c.fillStyle='rgba(190,205,208,.55)';c.textAlign='center';c.fillText('배경 · 먼 항공기',x,y+15);c.restore();
+  }
+  function drawLivingObjectsV625(c,W,H,sc,alpha){
+    switch(sc.livingKind){
+      case 'BIRDS': drawBirdsV625(c,W,H,sc,alpha,false); break;
+      case 'MIGRANTS': drawBirdsV625(c,W,H,sc,alpha,true); break;
+      case 'FISHING': drawFishingV625(c,W,H,sc,alpha); break;
+      case 'AIRCRAFT': drawAircraftV625(c,W,H,sc,alpha); break;
+    }
+  }
+  function drawDistantBattleV6252(c,W,H,env,sc,alpha){
+    const b=sc&&sc.navalEcho;if(!b||!Number.isFinite(b.x)||!Number.isFinite(b.y))return;
+    const dx=b.x-sc.x,dy=b.y-sc.y,br=(Math.atan2(dx,-dy)*180/Math.PI+360)%360;
+    let rel=((br-(sc.course||0)+540)%360)-180;if(Math.abs(rel)>100)return;
+    const clos=Math.max(0,Math.min(1,1-(Number(b.distanceNm)||220)/220)),a=alpha*(.15+.42*clos)*(Number(b.intensity)||.5),x=W*(.5+rel/250),hy=(env&&env.baseY)||H*.58;
+    c.save();c.globalAlpha*=a;
+    if(nightV625(sc.hours)>.55){
+      c.fillStyle='rgba(255,190,105,.95)';const n=1+Math.floor((Number(b.intensity)||.5)*2);
+      for(let i=0;i<n;i++){const xx=x+(lsMixV625(sc.seed,1310+i)-.5)*22,yy=hy-3-(lsMixV625(sc.seed,1330+i)*8);c.fillRect(xx,yy,1.5,1.5);}
+    }else{
+      c.fillStyle='rgba(35,39,40,.48)';const h=10+26*clos*(Number(b.intensity)||.5);
+      for(let i=0;i<5;i++){const yy=hy-3-i*h/5,ww=3+i*2.2;c.beginPath();c.ellipse(x+(i-2)*1.4,yy,ww,2.2+i*.7,0,0,Math.PI*2);c.fill();}
+    }
+    c.restore();
+  }
+  function drawBridgeSceneV625(c,W,H,sc,alpha){
+    if(!sc||alpha<=0) return;
+    const O=window.ObservationVisuals, vis=weatherVisV625(sc.weather,sc.typhoonBand), now=performance.now()/1000;
+    const night=nightV625(sc.hours);
+    c.save(); c.globalAlpha=alpha;
+    let env=null;
+    if(O&&O.paintBase){ env=O.paintBase(c,W,H,{visibility:vis,seaState:sc.seaState,time:now,phase:.625,horizonRatio:.58}); }
+    else { c.fillStyle='#24343d';c.fillRect(0,0,W,H*.58);c.fillStyle='#0d1b21';c.fillRect(0,H*.58,W,H*.42);env={baseY:H*.58}; }
+    /* 몽타주의 낮/밤은 게임시각을 직접 매 프레임 따라가지 않고 장면 스냅샷에 고정한다. */
+    if(night>0){ c.fillStyle='rgba(2,5,10,'+(night*.72).toFixed(3)+')';c.fillRect(0,0,W,H); }
+    if(night>.55 && sc.weather!=='fog'){
+      c.fillStyle='rgba(220,232,238,'+(0.30*night).toFixed(3)+')';
+      for(let i=0;i<18;i++){const x=lsMixV625(sc.seed,200+i)*W,y=lsMixV625(sc.seed,260+i)*H*.42;c.fillRect(x,y,1,1);}
+    }
+    drawCloudsV625(c,W,H,sc,1);
+    drawWeatherWallV625(c,W,H,sc,1);
+    drawCoastV625(c,W,H,env,sc,1);
+    drawDistantBattleV6252(c,W,H,env,sc,1);
+    drawLivingObjectsV625(c,W,H,sc,1);
+    if(O&&O.paintForeground) O.paintForeground(c,W,H,env);
+    if(O&&O.paintFog) O.paintFog(c,W,H,vis);
+    /* 함교 난간은 시점 표시일 뿐 전술 기능이 아니다. */
+    c.strokeStyle='rgba(10,14,16,.78)';c.lineWidth=4;c.beginPath();c.moveTo(0,H*.89);c.lineTo(W,H*.89);c.stroke();
+    c.lineWidth=2;for(let x=W*.12;x<W;x+=W*.19){c.beginPath();c.moveTo(x,H*.89);c.lineTo(x,H);c.stroke();}
+    c.fillStyle=night>.55?'rgba(205,219,226,.72)':'rgba(221,232,235,.82)';c.font='11px system-ui,-apple-system,"Malgun Gothic",sans-serif';c.textAlign='right';
+    c.fillText(sc.date+' · '+String(Math.floor(sc.hours%24)).padStart(2,'0')+'시 · '+weatherNameV625(sc.weather,sc.typhoonBand)+' · 해상 '+Number(sc.seaState).toFixed(1),W-10,18);
+    c.textAlign='right';c.fillText('함교 · 침로 '+String(Math.round(sc.course)%360).padStart(3,'0')+'°',W-10,H-12);
+    c.restore();
+  }
+  function renderVoyageBridgeV625(ts){
+    if(!$('world').classList.contains('on')||!$('world').classList.contains('bridge-view')||!bridgeAllowedV625(Campaign.state())){ stopVoyageBridgeV625(); return; }
+    if(!resizeVoyageBridgeV625()) return;
+    if(!voyageBridgeV625.scene||ts>=voyageBridgeV625.nextAt) newBridgeSceneV625(ts);
+    const c=cvBridgeV625.getContext('2d'),W=cvBridgeV625.clientWidth,H=cvBridgeV625.clientHeight;
+    c.clearRect(0,0,W,H);
+    const fade=Math.max(0,Math.min(1,(ts-voyageBridgeV625.fadeAt)/1000));
+    if(voyageBridgeV625.prev&&fade<1) drawBridgeSceneV625(c,W,H,voyageBridgeV625.prev,1-fade);
+    drawBridgeSceneV625(c,W,H,voyageBridgeV625.scene,voyageBridgeV625.prev?fade:1);
+  }
+  function bridgeLoopV625(ts){
+    voyageBridgeV625.raf=0;
+    if(!$('world').classList.contains('on')||!$('world').classList.contains('bridge-view')) return;
+    if(ts-voyageBridgeV625.lastFrame>=70){voyageBridgeV625.lastFrame=ts;renderVoyageBridgeV625(ts);}
+    voyageBridgeV625.raf=requestAnimationFrame(bridgeLoopV625);
+  }
+  function startVoyageBridgeV625(){ if(!voyageBridgeV625.raf) voyageBridgeV625.raf=requestAnimationFrame(bridgeLoopV625); }
+  function stopVoyageBridgeV625(){ if(voyageBridgeV625.raf){cancelAnimationFrame(voyageBridgeV625.raf);voyageBridgeV625.raf=0;} }
+  function resetBridgeMontageV625(){voyageBridgeV625.scene=null;voyageBridgeV625.prev=null;voyageBridgeV625.nextAt=0;voyageBridgeV625.fadeAt=0;voyageBridgeV625.coastKey='';voyageBridgeV625.coast=null;voyageBridgeV625.lastAudioKind=null;}
+  function syncWorldViewV625(opts){
+    opts=opts||{}; const C=Campaign.state(); if(!C) return;
+    const allowed=bridgeAllowedV625(C), view=effectiveWorldViewV625(C), bridge=view==='BRIDGE';
+    $('wViewBridge').disabled=!allowed;
+    $('wViewChart').classList.toggle('on',!bridge); $('wViewBridge').classList.toggle('on',bridge);
+    $('world').classList.toggle('bridge-view',bridge);
+    if(bridge){ if($('world').classList.contains('bigmap')) setWorldBig(false,false); resizeVoyageBridgeV625(); if($('world').classList.contains('on')) startVoyageBridgeV625(); else stopVoyageBridgeV625(); }
+    else { stopVoyageBridgeV625(); if(opts.redraw!==false && $('world').classList.contains('on')){resizeWorld();renderWorld();} }
+    voyageBridgeV625.wasSurface=allowed;
+  }
+  function chooseWorldViewV625(pref){
+    if(pref==='BRIDGE'&&!bridgeAllowedV625(Campaign.state())){worldTip('함교 시야는 부상 항해에서만 사용할 수 있습니다.');return;}
+    if(Campaign.setLivingSeaView) Campaign.setLivingSeaView(pref);
+    resetBridgeMontageV625(); syncWorldViewV625(); Campaign.save();
+  }
+  $('wViewChart').addEventListener('click',()=>chooseWorldViewV625('CHART'));
+  $('wViewBridge').addEventListener('click',()=>chooseWorldViewV625('BRIDGE'));
+  window.VoyageBridgeV625={sync:syncWorldViewV625,resize:resizeVoyageBridgeV625,render:()=>renderVoyageBridgeV625(performance.now()),
+    stop:stopVoyageBridgeV625,state:()=>({raf:voyageBridgeV625.raf,scene:voyageBridgeV625.scene,view:effectiveWorldViewV625(Campaign.state()),height:cvBridgeV625?cvBridgeV625.getBoundingClientRect().height:0})};
+  window.AutoSaveV625={save:(reason)=>autoSaveV625(reason||'수동 시험',true),state:()=>({last:autoSaveLastV625,reason:autoSaveReasonV625,timer:!!autoSaveTimerV625})};
 
   /* ══════════ 전략 거점 설명 ══════════
      좌표는 게임 데이터에 고정한다. 예전 편집기에서 저장한 덮어쓰기는 제거하고,
@@ -33814,12 +34382,17 @@ window.Lang.add('ja', {
     document.body.classList.toggle('inworld', on);
     $('world').classList.toggle('on', on);
     if (on) {
-      resizeWorld(); ensureWorldPoint(Campaign.state()); syncWorldBigButton(); renderWorld(); renderWorldPanel(); startOceanFx(); initSlides(); markAllSlides();
+      /* 기본 시점은 언제나 해도. 함교는 함장이 직접 선택할 때만 연다. */
+      if(Campaign.setLivingSeaView) Campaign.setLivingSeaView('CHART');
+      advanceSeaActivityUIV6252();
+      resizeWorld(); ensureWorldPoint(Campaign.state()); syncWorldBigButton(); renderWorld(); renderWorldPanel(); syncWorldViewV625({redraw:false}); startOceanFx(); initSlides(); markAllSlides();
+      autoSaveV625('전략 초계 진입',true);
+      const c0=Campaign.state(); if(c0&&c0.pendingEncounter) setTimeout(()=>handleWorldEvent({kind:'ENCOUNTER',encounter:c0.pendingEncounter}),0);
       /* 출항 직후에는 루트를 아직 찍지 않았어도 디젤 아이들링이 은은하게 시작된다. */
       try{ const st=worldSceneState(); if(st&&window.Snd&&window.Snd.scene) window.Snd.scene('world',st); }catch(e){}
     }
     else {
-      setWorldBig(false, false); stopOceanFx(); stopVoyageTimer();
+      setWorldBig(false, false); stopVoyageBridgeV625(); stopOceanFx(); stopVoyageTimer();
       try{ if(window.Snd&&window.Snd.scene) window.Snd.scene('off',{}); }catch(e){}
     }
   }
@@ -33846,7 +34419,7 @@ window.Lang.add('ja', {
     cvW.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
     resizeOceanFx();
   }
-  window.addEventListener('resize', () => { if ($('world').classList.contains('on')) { resizeWorld(); renderWorld(); } });
+  window.addEventListener('resize', () => { if ($('world').classList.contains('on')) { resizeWorld(); if($('world').classList.contains('bridge-view')){resizeVoyageBridgeV625();renderVoyageBridgeV625(performance.now());} else renderWorld(); } });
 
   /* ── 지도 눈금 ──
      바다는 넓다. 전체를 한 화면에 넣으면 한 칸이 손톱만 해져 아무것도 못 고른다.
@@ -34123,7 +34696,11 @@ window.Lang.add('ja', {
       if(sp>6&&C.surfaced){ c.strokeStyle='rgba(222,239,239,.16)';c.beginPath();c.moveTo(bp[0],bp[1]);c.lineTo(bp[0]+backX*wl*.72,bp[1]+backY*wl*.72);c.stroke(); }
     }
     c.restore();
-    if(window.Snd&&Snd.voyage){
+    /* v6.25.5 — 전구 해도는 정보판이다. 컵·해치·차트·펌프 같은 생활 효과음이
+       몇 초마다 반복되면 화면 뒤에서 다른 장면이 도는 것처럼 들린다.
+       이런 이산 원양음은 실제 함교 시점에서만 허용하고, 해도에서는 scene('world')의
+       지속 추진음만 남긴다. */
+    if(window.Snd&&Snd.voyage&&$('world').classList.contains('bridge-view')){
       let near=false; try{ near=(Campaign.portsNear&&Campaign.portsNear().length>0); }catch(e){}
       Snd.voyage({seaState:C.seaState,weather:C.weather,typhoonBand:C.typhoonBand,surfaced:C.surfaced,snorkel:C.snorkel,nearPort:near,alert:C.alert});
     }
@@ -34351,6 +34928,48 @@ window.Lang.add('ja', {
     c.restore();
   }
 
+  function currentSeaActivityDayV6252(){
+    const C=Campaign.state();if(!C)return 0;return (Number.isFinite(C.warDayStart)?C.warDayStart:Math.max(0,(Number(C.warMonths)||0)*30))+(Number(C.hours)||0)/24;
+  }
+  function seaDirV6252(C,x,y){
+    const dx=x-C.x,dy=y-C.y;if(Math.abs(dx)>Math.abs(dy))return dx<0?'서쪽':'동쪽';return dy<0?'북쪽':'남쪽';
+  }
+  function pushSeaActivityNewsV6252(news){
+    const C=Campaign.state();if(!C||!Array.isArray(news)||!news.length)return;
+    for(const n of news.slice(0,2)){
+      let ko=n.ko,en=n.en,ja=n.ja;
+      if(n.kind==='BATTLE'&&Number.isFinite(n.x)&&Number.isFinite(n.y)){
+        const d=seaDirV6252(C,n.x,n.y);ko=d+' 해역에서 교전 보고. 자세한 것은 불명.';
+        en='Naval engagement reported in the '+({서쪽:'western',동쪽:'eastern',북쪽:'northern',남쪽:'southern'}[d]||'nearby')+' sector. Details unknown.';
+        ja=({서쪽:'西方',동쪽:'東方',북쪽:'北方',남쪽:'南方'}[d]||'周辺')+'海域で交戦報告。詳細不明。';
+      }
+      C.log.unshift({h:C.hours,text:ko,variants:{ko:ko,en:en||ko,ja:ja||ko},who:'radio',kind:'report'});
+    }
+    if(C.log.length>120)C.log.length=120;
+  }
+  function advanceSeaActivityUIV6252(){
+    if(!window.War||!War.seaActivityAdvance)return null;const r=War.seaActivityAdvance(currentSeaActivityDayV6252());if(r&&r.news&&r.news.length)pushSeaActivityNewsV6252(r.news);return r;
+  }
+  function drawSeaActivityIntelV6252(c,sc,C,W,H){
+    if(!window.War||!War.seaActivityIntel)return;const list=War.seaActivityIntel(currentSeaActivityDayV6252(),3);if(!list||!list.length)return;
+    c.save();c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';
+    const usedLabels=[];
+    for(const it of list){
+      const q=wpx(sc,it.x,it.y),rad=Math.max(7,Math.min(68,it.errorCells*sc.k)),a=it.opacity||.25;
+      if(q[0]+rad<0||q[0]-rad>W||q[1]+rad<0||q[1]-rad>H)continue;
+      const battle=it.kind==='BATTLE';c.strokeStyle=battle?'rgba(255,176,32,'+a.toFixed(2)+')':'rgba(166,194,205,'+a.toFixed(2)+')';c.fillStyle=battle?'rgba(255,176,32,'+(a*.72).toFixed(2)+')':'rgba(166,194,205,'+(a*.72).toFixed(2)+')';
+      c.lineWidth=1.2;c.setLineDash([3,5]);c.beginPath();c.arc(q[0],q[1],rad,0,Math.PI*2);c.stroke();c.setLineDash([]);
+      if(Number.isFinite(it.course)&&it.kind==='CONVOY'){
+        const rr=it.course*Math.PI/180;c.beginPath();c.moveTo(q[0],q[1]);c.lineTo(q[0]+Math.sin(rr)*16,q[1]-Math.cos(rr)*16);c.stroke();
+      }
+      const ageH=Math.round((it.ageDays||0)*24),txt=(battle?'교전 보고':it.kind==='ESCORT_SWEEP'?'대잠 활동':'호송 추정')+' · '+ageH+'h · ±'+Math.round(it.errorNm)+'nm';
+      const right=q[0]>W*.68,lx=q[0]+(right?-rad-4:rad+4);let ly=Math.max(12,Math.min(H-10,q[1]-2));
+      for(let n=0;n<4&&usedLabels.some(z=>Math.abs(z[0]-lx)<96&&Math.abs(z[1]-ly)<11);n++)ly=Math.max(12,Math.min(H-10,ly+(n%2===0?12:-24)));
+      usedLabels.push([lx,ly]);c.textAlign=right?'right':'left';c.fillText(txt,lx,ly);
+    }
+    c.restore();
+  }
+
   function renderWorld() {
     const C = Campaign.state(); if (!C) return;
     const sc = worldScale(); if (!sc) return;
@@ -34527,6 +35146,8 @@ window.Lang.add('ja', {
       c.fillStyle = 'rgba(255,176,32,' + a + ')'; c.font = '10px system-ui'; c.textAlign = 'left';
       c.fillText(r.grid + ' · ' + r.size + '척', q[0] + 7, q[1] + 12);
     }
+    /* v6.25.2 — 정확한 패킷 위치가 아니라 오래될수록 퍼지는 정보 흔적만 표시 */
+    drawSeaActivityIntelV6252(c,sc,C,W,H);
     /* 항로 */
     if (C.route.length) {
       c.strokeStyle = 'rgba(61,255,160,.5)'; c.lineWidth = 1.6; c.setLineDash([6, 5]);
@@ -34593,6 +35214,7 @@ window.Lang.add('ja', {
      시험이 확대·이동을 흉내 낼 때 쓰고, 게임 규칙에는 손대지 않는다. */
   window.WorldView = {
     cam: cam,
+    seaActivityAdvance: advanceSeaActivityUIV6252,
     show: on => showWorld(on),
     render: () => { renderWorld(); renderWorldPanel(); },
     fit: () => { camFit(true); renderWorld(); },
@@ -34683,6 +35305,7 @@ window.Lang.add('ja', {
 
   function renderWorldPanel() {
     const C = Campaign.state(); if (!C) return;
+    syncWorldViewV625({redraw:false});
     const spec = TH.BOATS[C.boatId];
     { const wd=(Number.isFinite(C.warDayStart)?C.warDayStart:Math.max(0,(Number(C.warMonths)||0)*30))+(Number(C.hours)||0)/24;
       $('wDay').textContent=(window.EVENTS&&window.EVENTS.isoDateAtDay)?window.EVENTS.isoDateAtDay(C.theater,wd):((Math.floor(C.hours/24)+1)+'일차');
@@ -34822,6 +35445,7 @@ window.Lang.add('ja', {
     if (go.resumed) worldTip('가던 자리에서 이어 갑니다 — 남은 경유점 ' + go.left + '개.');
     worldTimer = setInterval(() => {
       const r = Campaign.advance(0.5);              /* 한 박자에 30분 */
+      advanceSeaActivityUIV6252();
       camFollow();
       renderWorld(); renderWorldPanel();
       for (const e of r.events) handleWorldEvent(e);
@@ -34829,6 +35453,7 @@ window.Lang.add('ja', {
       const c2 = Campaign.state();
       if (c2 && c2.navMode !== 'ROUTE' && !c2.pendingEncounter) stopVoyageTimer();
       Campaign.save();
+      if(Date.now()-autoSaveLastV625>30000) autoSaveV625('항해 중');
     }, 110);
     renderWorldPanel();
   }
@@ -34869,6 +35494,7 @@ window.Lang.add('ja', {
     if (e.kind === 'CREW_CHAT') {
       queueWorldCrewChat(e.chat);
     } else if (e.kind === 'ENCOUNTER') {
+      stopVoyageBridgeV625();
       if(window.Snd&&Snd.event) Snd.event('watchbell',{});
       const enc = e.encounter;
       const C0 = Campaign.state();
@@ -35125,6 +35751,7 @@ window.Lang.add('ja', {
     worldTip(L('그 자리에서 기다립니다 — 사건이 생기면 멈춥니다.'));
     worldTimer = setInterval(() => {
       const r = Campaign.advance(0.5);
+      advanceSeaActivityUIV6252();
       renderWorld(); renderWorldPanel();
       for (const e of r.events) handleWorldEvent(e);
       if (r.stopped) stopVoyageTimer();
@@ -35203,7 +35830,7 @@ window.Lang.add('ja', {
     const C = Campaign.state(); if (!C) return;
     const r = Campaign.setSnorkel(!C.snorkel);
     worldTip(r.ok ? (r.on ? '스노클 항해 — 잠긴 채로 디젤을 돌립니다.' : '스노클 내림.') : r.err);
-    renderWorld(); renderWorldPanel(); Campaign.save();
+    syncWorldViewV625({redraw:false}); renderWorld(); renderWorldPanel(); Campaign.save();
   });
   /* 그 자리에 서서 전지를 채운다 — 시간이 흐르고, 그동안 하늘이 위험해진다 */
   $('wCharge').addEventListener('click', () => {
@@ -35214,6 +35841,7 @@ window.Lang.add('ja', {
     const spec = TH.BOATS[C.boatId];
     const need = (1 - C.battery) * (spec.chargeHours || 4.5) * (C.snorkel ? 1.7 : 1);
     const res = Campaign.advance(Math.min(need + 0.25, 12));
+    advanceSeaActivityUIV6252();
     for (const e of res.events) handleWorldEvent(e);
     worldTip('전지 ' + Math.round(Campaign.state().battery * 100) + '% · 공기 ' +
              Math.round(Campaign.state().air * 100) + '% — ' + need.toFixed(1) + '시간을 썼습니다.');
@@ -35222,7 +35850,7 @@ window.Lang.add('ja', {
   $('wStop').addEventListener('click', () => { stopVoyageTimer(); Campaign.stopVoyage('함장 지시'); renderWorldPanel(); });
   $('wDive').addEventListener('click', () => {
     const C = Campaign.state(); if (!C) return;
-    Campaign.setSurfaced(!C.surfaced); renderWorld(); renderWorldPanel();
+    Campaign.setSurfaced(!C.surfaced); resetBridgeMontageV625(); syncWorldViewV625({redraw:false}); renderWorld(); renderWorldPanel(); Campaign.save();
   });
   $('wClear').addEventListener('click', () => { stopVoyageTimer(); Campaign.clearRoute(); renderWorld(); renderWorldPanel(); });
   $('wHome').addEventListener('click', () => {
@@ -35233,6 +35861,7 @@ window.Lang.add('ja', {
 
   /* ── 접촉 → 전술 교전 ── */
   $('encGo').addEventListener('click', () => {
+    autoSaveV625('전투 직전 체크포인트',true);
     const opts = Campaign.beginEncounter();
     $('ovEnc').classList.remove('on');
     if (!opts) return;
@@ -36193,8 +36822,16 @@ window.Lang.add('ja', {
     bigOn = on;
     box.classList.toggle('on', on);
     const cv = $('cvChart'), tip = $('chartTip'), speedCtl = $('chartSpeedCtl');
-    if (on) { body.appendChild(cv); body.appendChild(tip); body.appendChild(speedCtl); }
-    else { slot.insertBefore(cv, slot.firstChild); slot.appendChild(tip); slot.appendChild(speedCtl); }
+    if (on) {
+      body.appendChild(cv); body.appendChild(tip); body.appendChild(speedCtl);
+      /* v6.25.5 — 원래 작은 해도의 inline 380px가 전체화면에서도 우선 적용돼
+         캔버스 아래에 빈 띠가 남았다. 큰 화면에서는 남은 높이를 전부 쓴다. */
+      cv.style.height='100%'; cv.style.minHeight='0';
+    }
+    else {
+      slot.insertBefore(cv, slot.firstChild); slot.appendChild(tip); slot.appendChild(speedCtl);
+      cv.style.height='380px'; cv.style.minHeight='';
+    }
     /* 크기가 바뀌었으니 뒷면 해상도를 다시 잡는다 */
     requestAnimationFrame(() => { resize(); drawChart(); });
   }
@@ -39975,10 +40612,12 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 </script>
 <style id="v620CrewHistoryStyle">/* ══════════ V6.20 전술 상황 말풍선 + 역사 사건 ══════════ */
-#tacticalCrewBubbleV620{position:fixed;left:max(12px,env(safe-area-inset-left));top:110px;right:auto;bottom:auto;z-index:445;max-width:min(78vw,380px);display:none;pointer-events:auto;touch-action:manipulation;padding:10px 12px 9px;border:1px solid rgba(255,176,32,.55);border-radius:12px;background:rgba(7,12,16,.94);box-shadow:0 6px 20px rgba(0,0,0,.42);color:var(--ink);font:12.5px/1.42 system-ui,-apple-system,"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none}
+#tacticalCrewBubbleV620{position:fixed;left:max(12px,env(safe-area-inset-left));top:110px;right:auto;bottom:auto;z-index:445;max-width:min(72vw,320px);display:none;pointer-events:auto;touch-action:manipulation;padding:6px 10px;border:1px solid rgba(255,176,32,.42);border-radius:12px;background:rgba(7,12,16,.88);box-shadow:0 4px 14px rgba(0,0,0,.34);color:var(--ink);font:12px/1.25 system-ui,-apple-system,"Malgun Gothic",sans-serif;user-select:none;-webkit-user-select:none}
 #tacticalCrewBubbleV620.on{display:block}
-#tacticalCrewBubbleV620 .v620role{font-size:10px;font-weight:800;letter-spacing:.08em;color:var(--amber);margin-bottom:3px}
-#tacticalCrewBubbleV620 .v620text{font-size:13px;color:var(--ink)}
+#tacticalCrewBubbleV620 .v620line{display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap}
+#tacticalCrewBubbleV620 .v620role{flex:0 0 auto;font-size:9.5px;font-weight:800;letter-spacing:.04em;color:var(--amber);padding:1px 6px;border:1px solid rgba(255,176,32,.25);border-radius:999px;background:rgba(255,176,32,.08);margin:0}
+#tacticalCrewBubbleV620 .v620sep{flex:0 0 auto;font-size:10px;color:rgba(255,255,255,.25)}
+#tacticalCrewBubbleV620 .v620text{flex:1 1 auto;min-width:0;font-size:12px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.inworld #tacticalCrewBubbleV620,body.inhq #tacticalCrewBubbleV620{display:none!important}
 #histEventLayerV620{position:fixed;inset:0;z-index:414;pointer-events:none;display:none}
 body.inworld #histEventLayerV620{display:block}
@@ -39999,7 +40638,7 @@ body.inworld #histEventLayerV620{display:block}
 #histSheetV620 .hsNote{margin-top:10px;padding:8px 9px;border:1px solid rgba(255,255,255,.08);border-radius:9px;color:var(--dim);font-size:11px;line-height:1.45}
 #histSheetV620 .hsActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
 #histSheetV620 .hsActions button{flex:1 1 150px;min-height:46px}
-@media(max-width:520px){#tacticalCrewBubbleV620{max-width:calc(100vw - 20px)}}
+@media(max-width:520px){#tacticalCrewBubbleV620{max-width:calc(100vw - 24px);padding:6px 9px}#tacticalCrewBubbleV620 .v620text{font-size:11.5px}}
 </style><script id="v620CrewHistoryScript">/* __SS_V620_CREW_HISTORY__ */
 (function(){
 'use strict';
@@ -40041,16 +40680,18 @@ var bubble=document.createElement('div');
 bubble.id='tacticalCrewBubbleV620';
 bubble.setAttribute('role','status');
 bubble.setAttribute('aria-live','polite');
-bubble.innerHTML='<div class="v620role"></div><div class="v620text"></div>';
+bubble.innerHTML='<div class="v620line"><span class="v620role"></span><span class="v620sep">·</span><span class="v620text"></span></div>';
 document.body.appendChild(bubble);
 function hideBubble(ev){
   if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+  if(bubbleHideTimer){clearTimeout(bubbleHideTimer);bubbleHideTimer=0;}
   bubble.classList.remove('on');
   bubble.dataset.dismissed=bubble.dataset.sig||'';
+  if(ev) bubbleCooldownUntil=Math.max(bubbleCooldownUntil,Date.now()+45000);
 }
 bubble.addEventListener('pointerdown',function(ev){ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();},{passive:true});
 bubble.addEventListener('click',hideBubble,{passive:false});
-var lastPane=null,lastShownAt=0,lastSig='',paneChangedAt=0;
+var lastPane=null,lastShownAt=0,lastSig='',paneChangedAt=0,bubbleHideTimer=0,bubbleCooldownUntil=0;
 function bubbleAnchor(p){
   var hb=document.getElementById('hydroBig'),cb=document.getElementById('chartBig');
   if(p==='hydro'&&hb&&hb.classList.contains('on')) return document.getElementById('hydroBigBody')||hb;
@@ -40073,38 +40714,38 @@ window.addEventListener('resize',function(){if(bubble.classList.contains('on')&&
 function roleFor(p){return p==='hydro'?tx('청음수','Hydrophone operator','聴音員'):p==='peri'?tx('관측원','Observer','見張員'):p==='chart'?tx('항해사','Navigator','航海士'):tx('기관장','Engineer','機関長');}
 function infoHydro(g){
   var c=selectedContact(g);
-  if(!c) return {sig:'hydro:none',text:tx('유효한 청음 접촉이 없습니다.','No usable hydrophone contact.','有効な聴音接触はありません。')};
+  if(!c) return {sig:'hydro:none',text:tx('청음 접촉 없음','No hydro contact','聴音接触なし')};
   var berr=c.focusBearingError!=null?c.focusBearingError:c.bearingError;
   var bearing=String(Math.round(c.bearing||0)).padStart(3,'0')+'°'+(berr!=null?' ±'+Math.round(berr)+'°':'');
-  var r=c.rangeEstimate!=null?tx('거리 추정 ','range estimate ','距離推定 ')+Math.round(c.rangeEstimate)+'m':tx('거리 추정 없음','no range estimate','距離推定なし');
-  var text=c.id+' · '+tx('방위 ','bearing ','方位 ')+bearing+' · '+tx('신호 ','signal ','信号 ')+signalWord(c.strength||0)+' · '+r;
+  var r=c.rangeEstimate!=null?Math.round(c.rangeEstimate)+'m':tx('거리 미정','range ?','距離不明');
+  var text=c.id+' · '+bearing+' · '+signalWord(c.strength||0)+' · '+r;
   return {sig:['hydro',c.id,round10(c.bearing),signalWord(c.strength||0),c.rangeEstimate!=null?Math.round(c.rangeEstimate/250):'x'].join(':'),text:text};
 }
 function infoPeri(g){
   var surface=!!(g.boat&&g.boat.depth<=3),up=!!(g.boat&&g.boat.periscope);
-  if(!surface&&!up) return {sig:'peri:closed',text:tx('현재 관측 시야가 닫혀 있습니다.','The observation view is currently closed.','現在、観測視界は閉じています。')};
+  if(!surface&&!up) return {sig:'peri:closed',text:tx('관측창 닫힘','Observation closed','観測閉')};
   var brg=g.boat&&g.boat.periscopeBearing!=null?g.boat.periscopeBearing:0;
   var half=surface?60:20,vis=[];
   try{vis=U.getPeriscopeVisuals?U.getPeriscopeVisuals(brg,half,surface?{surface:true}:undefined):[];}catch(e){vis=[];}
   var c=selectedContact(g),v=c?vis.find(function(z){return z.contactId===c.id;}):null;
-  var text=tx('시야 내 접촉 ','contacts in view ','視界内接触 ')+vis.length+'. ';
+  var text=tx('시야 ','View ','視界 ')+vis.length+tx('개','', '件')+' · ';
   if(c){
-    if(v){var side=Math.abs(v.relativeBearing)<4?tx('중앙','center','中央'):v.relativeBearing<0?tx('왼쪽','left','左'):tx('오른쪽','right','右');text+=c.id+' '+tx('시야 ','is ','は')+side+tx('에 있습니다.',' of view.','側にあります。');}
-    else text+=c.id+' '+tx('선택 접촉은 현재 시야 밖입니다.','selected contact is outside the current view.','選択接触は現在の視界外です。');
-  }else text+=tx('선택 접촉 없음.','No contact selected.','選択接触なし。');
+    if(v){var side=Math.abs(v.relativeBearing)<4?tx('중앙','center','中央'):v.relativeBearing<0?tx('좌','left','左'):tx('우','right','右');text+=c.id+' · '+side;}
+    else text+=c.id+' · '+tx('시야 밖','out of view','視界外');
+  }else text+=tx('선택 없음','No selection','選択なし');
   return {sig:['peri',vis.length,c?c.id:'x',v?Math.round(v.relativeBearing/5):'out',surface?'surf':'peri'].join(':'),text:text};
 }
 function infoChart(g){
   var c=selectedContact(g);
-  if(!c) return {sig:'chart:none',text:tx('해도에 정리할 선택 접촉이 없습니다.','No selected contact to plot on the chart.','海図に整理する選択接触はありません。')};
+  if(!c) return {sig:'chart:none',text:tx('해도 접촉 없음','No chart contact','海図接触なし')};
   var bits=[];
-  if(c.rangeEstimate!=null) bits.push(tx('거리 ','range ','距離 ')+Math.round(c.rangeEstimate)+'m');
-  else bits.push(tx('거리 미정','range unknown','距離未定'));
+  if(c.rangeEstimate!=null) bits.push(Math.round(c.rangeEstimate)+'m');
+  else bits.push(tx('거리 미정','range ?','距離不明'));
   if(c.courseEstimate!=null) bits.push(tx('침로 ','course ','針路 ')+String(Math.round(c.courseEstimate)).padStart(3,'0')+'°');
-  else bits.push(tx('침로 미정','course unknown','針路未定'));
-  if(c.speedEstimate!=null) bits.push(tx('속력 ','speed ','速力 ')+(c.speedEstimate/0.514444).toFixed(1)+'kn');
-  else bits.push(tx('속력 미정','speed unknown','速力未定'));
-  bits.push(tx('해법 신뢰 ','solution confidence ','解法信頼 ')+confWord(c.solutionConfidence||0));
+  else bits.push(tx('침로 ?','course ?','針路?'));
+  if(c.speedEstimate!=null) bits.push((c.speedEstimate/0.514444).toFixed(1)+'kn');
+  else bits.push(tx('속력 ?','speed ?','速力?'));
+  bits.push(tx('해법 ','solution ','解法 ')+confWord(c.solutionConfidence||0));
   return {sig:['chart',c.id,c.rangeEstimate!=null?Math.round(c.rangeEstimate/250):'x',c.courseEstimate!=null?round10(c.courseEstimate):'x',c.speedEstimate!=null?Math.round(c.speedEstimate/0.514444):'x',Math.round((c.solutionConfidence||0)*4)].join(':'),text:c.id+' · '+bits.join(' · ')};
 }
 function materialName(m){
@@ -40114,23 +40755,24 @@ function materialName(m){
   return (l==='en'&&(m.en||m.labelEn))||(l==='ja'&&(m.ja||m.labelJa))||m.ko||m.label||m.name||m.id||null;
 }
 function infoSect(g){
-  var b=g.boat||{},depth=Math.round(b.depth||0),bits=[tx('심도 ','depth ','深度 ')+depth+'m'];
+  var b=g.boat||{},depth=Math.round(b.depth||0),bits=[depth+'m'];
   var t=g.thermo;
   if(t&&Number.isFinite(t.depth)&&Number.isFinite(t.thickness)){
     var top=Math.max(0,Math.round(t.depth-t.thickness/2)),bot=Math.max(top,Math.round(t.depth+t.thickness/2));
-    var zone=depth<top?tx('혼합층','mixed layer','混合層'):depth>bot?tx('심층','deep layer','深層'):tx('주 수온약층','main thermocline','主水温躍層');
+    var zone=depth<top?tx('혼합층','mixed','混合層'):depth>bot?tx('심층','deep','深層'):tx('약층','thermocline','躍層');
     bits.push(zone+' · '+top+'–'+bot+'m');
-  }else bits.push(tx('뚜렷한 수온약층 없음','no distinct thermocline','明瞭な水温躍層なし'));
-  var mat=materialName(g.seabedMaterial);if(mat) bits.push(tx('해저 ','seabed ','海底 ')+mat);
+  }else bits.push(tx('약층 없음','no thermocline','躍層なし'));
+  var mat=materialName(g.seabedMaterial);if(mat) bits.push(mat);
   if(b.battery!=null&&b.battery<.35) bits.push(tx('전지 ','battery ','電池 ')+Math.round(b.battery*100)+'%');
   if(b.air!=null&&b.air<.35) bits.push(tx('공기 ','air ','空気 ')+Math.round(b.air*100)+'%');
   var d=b.damage||{},dm=Math.max(d.depthCtrl||0,d.engine||0,d.hydro||0,d.battery||0);
-  if(dm>.20) bits.push(tx('함 손상 보고 있음','boat damage reported','艦損傷報告あり'));
+  if(dm>.20) bits.push(tx('손상','damage','損傷'));
   return {sig:['sect',Math.round(depth/10),t&&t.depth?Math.round(t.depth/10):'x',mat||'x',b.battery!=null?Math.round(b.battery*4):'x',dm>.20?'d':'n'].join(':'),text:bits.join(' · ')};
 }
 function paneInfo(p,g){return p==='hydro'?infoHydro(g):p==='peri'?infoPeri(g):p==='chart'?infoChart(g):infoSect(g);}
 function showBubble(p,info){
   if(!info||!info.text) return;
+  if(bubbleHideTimer){clearTimeout(bubbleHideTimer);bubbleHideTimer=0;}
   bubble.querySelector('.v620role').textContent=roleFor(p);
   bubble.querySelector('.v620text').textContent=info.text;
   bubble.dataset.sig=info.sig||'';
@@ -40138,21 +40780,24 @@ function showBubble(p,info){
   positionBubble(p);
   bubble.classList.add('on');
   lastShownAt=Date.now();lastSig=info.sig||'';
+  bubbleCooldownUntil=Math.max(bubbleCooldownUntil,lastShownAt+12000);
+  bubbleHideTimer=setTimeout(function(){hideBubble();},2400);
 }
 function tickCrewBubble(){
-  if(!tacticalVisible()){bubble.classList.remove('on');lastPane=null;return;}
+  if(!tacticalVisible()){if(bubbleHideTimer){clearTimeout(bubbleHideTimer);bubbleHideTimer=0;}bubble.classList.remove('on');lastPane=null;return;}
   var p=paneNow();if(!p){bubble.classList.remove('on');return;}
   var now=Date.now();
-  if(p!==lastPane){lastPane=p;paneChangedAt=now;bubble.classList.remove('on');lastSig='';return;}
-  if(now-paneChangedAt<300) return;
+  if(p!==lastPane){if(bubbleHideTimer){clearTimeout(bubbleHideTimer);bubbleHideTimer=0;}lastPane=p;paneChangedAt=now;bubble.classList.remove('on');lastSig='';return;}
+  if(now-paneChangedAt<450) return;
   var g=U.state&&U.state();if(!g) return;
   var info=paneInfo(p,g);if(!info) return;
   var changed=info.sig!==lastSig;
+  if(now<bubbleCooldownUntil) return;
   if(bubble.dataset.dismissed===info.sig&&!changed) return;
-  if(changed){if(now-lastShownAt<2200&&lastShownAt) return;showBubble(p,info);return;}
-  if(!bubble.classList.contains('on')&&now-lastShownAt>15000&&bubble.dataset.dismissed!==info.sig) showBubble(p,info);
+  if(changed){if(now-lastShownAt<12000&&lastShownAt) return;showBubble(p,info);return;}
+  if(!bubble.classList.contains('on')&&now-lastShownAt>120000&&bubble.dataset.dismissed!==info.sig) showBubble(p,info);
 }
-setInterval(tickCrewBubble,700);
+setInterval(tickCrewBubble,1000);
 
 /* 실제 역사 사건은 정확한 전술 재연이 아니라 실제 날짜 범위 동안 근사 해역에 뜨는 선택형 역사 분기다. */
 var HIST=[
@@ -40515,7 +41160,7 @@ body.ep-v624-peri #tacticalCrewBubbleV620{
 if(window.__EP_V624_COMBAT_UX__) return;
 window.__EP_V624_COMBAT_UX__=true;
 
-const VERSION='6.24.12';
+const VERSION='6.25.0';
 const TRACE_KEY='ETERNAL_PATROL_BATTLE_TRACES_V624';
 const RETURN_KEY='EP_V624_RETURN_MAIN';
 const $=id=>document.getElementById(id);
