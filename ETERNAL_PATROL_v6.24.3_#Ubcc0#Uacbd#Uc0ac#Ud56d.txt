@@ -1,0 +1,32 @@
+ETERNAL PATROL v6.24.3 변경사항
+================================
+
+[승조원 음성 무반응 수정]
+- v6.24.2에서 음성팩 설치 후 '음성 시험'을 눌러도 아무 반응이 없는 것처럼 보이던 문제를 표적 수정.
+- 핵심 원인 중 하나: 네이티브 합성 오류가 발생해도 HTML이 'ready' 상태를 오류보다 먼저 표시하여 실제 오류 메시지가 가려지던 UI 결함 수정.
+- 음성 상태에 loading / queued / synthesizing / playing / error 단계를 추가.
+- 음성 시험 버튼이 모델 로드 중 / 합성 중 / 재생 중 상태를 즉시 표시.
+- 네이티브 합성 예외 발생 시 옵션 화면과 Android Toast에 실제 오류 원인을 표시.
+- 최근 합성 시간도 상태문에 표시하여 첫 실행 지연과 완전 무반응을 구분 가능.
+
+[Android 재생 경로]
+- Supertonic 출력 float PCM을 불필요하게 16-bit PCM으로 변환하지 않고 AudioTrack ENCODING_PCM_FLOAT로 직접 스트리밍하도록 변경.
+- AudioTrack 초기화 상태와 오류 코드를 검사해 재생 장치 초기화 실패가 조용히 묻히지 않도록 수정.
+- Supertonic 공식 Java 추론 순서와 현행 네이티브 구현의 입력/출력 계약을 재대조.
+
+[보존]
+- 음성팩 형식 및 설치 위치 유지: v6.24.2에서 받은 FP16 음성팩과 호환.
+- applicationId 유지: com.silentseas.game
+- 게임 저장 구조, 캠페인/전역 저장, 전투 시뮬레이션 코어에는 변경 없음.
+- 웹판은 EternalVoice 브리지가 없으면 기존처럼 텍스트 전용으로 동작.
+
+[검증]
+- index.html inline JavaScript 28개 전체 node --check 통과.
+- DOM id 570개, 중복 0.
+- 변경 Java 소스 javac 파싱 단계에서 구문 오류 패턴 없음(안드로이드 SDK 클래스 미존재에 따른 타입 오류는 제외).
+- Android SDK가 현재 작업환경에 없어 assembleDebug 실제 APK 컴파일은 GitHub Actions에서 최종 확인 필요.
+
+[버전]
+- game 6.24.3
+- Android versionName 6.24.3
+- Android versionCode 62403

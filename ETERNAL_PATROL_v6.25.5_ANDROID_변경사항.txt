@@ -1,35 +1,46 @@
-ETERNAL PATROL v6.25.5 Android GitHub Updater
-=============================================
+ETERNAL PATROL v6.25.5 Android FP32 Mood Living Sea SAFE MERGE
 
-기준 게임
-- ETERNAL_PATROL_v6.25.5_WORLD_AUDIO_CHART_FILL.html
-- APK asset: ETERNAL_PATROL.html
-- SHA-256: 6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f
+[핵심]
+- 게임 내용은 최신 v6.25.5를 그대로 사용.
+- Android 껍데기는 최종 정상 음성 기준본 v6.24.8 FP32 MOOD LICENSE를 사용.
+- 이전 경량 WebView updater 계열은 폐기.
 
-Android
-- applicationId: com.silentseas.game
-- versionName: 6.25.5
-- versionCode: 62505
-- minSdk 24 / targetSdk 36 / compileSdk 36
-- Java 17
+[게임 HTML]
+- ETERNAL_PATROL.html = v6.25.5 최신 완성 HTML
+- app/src/main/assets/index.html = 동일한 v6.25.5 HTML
+- 두 파일 SHA-256 완전 일치 확인.
 
-업데이트 기능
-- APK 화면 우측 상단에 네이티브 [업데이트 확인] 버튼 상시 표시
-- HTML 메뉴와 독립적이므로 게임 HTML이 바뀌어도 버튼 유지
-- manifest: Byanka-Rail/eternal-patrol main/update.json
-- 앱 시작 시 최대 6시간 간격 자동 확인
-- update.json의 url 및 gameUrl 양쪽 필드명 호환
-- 허용 다운로드 경로를 Byanka-Rail/eternal-patrol raw GitHub로 제한
-- ETERNAL_PATROL.html만 허용
-- SHA-256 검증 후 내부 저장소에 원자적 교체
-- 검증 실패/다운로드 실패 시 기존 게임 유지
-- 업데이트 성공 후 WebView 즉시 다시 로드
+[Android / 음성 보존]
+- applicationId com.silentseas.game 유지
+- com.microsoft.onnxruntime:onnxruntime-android:1.29.0 유지
+- EternalVoiceBridge.java 원본 보존
+- SupertonicEngine.java 원본 보존
+- VoicePackManager.java 원본 보존
+- voicepack-v3 / FP32 / mood(CALM, ALERT, URGENT, STRAINED) 구조 유지
+- 기존 라이선스 및 publish-voicepack workflow 유지
+- 기존 세이브 백업/복원과 뒤로가기 앱 메뉴의 업데이트 확인 유지
 
-저장
-- 모든 번들/업데이트 HTML을 동일한 BASE_ORIGIN에서 로드
-- 앱 일시정지 시 Campaign.save / War.save 호출 시도
+[버전 메타데이터]
+- versionCode: 62408 -> 62505
+- versionName: 6.24.8 -> 6.25.5
+- BUNDLED_GAME_VERSION: 6.24.8 -> 6.25.5
+- User-Agent 버전: 6.24.8 -> 6.25.5
+- update.json: gameVersion 6.25.5 + 최신 HTML SHA
 
-검증
-- AndroidManifest.xml / values XML 파싱 대상 생성 완료
-- MainActivity.java 괄호/문자열 구조 정적 검사 대상 생성 완료
-- 실제 assembleDebug는 GitHub Actions workflow에서 수행
+[빌드 안전장치]
+- canonical workflow: .github/workflows/android-build.yml
+- stale 경로 방어: .github/workflows/build-android.yml도 FP32 안전 빌드로 덮어씀
+- 빌드 전 최신 HTML/버전/ONNX/음성소스 존재를 강제 검증
+- 과거 경량 패키지 잔여 asset/style은 빌드 작업공간에서 자동 제거
+
+[검증 결과]
+- 최신 HTML inline JavaScript: 28/28 node --check 통과
+- 중복 DOM ID: 0
+- Chromium 일반 웹 폴백 로드: pageerror 0 / console error 0
+- Chromium EternalVoice mock 로드: pageerror 0 / console error 0
+- 최신 HTML이 호출하는 EternalVoice API와 v6.24.8 native bridge API 일치
+- 음성 Java 3개 SHA가 v6.24.8 Android 기준본과 완전 일치
+- Android 프로젝트에서 기준본 대비 비의도 파일 변경 없음 확인
+
+[중요]
+실제 Android APK 컴파일은 GitHub Actions에서 수행한다. 로컬 컨테이너에는 Android SDK/Gradle 빌드 환경이 없으므로 여기서는 소스/의존성/워크플로/HTML 회귀 검증까지 수행했다.

@@ -1,8 +1,10 @@
 {
-  "package": "ETERNAL PATROL v6.24.12 periscope FX overlay transparency + canvas lock + audio mixer + TTS pronunciation",
-  "gameVersion": "6.24.12",
-  "versionName": "6.24.12",
-  "versionCode": 62412,
+  "package": "ETERNAL PATROL v6.25.5 game + v6.24.8 Android FP32 voice/mood shell safe merge",
+  "gameVersion": "6.25.5",
+  "androidBase": "6.24.8_ANDROID_FP32_MOOD_LICENSE",
+  "versionName": "6.25.5",
+  "versionCode": 62505,
+  "gameHtmlSha256": "6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f",
   "voicePack": {
     "tag": "voicepack-v3",
     "variant": "FP32",
@@ -10,23 +12,14 @@
   },
   "voiceBridge": {
     "styledApi": "speakStyled",
-    "moods": [
-      "CALM",
-      "ALERT",
-      "URGENT",
-      "STRAINED"
-    ]
+    "moods": ["CALM", "ALERT", "URGENT", "STRAINED"],
+    "policy": "voice Java sources preserved byte-for-byte from Android v6.24.8 baseline"
   },
   "licenses": {
     "supertonicCode": "MIT",
     "supertonicModel": "BigScience OpenRAIL-M",
     "onnxruntime": "MIT",
     "onnxruntimeVersion": "1.29.0",
-    "thirdPartyNotices": "fetched at Android build from official Microsoft v1.29.0 source"
-  },
-  "periscopeFxFix": {
-    "overlayCanvas": "epV624PeriFx",
-    "background": "transparent",
-    "border": "none"
+    "thirdPartyNotices": "preserved from Android v6.24.8 baseline; official Microsoft notices fetched at build"
   }
 }

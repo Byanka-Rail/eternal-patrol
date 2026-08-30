@@ -1,0 +1,37 @@
+{
+  "root_html_sha": "6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f",
+  "asset_html_sha": "6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f",
+  "html_matches_expected": true,
+  "update_manifest_gameVersion": "6.25.5",
+  "update_manifest_sha": "6d3cfc113a1c46d8ac89d935a2fba66fb60228ce8e3d5cc157dd9a9a2a17539f",
+  "update_manifest_matches_html": true,
+  "voice_sources": {
+    "EternalVoiceBridge.java": {
+      "baseline_sha": "b9262acdf45f13a65e790cc9139352018efa9e60348c95b38b573e9c80a03af3",
+      "merged_sha": "b9262acdf45f13a65e790cc9139352018efa9e60348c95b38b573e9c80a03af3",
+      "match": true
+    },
+    "SupertonicEngine.java": {
+      "baseline_sha": "17a8dd2dc77402a824512e764ff64bff3a128d26f1af5b51998e906d9e8bb2d2",
+      "merged_sha": "17a8dd2dc77402a824512e764ff64bff3a128d26f1af5b51998e906d9e8bb2d2",
+      "match": true
+    },
+    "VoicePackManager.java": {
+      "baseline_sha": "e601f255a7a5eee01edcd39ff4d0dd51ebcfabbf7fbf4ff671d68b3572305c7d",
+      "merged_sha": "e601f255a7a5eee01edcd39ff4d0dd51ebcfabbf7fbf4ff671d68b3572305c7d",
+      "match": true
+    }
+  },
+  "all_voice_sources_match": true,
+  "publish_voicepack_workflow_unchanged": true,
+  "third_party_notice_unchanged": true,
+  "onnx_dependency_present": true,
+  "versionCode_62505": true,
+  "versionName_6255": true,
+  "bundled_game_version_6255": true,
+  "native_update_menu_present": true,
+  "native_voice_bridge_present": true,
+  "android-build.yml_fp32_guard": true,
+  "build-android.yml_fp32_guard": true,
+  "status": "PASS"
+}

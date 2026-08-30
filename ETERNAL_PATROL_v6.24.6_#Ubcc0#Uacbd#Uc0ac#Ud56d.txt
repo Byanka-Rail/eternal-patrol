@@ -1,0 +1,74 @@
+ETERNAL PATROL v6.24.6 변경사항
+==============================
+
+기준
+----
+- v6.24.5 자체호스팅 승조원음성 + v6.24.4 MENU A안
+- 전투 계산, AI, 탐지, 어뢰, Campaign/War 저장 구조는 변경하지 않음.
+
+1. 음성팩 계보 최종 정리
+-----------------------
+- 제3자 FP16 변환모델 의존을 완전히 제거.
+- 고정 원본: Supertone/supertonic-3
+- official revision: 724fb5abbf5502583fb520898d45929e62f02c0b
+- GitHub Actions가 공식 FP32 ONNX 4개를 직접 다운로드하고 FP16으로 변환.
+- 제3자 변환 weight 파일은 다운로드/재패키징하지 않음.
+
+2. voicepack-v2
+---------------
+- Release tag를 voicepack-v2로 분리해 기존 변환본 계보와 혼동되지 않게 함.
+- 팩 id: supertonic3_fp16_ep_v2
+- manifest schema 2
+- ZIP SHA-256과 byte size 검증 유지.
+- PACK_INFO.json을 추가 검증하여 다음을 모두 확인해야 ready 처리:
+  * originalModel = Supertone/supertonic-3
+  * officialRevision = 고정 공식 revision
+  * convertedBy = ETERNAL PATROL GitHub Actions
+  * variant = FP16
+
+3. 변환 검증
+------------
+Publish workflow에서 각 ONNX에 대해:
+- ONNX shape inference
+- FP16 변환, FP32 I/O 유지
+- Cast 연산 block
+- ONNX checker
+- ONNX Runtime CPU session load
+를 통과한 경우에만 Release 게시.
+
+4. 배포 호스팅
+--------------
+- 플레이어 런타임 다운로드는 Byanka-Rail/eternal-patrol GitHub Release voicepack-v2로 한정.
+- 원 제작자 저장소 접근은 voicepack-v2를 처음 만들 때 GitHub Actions가 공식 원본을 가져오는 1회성 빌드 단계뿐임.
+- 일반 사용자의 반복 다운로드 트래픽은 우리 Release가 담당.
+
+5. 라이선스/고지
+----------------
+- 메인/옵션의 Supertonic 3 고지를 공식 원본 → ETERNAL PATROL FP16 직접변환 구조로 갱신.
+- APK THIRD_PARTY_NOTICES와 음성팩 내부에 공식 원본 revision, OpenRAIL-M, 변환 사실을 기록.
+- 음성팩 내부에 LICENSE, THIRD_PARTY_NOTICES.txt, CONVERSION_NOTES.txt, PACK_INFO.json 포함.
+
+6. Android 버전
+---------------
+- versionName 6.24.6
+- versionCode 62406
+- bundled game version 6.24.6
+- 음성팩 User-Agent 6.24.6
+- APK artifact: ETERNAL_PATROL_v6.24.6_OFFICIAL_SELFHOST_VOICE_debug_apk
+
+7. 기존 팩 교체
+---------------
+- 기존 저장경로는 유지하되 PACK_INFO가 v2 provenance를 만족하지 않으면 ready=false.
+- 새 voicepack-v2 검증/압축해제가 성공한 뒤 기존 팩을 교체해 최종 중복을 방지.
+- 설치 과정 임시 여유 공간 기준을 약 430MB로 상향.
+
+검증 범위
+---------
+- HTML inline JavaScript 전체 구문 검사
+- DOM id 중복 검사
+- Android Java 소스 정적 구문/참조 검사
+- GitHub Actions YAML 파싱
+- workflow run 블록 shell syntax 검사
+- bundled HTML과 standalone HTML SHA-256 일치
+- 공식 원본/Release URL 이외 제3자 변환모델 런타임 URL 잔존 검사
+- 실제 Android assembleDebug 및 398MB→FP16 원격 변환은 GitHub Actions에서 최종 실행 필요

@@ -12,11 +12,10 @@ android {
         targetSdk 36
         versionCode 62505
         versionName '6.25.5'
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
+        // Supertonic inference is intended for modern 64-bit Android devices.
+        // Keeping only arm64 avoids shipping unused ONNX Runtime native binaries.
+        ndk {
+            abiFilters 'arm64-v8a'
         }
     }
 
@@ -24,17 +23,8 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
 
-    // The repository may still contain the legacy offline-TTS source tree
-    // (com/silentseas/game/voice/SupertonicEngine.java). The current updater
-    // shell does not use it, and its ONNX Runtime dependency/assets are not
-    // part of this lightweight build. Exclude that stale source so an old
-    // repository checkout cannot break the APK build.
-    sourceSets {
-        main {
-            java {
-                exclude 'com/silentseas/game/voice/**'
-            }
-        }
-    }
+dependencies {
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.29.0'
 }

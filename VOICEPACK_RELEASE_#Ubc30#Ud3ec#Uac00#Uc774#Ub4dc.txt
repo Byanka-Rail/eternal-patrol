@@ -1,0 +1,19 @@
+ETERNAL PATROL v6.24.7 — voicepack-v3 FP32 배포
+==================================================
+
+1. 저장소에 이 프로젝트 파일을 업로드/덮어쓰기한다.
+2. Actions → Publish Official Supertonic Voice Pack → Run workflow.
+3. 성공 후 Release tag voicepack-v3 확인:
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3.zip
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3.json
+   - ETERNAL_PATROL_SUPERTONIC3_FP32_V3_SHA256.txt
+4. Actions → Build Android APK → Run workflow.
+5. APK artifact:
+   ETERNAL_PATROL_v6.24.7_FP32_CPU_VOICE_debug_apk
+6. 앱 설치 후 옵션 → 승조원 음성 → 음성팩 받기.
+7. v3 설치가 완전히 성공하면 앱이 기존 v2 FP16 저장소를 자동 정리한다.
+
+주의:
+- v3는 CPU 호환성을 위해 공식 FP32 ONNX를 그대로 사용하므로 약 390~400MB급이다.
+- 설치 중 ZIP + 압축해제 + 기존 v2 보존이 겹칠 수 있어 약 900MB 여유공간을 요구한다.
+- voicepack-v2 Release는 v3 실제 음성 시험 성공 후 삭제하는 것이 안전하다.
