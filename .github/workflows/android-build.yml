@@ -40,5 +40,5 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: ETERNAL_PATROL_v6.24.8_FP32_MOOD_LICENSE_debug_apk
+          name: ETERNAL_PATROL_v6.24.12_PERISCOPE_FX_FIX_debug_apk
           path: app/build/outputs/apk/debug/app-debug.apk
