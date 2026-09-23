@@ -24,3 +24,6 @@ ETERNAL PATROL v6.26.2 변경사항 — 함내 소메뉴
 
 4. 유지
 - app/src/main/assets/index.html 동일 HTML. <title> v6.26.2.
+
+5. 제작자 정보
+- 메인화면 하단 이메일을 Byanka@noloo.org 로 변경. app/src/main/assets/ETERNAL_PATROL.html 도 같은 HTML로 맞춤.

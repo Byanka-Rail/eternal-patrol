@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.25.2 Naval Activity</title>
+<title>ETERNAL PATROL: Silent Seas — v6.26.2 Boat Submenu</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -2655,7 +2655,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <!-- 제작자 정보 입력: 아래 creator-text 안의 &nbsp;를 원하는 문구로 바꾸면 됩니다. <br> 사용 가능 -->
 <div aria-label="제작자 정보" id="creatorInfo">
 <div class="creator-label">CREATOR / 제작자</div>
-<div class="creator-text" id="creatorInfoText">제작자 Byanka<br/>이메일 <a href="mailto:91minhee4@naver.com">91minhee4@naver.com</a></div>
+<div class="creator-text" id="creatorInfoText">제작자 Byanka<br/>이메일 <a href="mailto:Byanka@noloo.org">Byanka@noloo.org</a></div>
 </div>
 <div aria-label="합성 음성 고지" id="voiceAttributionV6241" style="width:100%;max-width:420px;margin:6px auto 0;text-align:center;font-size:9.5px;line-height:1.55;color:var(--dim)">
 승조원 음성(선택): <b style="color:var(--ink)">Supertonic 3</b> · AI 합성 음성 · 모델 OpenRAIL-M · 엔진 코드 MIT
@@ -41452,6 +41452,616 @@ function init(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 
+</script>
+<style id="ep-v626-instrument-style">
+/* ══════════ V6.26 계기 층 ══════════
+   글자 적힌 직사각형 단추를 **계기**로 바꾼다. 컴퍼스·심도계·기관 전신기·발사관 캡.
+   기존 단추와 슬라이더는 지우지 않고 감춘다 — 교범·훈련의 목표 요소(#tgRow·#depRow·
+   #btnSteady)와 명령 경로(issue*Order)는 그대로다. 계기는 그 위에 얹힌 손잡이일 뿐이다.
+   색은 조명 토큰만 쓴다: 해도판(--chartBg·--chartGrid·--chartInk)이 계기 유리가 된다.
+   호박=함장이 답할 명령 · 초록=장전·준비 · 빨강=위험. 조명이 바뀌어도 뜻은 같다. */
+.epNum{ font-family:'Bahnschrift','DIN Alternate','Roboto Condensed','Noto Sans KR Condensed',sans-serif-condensed,sans-serif;
+        font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+.epInstr svg{ display:block; touch-action:none; user-select:none; -webkit-user-select:none; }
+.epInstr svg text{ pointer-events:none; }
+.epFace{ fill:var(--chartBg); }
+.epBezel{ fill:none; stroke:var(--steel); }
+.epTick{ stroke:var(--chartInk); stroke-linecap:round; }
+.epTick.minor{ stroke:var(--chartGrid); }
+.epLbl{ fill:var(--chartInk); font-size:11px; }
+.epLbl.dim{ fill:var(--dim); font-size:9px; }
+.epGlass{ fill:rgba(255,255,255,.035); pointer-events:none; }
+html[data-lamp="day"] .epGlass{ fill:rgba(255,255,255,.06); }
+html[data-lamp="red"] .epGlass{ fill:rgba(255,160,120,.04); }
+
+/* 조타 — 컴퍼스 + 톱니 */
+.epHelm{ display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 10px; align-items:center; margin-top:8px; }
+.epHelm > *{ min-width:0; }
+#epCompass{ width:100%; max-width:250px; aspect-ratio:1/1; margin:0 auto; }
+.epNudge{ display:flex; flex-direction:column; gap:5px; }
+.epNudge button{ min-width:58px; min-height:40px; border-radius:8px; border:1px solid var(--steel);
+   background:var(--btnBg); color:var(--ink); font-size:12px; }
+.epNudge button:active{ background:var(--panel2); }
+.epNudge button.hold{ color:var(--amber); border-color:var(--goBd); }
+@media (max-width:359px){ .epHelm{ grid-template-columns:1fr; } .epNudge{ flex-direction:row; } .epNudge button{ flex:1 1 0; min-width:0; } }
+.epHidden{ display:none !important; }
+
+/* 방향타 — 다섯 칸 붙은 선택 스위치 */
+#rudRow{ gap:0; flex-wrap:nowrap; }
+#rudRow button{ border-radius:0; margin-left:-1px; position:relative; }
+#rudRow button:first-child{ border-radius:8px 0 0 8px; margin-left:0; }
+#rudRow button:last-child{ border-radius:0 8px 8px 0; }
+#rudRow button.on{ z-index:1; }
+
+/* 기관 — 전신기 레버 */
+#epTelegraph{ width:100%; max-width:340px; aspect-ratio:300/158; margin:8px auto 2px; }
+#tgRow.epCompact button.tg{ min-height:40px; }
+#tgRow.epCompact button.tg b{ font-size:11px; }
+#tgRow.epCompact button.tg i{ font-size:9.5px; }
+
+/* 심도 — 세로 심도계 + 이름 붙은 표식 */
+.epDepth{ display:grid; grid-template-columns:118px minmax(0,1fr); gap:10px; align-items:stretch; margin-top:8px; }
+#epDepthSvg{ width:118px; height:100%; min-height:260px; }
+.epDepth #depRow{ grid-template-columns:1fr !important; align-content:start; margin-top:0 !important; }
+.epDepth #depRow button.dp{ min-height:44px; }
+
+/* 발사관 — 원형 캡 + 램프 하나 (v6.25.6 과 동일) */
+#tubes{ display:grid !important; grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:10px 8px; }
+#tubes button.mini{ aspect-ratio:1/1; min-height:0; border-radius:50%; border:0; position:relative; padding:8px 6px 16px;
+   font-size:10px; line-height:1.2; white-space:normal; word-break:keep-all; color:var(--chartInk);
+   background:radial-gradient(circle at 50% 50%, var(--chartBg) 0 54%, var(--steel) 55% 61%, var(--panel2) 62% 100%);
+   box-shadow:0 2px 5px var(--shadow), inset 0 1px 0 var(--edge); transition:box-shadow .15s; }
+#tubes button.mini:disabled{ opacity:.9; color:var(--dim); }
+html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
+/* 함미 — 점선 테두리, 새 줄에서 시작 */
+#tubes button.mini.aft{ border:2px dashed var(--steel); background-clip:padding-box; }
+#tubes button.mini:not(.aft) + button.mini.aft{ grid-column-start:1; }
+#tubes button.mini.aft{ margin-top:6px; }
+#tubes button.mini.on{ box-shadow:0 0 0 2px var(--green), 0 2px 5px var(--shadow); border-style:solid; }
+#tubes button.mini::after{ content:''; position:absolute; left:50%; bottom:13%; width:8px; height:8px; margin-left:-4px; border-radius:50%;
+   background:var(--dim); opacity:.45; }
+#tubes button.mini[data-ep="ready"]::after{ background:var(--green); opacity:1; box-shadow:0 0 6px var(--green); }
+#tubes button.mini[data-ep="reload"]::after{ background:var(--amber); opacity:1; }
+#tubes button.mini .epRing{ position:absolute; inset:2px; border-radius:50%; pointer-events:none;
+   background:conic-gradient(var(--amber) calc(var(--rl,0)*1turn), transparent 0);
+   -webkit-mask:radial-gradient(circle, transparent 0 62%, #000 63% 68%, transparent 69%);
+   mask:radial-gradient(circle, transparent 0 62%, #000 63% 68%, transparent 69%); }
+/* 함내 탭 고정 해도 — 절반 높이. 캔버스의 인라인 height:380px 가 CSS 188px 를 이기고 있었다. */
+#boatChartDock #chartSlot > #cvChart{ height:190px !important; }
+/* 발사 — 길게 눌러야 나간다. 채워지는 동안 무르면 취소다. */
+#btnFire{ position:relative; overflow:hidden; min-height:60px; border-radius:12px; }
+#btnFire::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--p,0%); background:var(--red); opacity:.22; pointer-events:none; }
+#btnFire.epArmed{ background:var(--red); color:#fff; }
+#btnFire::after{ content:'길게 눌러 발사'; display:block; font-size:9.5px; letter-spacing:0; color:var(--dim); margin-top:2px; position:relative; }
+#btnFire.epArmed::after, #btnFire:disabled::after{ display:none; }
+@media (prefers-reduced-motion:reduce){ .epInstr *{ transition:none !important; } }
+</style>
+<script id="ep-v626-instrument-script">
+(function EP_INSTRUMENTS(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const norm = a => ((a % 360) + 360) % 360;
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const p3 = v => String(Math.round(norm(v))).padStart(3, '0');
+  const KNOT = U.KNOT || 0.514444;
+  const hide = n => { if (n) n.classList.add('epHidden'); };
+  const svgPt = (svg, ev) => {
+    const r = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+    const sc = Math.min(r.width / vb.width, r.height / vb.height);
+    return { x: (ev.clientX - r.left - (r.width - vb.width * sc) / 2) / sc, y: (ev.clientY - r.top - (r.height - vb.height * sc) / 2) / sc };
+  };
+  const angleAt = (svg, ev, cx, cy) => { const p = svgPt(svg, ev); return norm(Math.atan2(p.x - cx, -(p.y - cy)) * 180 / Math.PI); };
+  /* 기존 슬라이더와 값을 맞춰 둔다 — 감춰져 있어도 다른 코드가 읽는다 */
+  const syncRange = (id, lbl, v) => { const r = $(id); if (r) r.value = v; const l = $(lbl); if (l) l.textContent = v; };
+
+  /* ══════════ 컴퍼스 ══════════ */
+  let compass = null;
+  function buildCompass() {
+    const head = $('ordHead'); if (!head) return;
+    const card = head.closest('.card'); if (!card) return;
+    const rowHl = $('btnHl') && $('btnHl').parentElement;
+    hide(rowHl); hide($('lblHead') && $('lblHead').parentElement); hide($('rgHead'));
+    const wrap = document.createElement('div'); wrap.className = 'epInstr epHelm';
+    const svg = el('svg', { id: 'epCompass', viewBox: '0 0 260 260', role: 'img', 'aria-label': '컴퍼스 — 링을 끌어 침로를 명령' });
+    const C = 130, R = 116;
+    el('circle', { cx: C, cy: C, r: R + 8, class: 'epBezel', 'stroke-width': 6 }, svg);
+    el('circle', { cx: C, cy: C, r: R, class: 'epFace' }, svg);
+    const rose = el('g', {}, svg);
+    for (let a = 0; a < 360; a += 5) {
+      const maj = a % 30 === 0, mid = a % 10 === 0, s = Math.sin(a * Math.PI / 180), c = Math.cos(a * Math.PI / 180);
+      const r1 = R - 3, r2 = R - (maj ? 16 : mid ? 11 : 6);
+      el('line', { x1: C + s * r1, y1: C - c * r1, x2: C + s * r2, y2: C - c * r2, class: 'epTick' + (mid ? '' : ' minor'), 'stroke-width': maj ? 2 : 1 }, rose);
+      if (maj) { const x = C + s * (R - 28), y = C - c * (R - 28);
+        const t = el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', class: 'epLbl epNum', transform: 'rotate(' + a + ' ' + x + ' ' + y + ')' }, rose);
+        t.textContent = String(a).padStart(3, '0'); }
+    }
+    el('path', { d: 'M' + C + ' ' + (C - 30) + ' l7 22 l-2 26 l-5 6 l-5 -6 l-2 -26 z', fill: 'var(--steel)', stroke: 'var(--dim)', 'stroke-width': 1 }, svg);
+    el('line', { x1: C, y1: C - R - 2, x2: C, y2: C - R + 22, stroke: 'var(--chartInk)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
+    const ord = el('path', { d: 'M' + C + ' ' + (C - R + 4) + ' l-7 -14 h14 z', fill: 'var(--amber)' }, svg);
+    const txt = el('text', { x: C, y: C + 70, 'text-anchor': 'middle', class: 'epLbl epNum', 'font-size': '30', 'font-weight': '500' }, svg);
+    el('ellipse', { cx: C - 30, cy: C - 55, rx: 60, ry: 24, class: 'epGlass', transform: 'rotate(-30 ' + (C - 30) + ' ' + (C - 55) + ')' }, svg);
+    let drag = null;
+    svg.addEventListener('pointerdown', e => { const g = U.state(); if (!g) return; svg.setPointerCapture(e.pointerId);
+      drag = { a0: angleAt(svg, e, C, C), o0: Math.round(g.orders.heading.value) }; });
+    svg.addEventListener('pointermove', e => { if (!drag) return; const g = U.state(); if (!g) return;
+      let d = angleAt(svg, e, C, C) - drag.a0; if (d > 180) d -= 360; if (d < -180) d += 360;
+      const h = norm(Math.round(drag.o0 + d));
+      if (h !== Math.round(g.orders.heading.value)) { U.issueCourseOrder(h, 'PLAYER'); syncRange('rgHead', 'lblHead', h); buzz(3); } });
+    const drop = () => { drag = null; };
+    svg.addEventListener('pointerup', drop); svg.addEventListener('pointercancel', drop);
+    wrap.appendChild(svg);
+    const nud = document.createElement('div'); nud.className = 'epNudge';
+    const mk = (label, fn, cls) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; if (cls) b.className = cls; b.addEventListener('click', () => { fn(); buzz(6); }); nud.appendChild(b); };
+    const nudge = d => { const g = U.state(); if (!g) return; const h = norm(Math.round(g.orders.heading.value) + d); U.issueCourseOrder(h, 'PLAYER'); syncRange('rgHead', 'lblHead', h); };
+    mk('◂ 10°', () => $('btnHl') ? $('btnHl').click() : nudge(-10));
+    mk('◂ 1°', () => nudge(-1));
+    mk('침로 유지', () => $('btnHold') && $('btnHold').click(), 'hold');
+    mk('1° ▸', () => nudge(1));
+    mk('10° ▸', () => $('btnHr') ? $('btnHr').click() : nudge(10));
+    wrap.appendChild(nud);
+    const anchor = rowHl || head.closest('.ordline');
+    anchor.parentNode.insertBefore(wrap, anchor);
+    compass = { rose, ord, txt, C };
+  }
+  function drawCompass(g) {
+    if (!compass) return;
+    const b = g.boat, o = g.orders, C = compass.C;
+    compass.rose.setAttribute('transform', 'rotate(' + (-b.heading) + ' ' + C + ' ' + C + ')');
+    compass.ord.setAttribute('transform', 'rotate(' + (o.heading.value - b.heading) + ' ' + C + ' ' + C + ')');
+    compass.txt.textContent = p3(b.heading) + '°';
+  }
+
+  /* ══════════ 기관 전신기 ══════════ */
+  let tel = null;
+  function buildTelegraph() {
+    const row = $('tgRow'); if (!row) return;
+    const TG = U.TELEGRAPH; const N = TG.length;
+    row.classList.add('epCompact');
+    const svg = el('svg', { id: 'epTelegraph', viewBox: '0 0 300 158', role: 'img', 'aria-label': '기관 전신기 — 손잡이를 끌어 속력 단을 명령' });
+    const TX = 150, TY = 140, TR = 124, A0 = -80, STEP = (80 * 2) / (N - 1);
+    const ang = i => A0 + i * STEP;
+    const arc = 'M' + (TX - TR - 12) + ' ' + TY + ' A' + (TR + 12) + ' ' + (TR + 12) + ' 0 0 1 ' + (TX + TR + 12) + ' ' + TY;
+    el('path', { d: arc + ' v12 h-' + (2 * TR + 24) + ' z', class: 'epFace' }, svg);
+    el('path', { d: arc, class: 'epBezel', 'stroke-width': 4 }, svg);
+    const labels = [];
+    TG.forEach((t, i) => { const a = ang(i) * Math.PI / 180, s = Math.sin(a), c = Math.cos(a);
+      el('line', { x1: TX + s * (TR - 4), y1: TY - c * (TR - 4), x2: TX + s * (TR - 16), y2: TY - c * (TR - 16), class: 'epTick', 'stroke-width': 2.5 }, svg);
+      const x = TX + s * (TR - 40), y = TY - c * (TR - 40);
+      const tx = el('text', { x, y, 'text-anchor': 'middle', class: 'epLbl', 'font-size': '11' }, svg);
+      const l1 = el('tspan', { x, y: y - 2 }, tx); l1.textContent = t.label; if (t.kn < 0) l1.setAttribute('fill', 'var(--red)');
+      const l2 = el('tspan', { x, y: y + 10, class: 'epLbl dim epNum' }, tx);
+      labels.push(l2); });
+    el('path', { d: arc + ' v12 h-' + (2 * TR + 24) + ' z', class: 'epGlass' }, svg);
+    const lever = el('g', {}, svg);
+    el('rect', { x: TX - 6, y: TY - TR + 66, width: 12, height: TR - 66, rx: 6, fill: 'var(--steel)' }, lever);
+    el('circle', { cx: TX, cy: TY - TR + 66, r: 11, fill: 'var(--panel2)', stroke: 'var(--chartInk)', 'stroke-width': 2 }, lever);
+    el('circle', { cx: TX, cy: TY, r: 15, fill: 'var(--panel2)', stroke: 'var(--steel)', 'stroke-width': 3 }, svg);
+    el('circle', { cx: TX, cy: TY, r: 4, fill: 'var(--chartInk)' }, svg);
+    const setLever = a => lever.setAttribute('transform', 'rotate(' + a + ' ' + TX + ' ' + TY + ')');
+    let drag = false, cur = 0;
+    const pick = i => { const b = row.querySelector('button[data-tg="' + TG[i].id + '"]'); if (b && !b.disabled) { b.click(); buzz(10); } };
+    svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); drag = true; lever.style.transition = 'none'; });
+    svg.addEventListener('pointermove', e => { if (!drag) return; let a = angleAt(svg, e, TX, TY); if (a > 180) a -= 360;
+      a = clamp(a, ang(0), ang(N - 1)); setLever(a); const near = Math.round((a - A0) / STEP); if (near !== cur) { cur = near; pick(near); } });
+    const drop = () => { if (!drag) return; drag = false; lever.style.transition = 'transform .2s cubic-bezier(.3,1.5,.5,1)'; setLever(ang(cur)); };
+    svg.addEventListener('pointerup', drop); svg.addEventListener('pointercancel', drop);
+    row.parentNode.insertBefore(svg, row);
+    tel = { svg, lever, labels, ang, setLever, TG, get drag() { return drag; }, setCur(i) { cur = i; } };
+  }
+  function drawTelegraph(g) {
+    if (!tel) return;
+    const o = g.orders, b = g.boat;
+    tel.TG.forEach((t, i) => { const kn = Math.abs(U.telegraphKn ? U.telegraphKn(t, b) : t.kn); tel.labels[i].textContent = t.kn ? kn.toFixed(1) + 'kn' : '—'; });
+    let i = tel.TG.findIndex(t => t.id === o.speed.telegraph);
+    if (i < 0) { /* 미세조정 슬라이더로 준 속력 — 가장 가까운 단에 걸어 둔다 */
+      const kn = o.speed.value / KNOT; let best = 0, bd = 1e9;
+      tel.TG.forEach((t, k) => { const d = Math.abs((U.telegraphKn ? U.telegraphKn(t, b) : t.kn) - kn); if (d < bd) { bd = d; best = k; } }); i = best; }
+    if (!tel.drag) { tel.setCur(i); tel.setLever(tel.ang(i)); }
+  }
+
+  /* ══════════ 심도계 ══════════ */
+  let dep = null;
+  function buildDepth() {
+    const row = $('depRow'); if (!row) return;
+    const card = row.closest('.card'); if (!card) return;
+    hide($('lblDep') && $('lblDep').parentElement); hide($('rgDep'));
+    const wrap = document.createElement('div'); wrap.className = 'epInstr epDepth';
+    const svg = el('svg', { id: 'epDepthSvg', viewBox: '0 0 118 300', preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': '심도계 — 손잡이를 끌어 심도를 명령' });
+    row.parentNode.insertBefore(wrap, row);
+    wrap.appendChild(svg); wrap.appendChild(row);
+    let drag = false;
+    svg.addEventListener('pointerdown', e => { if (!dep) return; svg.setPointerCapture(e.pointerId); drag = true; order(depthAt(e)); });
+    svg.addEventListener('pointermove', e => { if (!drag || !dep) return; const m = depthAt(e); if (m !== dep.last) { order(m); if (m % 5 === 0) buzz(3); } });
+    const drop = () => { drag = false; };
+    svg.addEventListener('pointerup', drop); svg.addEventListener('pointercancel', drop);
+    const depthAt = ev => { const p = svgPt(svg, ev); return clamp(Math.round((p.y - dep.Y0) / (dep.Y1 - dep.Y0) * dep.DMAX), 0, dep.DMAX); };
+    const order = m => { const g = U.state(); if (!g) return; dep.last = m;
+      if (U.issueDepthOrder(m, 'PLAYER')) syncRange('rgDep', 'lblDep', Math.round(m)); };
+    dep = { svg, built: null, Y0: 18, Y1: 282, DMAX: 200, last: -1, get drag() { return drag; } };
+  }
+  function depthScale(g) {
+    const UB = U.UB || {}; const crush = UB.crushDepth || 240;
+    const sea = g.seabed || 4000;
+    let dmax = Math.min(crush * 1.05, sea + 15);
+    return Math.max(60, Math.ceil(dmax / 10) * 10);
+  }
+  function drawDepth(g) {
+    if (!dep) return;
+    const svg = dep.svg, UB = U.UB || {}, b = g.boat, o = g.orders;
+    const DMAX = depthScale(g);
+    const th = g.thermo || {}, sea = g.seabed || 4000, safe = UB.safeDepth || UB.testDepth || 150, peri = UB.periscopeDepth || 14;
+    const key = [DMAX, Math.round(th.depth || 0), Math.round(th.thickness || 0), Math.round(Math.min(sea, 999)), safe, peri].join('|');
+    const Y0 = dep.Y0, Y1 = dep.Y1, dy = d => Y0 + (Y1 - Y0) * d / DMAX;
+    if (dep.built !== key) {
+      dep.built = key; dep.DMAX = DMAX; svg.innerHTML = '';
+      el('rect', { x: 50, y: 6, width: 62, height: 288, rx: 9, class: 'epFace' }, svg);
+      el('rect', { x: 50, y: 6, width: 62, height: 288, rx: 9, class: 'epBezel', 'stroke-width': 3 }, svg);
+      /* 경고 띠(안전심도 25m 위부터) · 위험 띠(안전심도 아래) · 해저 */
+      if (safe < DMAX) {
+        el('rect', { x: 52, y: dy(Math.max(0, safe - 25)), width: 58, height: dy(Math.min(safe, DMAX)) - dy(Math.max(0, safe - 25)), fill: 'var(--amber)', opacity: .10 }, svg);
+        el('rect', { x: 52, y: dy(safe), width: 58, height: dy(DMAX) - dy(safe) + 10, fill: 'var(--red)', opacity: .14 }, svg);
+        el('line', { x1: 52, y1: dy(safe), x2: 110, y2: dy(safe), stroke: 'var(--amber)', 'stroke-width': 1.5, 'stroke-dasharray': '3 3' }, svg);
+      }
+      if (th.depth) { const top = Math.max(0, th.depth - (th.thickness || 0) / 2), bot = Math.min(DMAX, th.depth + (th.thickness || 0) / 2);
+        el('rect', { x: 52, y: dy(top), width: 58, height: Math.max(2, dy(bot) - dy(top)), fill: 'var(--blue)', opacity: .16 }, svg); }
+      if (sea < DMAX) { el('rect', { x: 52, y: dy(sea), width: 58, height: dy(DMAX) - dy(sea) + 10, fill: 'var(--steel)' }, svg);
+        el('line', { x1: 52, y1: dy(sea), x2: 110, y2: dy(sea), stroke: 'var(--dim)', 'stroke-width': 2 }, svg); }
+      el('line', { x1: 52, y1: dy(peri), x2: 110, y2: dy(peri), stroke: 'var(--blue)', 'stroke-width': 1, opacity: .7 }, svg);
+      const step = DMAX > 300 ? 20 : 10, maj = DMAX > 300 ? 100 : 50;
+      for (let d = 0; d <= DMAX; d += step) { const M = d % maj === 0;
+        el('line', { x1: 84, y1: dy(d), x2: 84 + (M ? 14 : 8), y2: dy(d), class: 'epTick' + (M ? '' : ' minor'), 'stroke-width': M ? 2 : 1 }, svg);
+        if (M) { const t = el('text', { x: 80, y: dy(d), 'text-anchor': 'end', 'dominant-baseline': 'middle', class: 'epLbl epNum' }, svg); t.textContent = d; } }
+      /* 왼쪽 표식 — 누르면 기존 프리셋 단추를 대신 누른다 */
+      const presets = [['PERISCOPE', '잠망경'], ['LAYER_ABOVE', '약층 위'], ['LAYER_BELOW', '약층 아래']];
+      let lastY = -99;
+      presets.forEach(([id, label]) => { const m = U.getDepthPreset(id); if (m == null || m > DMAX) return;
+        let y = dy(m); if (y - lastY < 22) y = lastY + 22; lastY = y;
+        const gr = el('g', { style: 'cursor:pointer' }, svg);
+        el('rect', { x: 0, y: y - 10, width: 44, height: 20, rx: 5, fill: 'var(--btnBg)', stroke: 'var(--steel)' }, gr);
+        el('path', { d: 'M44 ' + y + ' L50 ' + dy(m) + ' L44 ' + (y + 0.01), stroke: 'var(--dim)', fill: 'none' }, gr);
+        el('path', { d: 'M46 ' + dy(m) + ' l4 -4 v8 z', fill: 'var(--dim)' }, gr);
+        const t = el('text', { x: 22, y: y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', class: 'epLbl dim', 'font-size': '10' }, gr); t.textContent = label;
+        gr.addEventListener('pointerdown', e => { e.stopPropagation(); const btn = document.querySelector('#depRow button[data-dp="' + id + '"]'); if (btn) { btn.click(); buzz(6); } }); });
+      dep.needle = el('path', { d: 'M52 0 h56', stroke: 'var(--chartInk)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
+      dep.handle = el('g', {}, svg);
+      el('rect', { x: 88, y: -9, width: 24, height: 18, rx: 5, fill: 'var(--amber)' }, dep.handle);
+      el('path', { d: 'M96 -3 v6 M100 -3 v6 M104 -3 v6', stroke: 'var(--chartBg)', 'stroke-width': 1.5 }, dep.handle);
+      el('rect', { x: 50, y: 6, width: 62, height: 110, rx: 9, class: 'epGlass' }, svg);
+    }
+    dep.needle.setAttribute('transform', 'translate(0 ' + dy(clamp(b.depth, 0, DMAX)) + ')');
+    dep.handle.setAttribute('transform', 'translate(0 ' + dy(clamp(o.depth.value, 0, DMAX)) + ')');
+  }
+
+  /* ══════════ 발사관 캡 — 상태를 램프 하나로 ══════════ */
+  function decorateTubes() {
+    const g = U.state(), box = $('tubes'); if (!g || !box) return;
+    const total = (U.UB && U.UB.reloadSeconds) || 600;
+    [...box.children].forEach(btn => { const i = +btn.dataset.tube; if (isNaN(i)) return;
+      const loaded = g.boat.torp.bowLoaded[i], job = g.boat.torp.reloadJobs.find(j => j.tube === i);
+      const st = loaded ? 'ready' : job ? 'reload' : 'empty';
+      if (btn.dataset.ep !== st) btn.dataset.ep = st;
+      let ring = btn.querySelector('.epRing');
+      if (st === 'reload') { if (!ring) { ring = document.createElement('i'); ring.className = 'epRing'; btn.appendChild(ring); }
+        btn.style.setProperty('--rl', clamp(1 - job.remain / total, 0, 1).toFixed(3)); }
+      else if (ring) ring.remove(); });
+  }
+  /* renderTubes 가 textContent 를 다시 쓰면 링이 지워진다 — 다시 붙인다 */
+  (function watchTubes() { const box = $('tubes'); if (!box) return;
+    new MutationObserver(() => decorateTubes()).observe(box, { childList: true, characterData: true, subtree: true }); })();
+
+  /* ══════════ 발사 — 길게 누른다 ══════════ */
+  (function holdToFire() {
+    const btn = $('btnFire'); if (!btn) return;
+    let armed = false, timer = null, p = 0;
+    btn.addEventListener('click', e => { if (armed || e.detail === 0) return; /* 키보드(detail 0)는 그대로 통과 */
+      e.stopImmediatePropagation(); e.preventDefault(); }, true);
+    const reset = () => { clearInterval(timer); timer = null; p = 0; btn.style.setProperty('--p', '0%'); };
+    btn.addEventListener('pointerdown', e => { if (btn.disabled || timer) return; btn.setPointerCapture(e.pointerId); p = 0;
+      timer = setInterval(() => { p = Math.min(1, p + 0.08); btn.style.setProperty('--p', (p * 100) + '%');
+        if (p >= 1) { reset(); armed = true; btn.classList.add('epArmed'); buzz([25, 30, 50]); btn.click(); armed = false;
+          setTimeout(() => btn.classList.remove('epArmed'), 500); } }, 40); });
+    btn.addEventListener('pointerup', reset); btn.addEventListener('pointercancel', reset); btn.addEventListener('pointerleave', reset);
+  })();
+
+  /* ══════════ 그리기 ══════════ */
+  function tick() {
+    const g = U.state(); if (!g) return;
+    const pane = document.querySelector('.pane.on[data-pane="boat"]');
+    if (pane) { drawCompass(g); drawTelegraph(g); drawDepth(g); }
+    if (document.querySelector('.pane.on[data-pane="torp"]')) decorateTubes();
+  }
+  function init() {
+    try { buildCompass(); } catch (e) { console.warn('EP compass', e); }
+    try { buildTelegraph(); } catch (e) { console.warn('EP telegraph', e); }
+    try { buildDepth(); } catch (e) { console.warn('EP depth', e); }
+    setInterval(tick, 100);
+    window.EP_V626_INSTRUMENTS = { version: '6.26.0' };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v6261-plot-style">
+/* ══════════ V6.26.1 표적판 ══════════
+   공격 탭의 접촉 칩(C1·C2·C3)은 숫자만 준다 — 어느 것이 어디 있고 어느 쪽으로 쏘게 되는지는
+   머릿속에서 그려야 했다. 그 그림을 화면에 놓는다. 상황 탭 해도의 복제가 아니라, 공격 판단에
+   필요한 것만 남긴 다른 도구다: 뱃머리 기준 방위·자이로각 부채·접촉이 가진 정보량만큼의 표식.
+   그리는 값은 이미 해도가 쓰는 것(추정 방위·거리·오차·해법)이라 새 계산은 없다. */
+.epPlotHead{ display:flex; align-items:baseline; gap:8px; margin:2px 0 6px; }
+.epPlotHead label{ margin:0; }
+.epPlotHead small{ color:var(--dim); font-size:9.5px; flex:1 1 auto; }
+.epPlotHead button{ min-height:26px; padding:0 9px; border-radius:999px; border:1px solid var(--steel);
+   background:var(--btnBg); color:var(--blue); font-size:10px; }
+#epPlot{ display:block; width:100%; aspect-ratio:388/330; border-radius:10px; background:var(--chartBg);
+   border:1px solid var(--steel); touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+#epPlot text{ pointer-events:none; }
+#epPlot [data-cid]{ cursor:pointer; }
+#epPlot .epHit{ fill:transparent; stroke:none; }
+</style>
+<script id="ep-v6261-plot-script">
+(function EP_TARGET_PLOT(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const el = (t, a, p) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; };
+  const txt = (s, a, p) => { const t = el('text', a, p); t.textContent = s; return t; };
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const norm = a => ((a % 360) + 360) % 360;
+  const diff = (a, b) => { let d = norm(b - a); if (d > 180) d -= 360; return d; };
+  const d2r = d => d * Math.PI / 180;
+  const p3 = v => String(Math.round(norm(v))).padStart(3, '0');
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const NUM = 'Bahnschrift,DIN Alternate,Roboto Condensed,sans-serif-condensed,sans-serif';
+
+  /* 해도와 같은 판정 — 호위형인가 */
+  function hostile(c) {
+    const id = c.ident;
+    if (id && id.saved && window.WARSHIPS && window.WARSHIPS.TYPES && window.WARSHIPS.TYPES[id.saved])
+      return window.WARSHIPS.TYPES[id.saved].category === 'warship';
+    if (id && id.broad) return id.broad === 'warship' && id.broadP > 0.55;
+    return c.propeller === 'fast';
+  }
+  const W = 388, H = 330, CX = 194, CY = 168, R = 150;
+  let svg = null, dyn = null, headingUp = true, toggleBtn = null;
+
+  function build() {
+    const pick = $('attackTargetPick'); if (!pick) return;
+    const head = pick.previousElementSibling && pick.previousElementSibling.classList.contains('attack-target-head') ? pick.previousElementSibling : null;
+    const wrap = document.createElement('div');
+    const h = document.createElement('div'); h.className = 'epPlotHead';
+    const lab = document.createElement('label'); lab.textContent = '표적판';
+    const sm = document.createElement('small'); sm.textContent = '누르면 제원 전환 · 부채 = 자이로각 ±60°/±90°';
+    toggleBtn = document.createElement('button'); toggleBtn.type = 'button'; toggleBtn.textContent = '뱃머리 ↑';
+    toggleBtn.addEventListener('click', () => { headingUp = !headingUp; toggleBtn.textContent = headingUp ? '뱃머리 ↑' : '북쪽 ↑'; buzz(6); });
+    h.append(lab, sm, toggleBtn);
+    svg = el('svg', { id: 'epPlot', viewBox: '0 0 ' + W + ' ' + H, role: 'img', 'aria-label': '표적판 — 접촉을 눌러 사격 제원 전환' });
+    dyn = el('g', {}, svg);
+    /* 접촉을 누르면 기존 칩을 대신 누른다 — 선택·제원·발사조건 갱신은 전부 기존 경로 */
+    svg.addEventListener('pointerdown', e => {
+      const g = e.target.closest ? e.target.closest('[data-cid]') : null; if (!g) return;
+      const btn = pick.querySelector('button[data-contact-id="' + g.dataset.cid + '"]');
+      if (btn) { btn.click(); buzz(6); }
+    });
+    wrap.append(h, svg);
+    (head || pick).parentNode.insertBefore(wrap, head || pick);
+  }
+
+  /* 상대방위(뱃머리 위) 또는 진방위(북쪽 위)로 화면 각 */
+  function screenAng(absBrg, hdg) { return headingUp ? diff(hdg, absBrg) : absBrg; }
+  function pt(absBrg, rangeM, hdg, kmPx) { const a = d2r(screenAng(absBrg, hdg)); const r = rangeM / 1000 * kmPx;
+    return [CX + Math.sin(a) * r, CY - Math.cos(a) * r]; }
+
+  function draw(g) {
+    if (!svg) return;
+    const b = g.boat, hdg = b.heading;
+    const UB = U.UB || {}, torpR = UB.torpedoRange || 5000;
+    const kmPx = R / (torpR / 1000) * 0.96;               /* 바깥 고리 = 어뢰 사거리 */
+    const useAft = !!document.querySelector('#tubes button.on.aft');
+    const sel = g.selectedContactId;
+    const frag = document.createDocumentFragment();
+
+    /* 자함 — 화면상 뱃머리 방향 */
+    const ha = d2r(screenAng(hdg, hdg));
+    const rot = a => 'rotate(' + (a * 180 / Math.PI) + ' ' + CX + ' ' + CY + ')';
+
+    /* 자이로각 부채 — 함수(또는 함미 선택 시 꼬리) 기준 ±60 좋음, ±90 한계 */
+    const base = useAft ? ha + Math.PI : ha;
+    const fan = el('g', { transform: rot(base) }, frag);
+    const rr = R;
+    el('path', { d: 'M' + CX + ' ' + CY + ' L' + (CX - Math.sin(d2r(60)) * rr) + ' ' + (CY - Math.cos(d2r(60)) * rr) +
+      ' A' + rr + ' ' + rr + ' 0 0 1 ' + (CX + Math.sin(d2r(60)) * rr) + ' ' + (CY - Math.cos(d2r(60)) * rr) + ' Z', fill: 'var(--green)', opacity: .06 }, fan);
+    el('line', { x1: CX, y1: CY, x2: CX - Math.sin(d2r(60)) * rr, y2: CY - Math.cos(d2r(60)) * rr, stroke: 'var(--green)', 'stroke-width': 1, opacity: .35 }, fan);
+    el('line', { x1: CX, y1: CY, x2: CX + Math.sin(d2r(60)) * rr, y2: CY - Math.cos(d2r(60)) * rr, stroke: 'var(--green)', 'stroke-width': 1, opacity: .35 }, fan);
+    el('line', { x1: CX - rr, y1: CY, x2: CX + rr, y2: CY, stroke: 'var(--amber)', 'stroke-width': 1, 'stroke-dasharray': '2 5', opacity: .55 }, fan);
+
+    /* 사거리 고리 — 1km(또는 2km) */
+    const step = torpR > 6500 ? 2 : 1;
+    for (let k = step; k * 1000 < torpR; k += step) {
+      el('circle', { cx: CX, cy: CY, r: k * kmPx, fill: 'none', stroke: 'var(--chartGrid)', 'stroke-width': 1 }, frag);
+      if (Math.abs(k * 1000 - torpR) > 350) txt(k + 'km', { x: CX + 3, y: CY - k * kmPx - 3, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM }, frag);
+    }
+    el('circle', { cx: CX, cy: CY, r: torpR / 1000 * kmPx, fill: 'none', stroke: 'var(--amber)', 'stroke-width': 1, 'stroke-dasharray': '3 4', opacity: .7 }, frag);
+    { const rr0 = torpR / 1000 * kmPx, s45 = Math.SQRT1_2;
+      txt('사거리 ' + (torpR / 1000).toFixed(1) + 'km', { x: CX + s45 * rr0 + 4, y: CY - s45 * rr0 - 2, fill: 'var(--amber)', 'font-size': 8.5, 'font-family': NUM, opacity: .9 }, frag); }
+
+    /* 방위 눈금 — 뱃머리 위면 상대방위, 북쪽 위면 진방위 */
+    const ringR = R + 6;
+    for (let a = 0; a < 360; a += 30) {
+      const sa = d2r(headingUp ? a : a);
+      const x = CX + Math.sin(sa) * ringR, y = CY - Math.cos(sa) * ringR;
+      el('line', { x1: CX + Math.sin(sa) * (ringR - 6), y1: CY - Math.cos(sa) * (ringR - 6), x2: x, y2: y, stroke: 'var(--chartInk)', 'stroke-width': 1.2, opacity: .55 }, frag);
+      if (a % 90 === 0) txt(p3(a), { x: CX + Math.sin(sa) * (ringR - 15), y: CY - Math.cos(sa) * (ringR - 15) + 3, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM, 'text-anchor': 'middle' }, frag);
+    }
+    /* 북쪽 위일 때 뱃머리 표시선 */
+    if (!headingUp) el('line', { x1: CX, y1: CY, x2: CX + Math.sin(ha) * (R + 12), y2: CY - Math.cos(ha) * (R + 12), stroke: 'var(--chartInk)', 'stroke-width': 1, opacity: .35 }, frag);
+
+    /* 접촉 */
+    const seen = [];
+    for (const c of g.contacts || []) {
+      const isSel = c.id === sel, host = hostile(c);
+      const upd = Math.max(c.acousticUpdatedAt || -9999, c.visualUpdatedAt || -9999);
+      const fade = clamp(1 - (g.time - upd) / 120, 0.22, 1);
+      const col = isSel ? 'var(--green)' : host ? 'var(--red)' : 'var(--chartInk)';
+      const grp = el('g', { 'data-cid': c.id, opacity: fade.toFixed(2) }, frag);
+      const hasR = c.rangeEstimate != null && c.rangeEstimate > 0;
+      const edgeR = torpR * 1.04;
+      const drawR = hasR ? Math.min(c.rangeEstimate, edgeR) : edgeR;
+      const beyond = hasR && c.rangeEstimate > edgeR;
+      const [x, y] = pt(c.bearing, drawR, hdg, kmPx);
+      /* 방위선 — 청음 접촉은 방위밖에 모른다 */
+      el('line', { x1: CX, y1: CY, x2: x, y2: y, stroke: col, 'stroke-width': 1, 'stroke-dasharray': hasR ? '4 4' : '2 5', opacity: hasR ? .5 : .55 }, grp);
+      /* 누르기 쉬운 넉넉한 영역 */
+      el('circle', { cx: x, cy: y, r: 22, class: 'epHit' }, grp);
+      if (hasR && !beyond) {
+        /* 오차 타원 — 거리오차 × 방위오차. 해도와 같은 기본값 */
+        const rErr = (c.rangeError || c.rangeEstimate * 0.25) / 1000 * kmPx;
+        const bErr = Math.tan(d2r(Math.max(0.5, c.bearingError || 8))) * c.rangeEstimate / 1000 * kmPx;
+        el('ellipse', { cx: x, cy: y, rx: Math.max(3, bErr), ry: Math.max(3, rErr), fill: col, opacity: .12,
+          transform: 'rotate(' + screenAng(c.bearing, hdg) + ' ' + x + ' ' + y + ')' }, grp);
+        /* 추정 침로 — 앞뒤로 짧은 선, 앞쪽에 화살 */
+        if (c.courseEstimate != null) {
+          const ca = d2r(screenAng(c.courseEstimate, hdg));
+          const L = 26;
+          el('line', { x1: x - Math.sin(ca) * L * .6, y1: y + Math.cos(ca) * L * .6, x2: x + Math.sin(ca) * L, y2: y - Math.cos(ca) * L, stroke: col, 'stroke-width': 1, opacity: .6 }, grp);
+          el('path', { d: 'M0 -5 L4 3 L-4 3 Z', fill: col, opacity: .7, transform: 'translate(' + (x + Math.sin(ca) * L) + ' ' + (y - Math.cos(ca) * L) + ') rotate(' + (ca * 180 / Math.PI) + ')' }, grp);
+        }
+        /* 실루엣 — 호위는 날카롭게, 상선은 넓게. 실제 함종이 아니라 「이렇게 보인다」 */
+        const aspect = c.courseEstimate != null ? screenAng(c.courseEstimate, hdg) : screenAng(c.bearing, hdg) + 90;
+        const sil = el('g', { transform: 'translate(' + x + ' ' + y + ') rotate(' + (aspect - 90) + ')' }, grp);
+        if (host) el('path', { d: 'M-11 3 h22 l-3 -3 h-6 v-4 h-4 v4 h-6 z', fill: col }, sil);
+        else el('path', { d: 'M-13 3 h26 l-3 -3 h-7 v-4 h-5 v4 h-8 z', fill: col }, sil);
+        if (isSel) el('circle', { cx: x, cy: y, r: 18, fill: 'none', stroke: 'var(--green)', 'stroke-width': 2 }, grp);
+      } else {
+        /* 거리 없음(또는 사거리 밖) — 고리 위의 빈 표식 */
+        if (beyond) el('path', { d: 'M-5 4 L0 -4 L5 4', fill: 'none', stroke: col, 'stroke-width': 1.6,
+            transform: 'translate(' + x + ' ' + y + ') rotate(' + screenAng(c.bearing, hdg) + ')' }, grp);
+        else if (host) el('path', { d: 'M-6 4 L0 -5 L6 4 Z', fill: 'none', stroke: col, 'stroke-width': 1.5, transform: 'translate(' + x + ' ' + y + ')' }, grp);
+        else el('circle', { cx: x, cy: y, r: 5.5, fill: 'none', stroke: col, 'stroke-width': 1.5 }, grp);
+        if (isSel) el('circle', { cx: x, cy: y, r: 13, fill: 'none', stroke: 'var(--green)', 'stroke-width': 2 }, grp);
+      }
+      /* 이름표 — 선택 접촉만 자세히, 나머지는 이름만. 위 아래로 겹치면 비켜 앉는다 */
+      let lx = x, ly = y - (hasR && !beyond ? 24 : 16);
+      if (ly < 10) ly = y + 26;
+      for (const s of seen) if (Math.abs(s[0] - lx) < 30 && Math.abs(s[1] - ly) < 11) ly = s[1] + 11;
+      seen.push([lx, ly]);
+      lx = clamp(lx, 14, W - 14);
+      txt(c.id, { x: lx, y: ly, fill: col, 'font-size': 10.5, 'font-weight': 600, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
+      const sub = beyond ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 사거리 밖'
+        : !hasR ? '방위만' : isSel ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 해법 ' + Math.round((c.solutionConfidence || 0) * 100) + '%' : '';
+      if (sub) txt(sub, { x: lx, y: ly + 10, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
+    }
+
+    /* 선택 표적의 해법 — 어뢰 진로(뱃머리 또는 꼬리 → 예상 회합점), 자이로각 호 */
+    const sol = sel ? U.solution(sel) : null;
+    if (sol && sol.ready) {
+      const lead = pt(sol.bearingToLead, Math.min(sol.range, edgeRange(torpR)), hdg, kmPx);
+      const gy = useAft && sol.gyroAft != null ? sol.gyroAft : sol.gyroBow;
+      const gcol = Math.abs(gy) > 90 ? 'var(--red)' : Math.abs(gy) > 60 ? 'var(--amber)' : 'var(--green)';
+      el('line', { x1: CX, y1: CY, x2: lead[0], y2: lead[1], stroke: gcol, 'stroke-width': 1.4, 'stroke-dasharray': '5 3' }, frag);
+      el('path', { d: 'M-4 -4 L4 4 M-4 4 L4 -4', stroke: gcol, 'stroke-width': 1.5, transform: 'translate(' + lead[0] + ' ' + lead[1] + ')' }, frag);
+      /* 자이로각 호 — 기준선(뱃머리/꼬리)에서 회합점 방위까지 */
+      const a0 = base, a1 = a0 + d2r(gy), rA = 34;
+      const sweep = gy >= 0 ? 1 : 0, big = Math.abs(gy) > 180 ? 1 : 0;
+      el('path', { d: 'M' + (CX + Math.sin(a0) * rA) + ' ' + (CY - Math.cos(a0) * rA) + ' A' + rA + ' ' + rA + ' 0 ' + big + ' ' + sweep + ' ' + (CX + Math.sin(a1) * rA) + ' ' + (CY - Math.cos(a1) * rA),
+        fill: 'none', stroke: gcol, 'stroke-width': 2 }, frag);
+      const am = (a0 + a1) / 2;
+      txt('G ' + Math.abs(gy).toFixed(0) + '°', { x: CX + Math.sin(am) * (rA + 14), y: CY - Math.cos(am) * (rA + 14) + 3, fill: gcol, 'font-size': 10, 'font-family': NUM, 'text-anchor': 'middle' }, frag);
+      txt(Math.round(sol.tof) + 's', { x: (CX + lead[0]) / 2 + 6, y: (CY + lead[1]) / 2, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM }, frag);
+    }
+
+    /* 자함 — 마지막에 그려 위에 오게 */
+    el('path', { d: 'M0 -13 l4 9 v11 h-8 v-11 z', fill: 'var(--green)', transform: 'translate(' + CX + ' ' + CY + ') rotate(' + (ha * 180 / Math.PI) + ')' }, frag);
+    txt('침로 ' + p3(hdg) + '° · ' + (b.speed / (U.KNOT || 0.514444)).toFixed(1) + 'kn' + (useAft ? ' · 함미 발사' : ''),
+      { x: 8, y: 14, fill: 'var(--dim)', 'font-size': 9, 'font-family': NUM }, frag);
+
+    while (dyn.firstChild) dyn.removeChild(dyn.firstChild);
+    dyn.appendChild(frag);
+  }
+  function edgeRange(torpR) { return torpR * 1.04; }
+
+  function tick() {
+    const g = U.state(); if (!g || !svg) return;
+    if (document.querySelector('.pane.on[data-pane="torp"]')) draw(g);
+  }
+  function init() {
+    try { build(); } catch (e) { console.warn('EP plot', e); }
+    setInterval(tick, 120);
+    window.EP_V6261_PLOT = { version: '6.26.1' };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v6262-submenu-style">
+/* ══════════ V6.26.2 함내 소메뉴 ══════════
+   함내 탭은 카드 여덟 장이 한 줄로 이어져 있어서 스크롤이 길었고, 계기(컴퍼스·레버·심도계)는
+   손가락이 닿으면 바로 명령으로 받기 때문에 스크롤하다 엉뚱한 명령이 나갔다.
+   카드를 다섯 묶음으로 나눠 한 화면에 하나씩만 보인다 — 스크롤할 것이 없으면 잘못 닿을 것도 없다.
+   카드는 옮기거나 지우지 않는다. 안 보이는 묶음만 감춘다. 교범이 가리키는 요소가 감춰진 묶음에
+   있으면 그 묶음으로 저절로 넘어간다. */
+.epSubBar{ flex:0 0 auto; position:sticky; top:calc(var(--epDockH, 196px) - 9px); z-index:17; display:grid;
+   grid-template-columns:repeat(5,1fr); gap:1px; background:var(--steel); border:1px solid var(--steel);
+   border-radius:10px; overflow:hidden; margin:0 0 10px; box-shadow:0 2px 6px var(--shadow); }
+.epSubBar button{ border:0; min-height:42px; background:var(--panel); color:var(--dim); font-size:12px; padding:0 2px; }
+.epSubBar button.on{ background:var(--panel2); color:var(--blue); box-shadow:inset 0 -2px 0 var(--blue); }
+.epSubBar button:active{ background:var(--panel2); }
+.pane[data-pane="boat"] > .card.epOff{ display:none !important; }
+</style>
+<script id="ep-v6262-submenu-script">
+(function EP_BOAT_SUBMENU(){
+  'use strict';
+  const GROUPS = [
+    { id: 'cmd',   label: '명령',   match: ['함장 명령', '시간'] },
+    { id: 'helm',  label: '조타',   match: ['조타'] },
+    { id: 'eng',   label: '기관',   match: ['기관'] },
+    { id: 'depth', label: '심도',   match: ['심도'] },
+    { id: 'ship',  label: '함 상태', match: ['함 상태', '자동 승조원', '손상통제'] },
+  ];
+  let cur = 'cmd', bar = null, pane = null, dock = null;
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+
+  function title(card) { const h = card.querySelector(':scope > h3'); if (!h) return '';
+    /* h3 안의 태그·부제는 빼고 첫 글자 덩어리만 */
+    for (const n of h.childNodes) if (n.nodeType === 3 && n.textContent.trim()) return n.textContent.trim();
+    return h.textContent.trim(); }
+  function groupOf(card) {
+    const t = title(card);
+    for (const g of GROUPS) if (g.match.some(m => t.startsWith(m))) return g.id;
+    return 'ship';                       /* 어디에도 안 맞는 카드는 함 상태 묶음에 — 잃어버리지 않는다 */
+  }
+  function cards() { return [...pane.children].filter(c => c.classList.contains('card')); }
+  function apply() {
+    for (const c of cards()) c.classList.toggle('epOff', (c.dataset.epGroup || groupOf(c)) !== cur);
+    if (bar) for (const b of bar.children) b.classList.toggle('on', b.dataset.g === cur);
+  }
+  function show(id, scrollTo) { if (!GROUPS.some(g => g.id === id)) return; cur = id; apply();
+    if (scrollTo) try { scrollTo.scrollIntoView({ block: 'center' }); } catch (e) {} }
+
+  function build() {
+    pane = document.querySelector('.pane[data-pane="boat"]'); if (!pane) return;
+    dock = document.getElementById('boatChartDock');
+    for (const c of cards()) c.dataset.epGroup = groupOf(c);
+    bar = document.createElement('div'); bar.className = 'epSubBar'; bar.setAttribute('role', 'tablist');
+    for (const g of GROUPS) { const b = document.createElement('button'); b.type = 'button'; b.dataset.g = g.id; b.textContent = g.label;
+      b.addEventListener('click', () => { show(g.id); buzz(6); pane.scrollTop = 0; }); bar.appendChild(b); }
+    const first = cards()[0];
+    pane.insertBefore(bar, first || null);
+    apply();
+    /* 교범·훈련이 가리키는 요소(lrn-hl)가 감춰진 묶음에 있으면 그 묶음을 연다 */
+    new MutationObserver(muts => {
+      for (const m of muts) { const t = m.target; if (!(t instanceof Element) || !t.classList.contains('lrn-hl')) continue;
+        const card = t.closest('.pane[data-pane="boat"] > .card'); if (!card) continue;
+        const g = card.dataset.epGroup || groupOf(card); if (g !== cur) show(g, t); }
+    }).observe(pane, { attributes: true, attributeFilter: ['class'], subtree: true });
+    /* 고정 해도 높이에 맞춰 소메뉴가 그 바로 아래에 붙는다 */
+    setInterval(() => { if (!dock) return; const h = dock.offsetHeight; pane.style.setProperty('--epDockH', (h > 0 ? h : 0) + 'px'); }, 300);
+    window.EP_V6262_SUBMENU = { version: '6.26.2', show };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
+})();
 </script>
 </body>
 </html>
