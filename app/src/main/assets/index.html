@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.25.2 Naval Activity</title>
+<title>ETERNAL PATROL: Silent Seas — v6.25.6 Tube Caps</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -41452,6 +41452,63 @@ function init(){
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
 
+</script>
+<style id="ep-v6256-tubes-style">
+/* ══════════ V6.25.6 발사관 캡 ══════════
+   글자 단추 아홉 개를 원형 캡과 램프 하나로 바꾼다. 모양만 바꾼다 — 단추·선택·글자는
+   renderTubes 그대로이고, 램프 상태와 재장전 링만 관찰자가 붙인다.
+   램프: 초록 = 장전 · 호박 = 재장전 중(링이 차오른다) · 회색 = 빔.
+   함미관은 점선 테두리에 따로 한 줄 — 함수와 한 번에 쏠 수 없기 때문이다. */
+#tubes{ display:grid !important; grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:10px 8px; }
+#tubes button.mini{ aspect-ratio:1/1; min-height:0; border-radius:50%; border:0; position:relative; padding:8px 6px 16px;
+   font-size:10px; line-height:1.2; white-space:normal; word-break:keep-all; color:var(--chartInk);
+   background:radial-gradient(circle at 50% 50%, var(--chartBg) 0 54%, var(--steel) 55% 61%, var(--panel2) 62% 100%);
+   box-shadow:0 2px 5px var(--shadow), inset 0 1px 0 var(--edge); transition:box-shadow .15s; }
+#tubes button.mini:disabled{ opacity:.9; color:var(--dim); }
+html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
+/* 함미 — 점선 테두리, 새 줄에서 시작 */
+#tubes button.mini.aft{ border:2px dashed var(--steel); background-clip:padding-box; }
+#tubes button.mini:not(.aft) + button.mini.aft{ grid-column-start:1; }
+#tubes button.mini.aft{ margin-top:6px; }
+#tubes button.mini.on{ box-shadow:0 0 0 2px var(--green), 0 2px 5px var(--shadow); border-style:solid; }
+#tubes button.mini::after{ content:''; position:absolute; left:50%; bottom:13%; width:8px; height:8px; margin-left:-4px; border-radius:50%;
+   background:var(--dim); opacity:.45; }
+#tubes button.mini[data-ep="ready"]::after{ background:var(--green); opacity:1; box-shadow:0 0 6px var(--green); }
+#tubes button.mini[data-ep="reload"]::after{ background:var(--amber); opacity:1; }
+#tubes button.mini .epRing{ position:absolute; inset:2px; border-radius:50%; pointer-events:none;
+   background:conic-gradient(var(--amber) calc(var(--rl,0)*1turn), transparent 0);
+   -webkit-mask:radial-gradient(circle, transparent 0 62%, #000 63% 68%, transparent 69%);
+   mask:radial-gradient(circle, transparent 0 62%, #000 63% 68%, transparent 69%); }
+</style>
+<script id="ep-v6256-tubes-script">
+(function EP_TUBES(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function decorate() {
+    const g = U.state(), box = document.getElementById('tubes'); if (!g || !box) return;
+    const total = (U.UB && U.UB.reloadSeconds) || 600;
+    for (const btn of box.children) {
+      const i = +btn.dataset.tube; if (isNaN(i)) continue;
+      const loaded = g.boat.torp.bowLoaded[i], job = g.boat.torp.reloadJobs.find(j => j.tube === i);
+      const st = loaded ? 'ready' : job ? 'reload' : 'empty';
+      if (btn.dataset.ep !== st) btn.dataset.ep = st;
+      let ring = btn.querySelector('.epRing');
+      if (st === 'reload') {
+        if (!ring) { ring = document.createElement('i'); ring.className = 'epRing'; btn.appendChild(ring); }
+        btn.style.setProperty('--rl', clamp(1 - job.remain / total, 0, 1).toFixed(3));
+      } else if (ring) ring.remove();
+    }
+  }
+  function init() {
+    const box = document.getElementById('tubes'); if (!box) return;
+    /* renderTubes 가 textContent 를 다시 쓰면 링이 지워진다 — 바뀔 때마다 다시 붙인다 */
+    new MutationObserver(decorate).observe(box, { childList: true, characterData: true, subtree: true });
+    setInterval(() => { if (document.querySelector('.pane.on[data-pane="torp"]')) decorate(); }, 250);
+    window.EP_V6256_TUBES = { version: '6.25.6' };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
 </script>
 </body>
 </html>
