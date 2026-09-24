@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.27.1 Plot Symbols</title>
+<title>ETERNAL PATROL: Silent Seas — v6.27.2 Silhouette Art</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -30488,7 +30488,170 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     return [gRect(x - 4, y - 4, 8, 4, 1, 'GUN', 3),
             gRect(x + (d > 0 ? 4 : -10), y - 3, 10, 2, 1, 'GUN', 3)];
   }
+  /* ══════════ V6.27.2 실루엣 — 상자 대신 배 ══════════
+     예전 도형은 사각형 몇 개와 막대였다. 잠망경으로 보는 것은 검은 그림자지만 그 그림자는
+     배의 것이어야 한다 — 뱃머리의 플레어, 함교의 층, 뒤로 기운 굴뚝, 삼각 마스트, 포탑의 어깨.
+     세부 사다리(0 선체·1 함교·2 굴뚝·마스트·3 포탑·발사관·4 크레인·사출기·항공기)는 그대로다:
+     같은 표를 보므로 체크리스트와 어긋나지 않는다. 좌현이 뱃머리다(x 10 → 206). */
   function silGeom(spec) {
+    if (!spec) return [];
+    const art = SIL_EP_ART[spec.kind];
+    return art ? art(spec) : silRefine(silGeomRaw(spec));
+  }
+  const EP_P = (pts, f, d) => ({ t: 'poly', pts: pts, f: f, d: d || 0 });
+  const EP_R = (x, y, w, h, f, d, rx) => ({ t: 'rect', x: x, y: y, w: w, h: h, rx: rx == null ? 1 : rx, f: f, d: d || 0 });
+  const EP_L = (x1, y1, x2, y2, f, d) => ({ t: 'line', x1: x1, y1: y1, x2: x2, y2: y2, f: f, d: d || 0 });
+  const n1 = v => Math.round(v * 10) / 10;
+  function epPts(arr) { let s = ''; for (let i = 0; i < arr.length; i += 2) s += (i ? ' ' : '') + n1(arr[i]) + ',' + n1(arr[i + 1]); return s; }
+  function epPoly(arr, f, d) { return EP_P(epPts(arr), f, d); }
+  /* 굴뚝 — 뒤로 기운 사다리꼴에 얇은 테 */
+  function epFunnel(x, top, w, h, d) {
+    const r = h * 0.2, b = top + h, c = top + 2.4;
+    return epPoly([x, b, x + w, b, x + w - 1.2 + r, c, x + w + r, c, x + w + r, top, x + r, top, x + r, c, x + 1.2 + r, c], 'FUNNEL', d == null ? 2 : d);
+  }
+  /* 포탑 — 어깨가 둥근 몸통과 포신. s 는 몸통 너비 */
+  function epTurret(x, y, s, dir, d, big) {
+    const h = s * (big ? 0.5 : 0.44), sh = s * 0.22, dd = d == null ? 3 : d;
+    const body = epPoly([x - s / 2, y, x + s / 2, y, x + s / 2, y - h + sh, x + s / 2 - sh, y - h, x - s / 2 + sh, y - h, x - s / 2, y - h + sh], 'GUN', dd);
+    const bl = s * (big ? 1.25 : 1.1), y0 = y - h * 0.62;
+    const barrel = EP_L(n1(x + dir * s * 0.3), n1(y0), n1(x + dir * (s * 0.3 + bl)), n1(y0 - h * 0.18), 'GUN', dd);
+    return [body, barrel];
+  }
+  /* 마스트 — 기둥(2), 삼각 다리·가로대(3) */
+  function epMast(x, deck, top, tripod) {
+    const a = [EP_L(x, deck, x, top, 'MAST', 2), EP_L(x - 5, top + 7, x + 5, top + 7, 'MAST', 3)];
+    if (tripod) { const k = top + (deck - top) * 0.35; a.push(EP_L(x - 5, deck, x, k, 'MAST', 3), EP_L(x + 5, deck, x, k, 'MAST', 3)); }
+    return a;
+  }
+  /* 상선 하역 마스트 — 기둥과 양쪽 데릭 */
+  function epDerrick(x, deck, top) {
+    return [EP_L(x, deck, x, top, 'MAST', 2), EP_L(x, top + 6, x - 16, deck - 1, 'MAST', 3), EP_L(x, top + 6, x + 16, deck - 1, 'MAST', 3)];
+  }
+  function epBox(x, y, w, h, f, d) { return epPoly([x, y + h, x + w, y + h, x + w, y + 1.5, x + w - 1.5, y, x + 1.5, y, x, y + 1.5], f || 'SUPER', d || 0); }
+  function epFunnels(spec, positions, top, w, h) {
+    const n = Math.max(0, Math.min(positions.length, spec.funnels == null ? 1 : spec.funnels));
+    /* 굴뚝 수에 따라 자리를 다시 나눈다 — 4연돌은 촘촘하고 1연돌은 가운데 */
+    const xs = n === positions.length ? positions : (function () { const a = positions[0], b = positions[positions.length - 1]; const out = [];
+      for (let i = 0; i < n; i++) out.push(n === 1 ? (a + b) / 2 : a + (b - a) * i / (n - 1)); return out; })();
+    return xs.map((x, i) => epFunnel(n1(x), top + (i ? 1 : 0), w, h - (i ? 1 : 0), i >= 2 ? 3 : 2));
+  }
+  function epPlane(x, y) { return [EP_R(x, y - 2, 9, 2, 'AIRCRAFT', 4, 0.5), EP_L(x + 4.5, y - 2, x + 4.5, y - 5, 'AIRCRAFT', 4)]; }
+  const SIL_EP_ART = {
+    merchant: function (spec) {
+      const p = [];
+      p.push(epPoly([12, 59, 12, 47, 22, 46, 50, 47, 50, 50, 94, 50, 94, 47, 128, 47, 128, 50, 168, 50, 168, 48, 198, 47, 204, 48, 206, 59], 'HULL', 0));
+      p.push(epBox(98, 40, 28, 7, 'SUPER', 0));
+      p.push(epBox(102, 33, 16, 7, 'BRIDGE', 1));
+      p.push.apply(p, epFunnels(spec, [112, 126], 26, 7, 14));
+      p.push.apply(p, epDerrick(62, 47, 20)); p.push.apply(p, epDerrick(152, 50, 22));
+      p.push.apply(p, epTurret(194, 47, 4, -1, 4));
+      return p;
+    },
+    tanker: function (spec) {
+      const p = [];
+      p.push(epPoly([10, 59, 10, 47, 26, 46, 26, 50, 170, 50, 170, 49, 200, 48, 206, 49, 206, 59], 'HULL', 0));
+      p.push(epBox(150, 40, 36, 10, 'SUPER', 0));
+      p.push(epBox(156, 33, 20, 7, 'BRIDGE', 1));
+      p.push.apply(p, epFunnels(spec, [186, 194], 30, 7, 18));
+      for (const x of [44, 124]) { p.push(EP_L(x, 50, x, 32, 'MAST', 2), EP_L(x + 5, 50, x + 5, 32, 'MAST', 2), EP_L(x - 2, 32, x + 7, 32, 'MAST', 3)); }
+      p.push(EP_L(30, 45, 148, 45, 'DECK_TANKS', 3), EP_L(34, 43, 146, 43, 'DECK_TANKS', 3));
+      return p;
+    },
+    escort: function (spec) {
+      const p = [];
+      p.push(epPoly([12, 59, 12, 46, 26, 45, 72, 46, 72, 50, 190, 51, 196, 50, 198, 59], 'HULL', 0));
+      p.push(epBox(58, 38, 28, 8, 'SUPER', 0));
+      p.push(epBox(64, 32, 16, 6, 'BRIDGE', 1));
+      p.push.apply(p, epFunnels(spec, [90, 104], 30, 7, 16));
+      p.push.apply(p, epMast(60, 46, 24, false));
+      p.push.apply(p, epTurret(40, 45, 6, 1)); p.push.apply(p, epTurret(160, 50, 4, -1));
+      p.push(EP_R(178, 48, 10, 2, 'DECK', 4, 0.5), EP_R(190, 48, 4, 2, 'DECK', 4, 0.5));
+      return p;
+    },
+    destroyer: function (spec) {
+      const p = [], tall = spec.bridge === 'tower';
+      p.push(epPoly([10, 59, 10, 44, 26, 44, 80, 45, 80, 49, 194, 50, 200, 49, 202, 59], 'HULL', 0));
+      p.push(epBox(54, 36, 28, 9, 'SUPER', 0));
+      p.push(epBox(58, tall ? 26 : 30, tall ? 20 : 18, tall ? 10 : 6, 'BRIDGE', 1));
+      p.push(EP_R(63, tall ? 23 : 27, 7, 3, 'GUN', 3));
+      p.push.apply(p, epFunnels(spec, [88, 118], 26, 9, 19));
+      p.push.apply(p, epMast(50, 44, 20, true));
+      p.push.apply(p, epTurret(34, 44, 7, 1)); p.push.apply(p, epTurret(160, 49, 7, -1)); p.push.apply(p, epTurret(186, 49, 7, -1));
+      p.push(EP_R(132, 46, 14, 3, 'TORPEDO_TUBES', 3), EP_R(150, 46, 14, 3, 'TORPEDO_TUBES', 3));
+      return p;
+    },
+    light_cruiser: function (spec) {
+      const p = [];
+      p.push(epPoly([10, 59, 10, 42, 24, 41, 64, 43, 204, 47, 208, 59], 'HULL', 0));
+      p.push(epBox(56, 33, 40, 10, 'SUPER', 0)); p.push(epBox(150, 38, 26, 8, 'SUPER', 0));
+      p.push(epBox(64, 26, 18, 7, 'BRIDGE', 1)); p.push(epBox(68, 21, 10, 5, 'BRIDGE', 1)); p.push(EP_R(70, 18, 6, 3, 'GUN', 3));
+      p.push.apply(p, epFunnels(spec, [100, 120], 24, 10, 19));
+      p.push.apply(p, epMast(58, 43, 17, true)); p.push.apply(p, epMast(148, 46, 24, false));
+      p.push.apply(p, epTurret(30, 42, 9, 1)); p.push(EP_R(41, 39, 10, 3, 'GUN', 3)); p.push.apply(p, epTurret(46, 39, 9, 1));
+      p.push.apply(p, epTurret(182, 46, 9, -1)); p.push.apply(p, epTurret(196, 47, 9, -1));
+      if (spec.catapult) { p.push(EP_L(128, 42, 148, 40, 'CATAPULT', 4)); p.push.apply(p, epPlane(134, 39)); }
+      return p;
+    },
+    heavy_cruiser: function (spec) {
+      const p = [];
+      p.push(epPoly([10, 59, 10, 41, 24, 40, 68, 42, 206, 46, 208, 59], 'HULL', 0));
+      p.push(epBox(62, 30, 42, 12, 'SUPER', 0)); p.push(epBox(156, 37, 26, 9, 'SUPER', 0));
+      p.push(epBox(72, 22, 20, 8, 'BRIDGE', 1)); p.push(epBox(76, 17, 12, 5, 'BRIDGE', 1)); p.push(EP_R(78, 14.5, 7, 2.5, 'GUN', 3));
+      p.push.apply(p, epFunnels(spec, [108, 128], 21, 12, 21));
+      p.push.apply(p, epMast(66, 42, 15, true)); p.push.apply(p, epMast(146, 46, 22, true));
+      p.push.apply(p, epTurret(30, 41, 11, 1, 3, true)); p.push(EP_R(44, 37, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(50, 37, 11, 1, 3, true));
+      p.push.apply(p, epTurret(184, 45, 11, -1, 3, true)); p.push.apply(p, epTurret(198, 46, 10, -1, 3, true));
+      if (spec.catapult) { p.push(EP_L(136, 42, 158, 40, 'CATAPULT', 4)); p.push.apply(p, epPlane(142, 39)); }
+      return p;
+    },
+    battleship: function (spec) {
+      const p = [];
+      p.push(epPoly([8, 59, 8, 40, 22, 38, 74, 40, 208, 45, 210, 59], 'HULL', 0));
+      p.push(epBox(62, 32, 80, 8, 'SUPER', 0));
+      p.push(epBox(78, 20, 22, 12, 'BRIDGE', 1)); p.push(epBox(82, 14.5, 14, 5.5, 'BRIDGE', 1)); p.push(EP_R(85, 12.5, 8, 2, 'GUN', 3));
+      p.push.apply(p, epFunnels(spec, [106, 128], 19, 15, 13));
+      p.push.apply(p, epMast(150, 40, 18, true));
+      p.push.apply(p, epTurret(34, 40, 16, 1, 3, true)); p.push(EP_R(48, 35, 18, 5, 'GUN', 3)); p.push.apply(p, epTurret(56, 35, 16, 1, 3, true));
+      p.push(EP_R(160, 41, 17, 4, 'GUN', 3)); p.push.apply(p, epTurret(168, 41, 16, -1, 3, true)); p.push.apply(p, epTurret(190, 45, 15, -1, 3, true));
+      for (const x of [104, 116, 128]) p.push(EP_R(x, 29, 6, 3, 'GUN', 4, 0.5));
+      return p;
+    },
+    carrier: function (spec) {
+      const p = [];
+      p.push(epPoly([12, 59, 12, 46, 30, 45, 34, 38, 200, 38, 202, 45, 206, 46, 206, 59], 'HULL', 0));
+      p.push(EP_R(10, 34, 200, 4, 'FLIGHT_DECK', 1, 0.5));
+      p.push(epBox(82, 24, 22, 10, 'BRIDGE', 1));
+      p.push.apply(p, epMast(86, 24, 14, false));
+      p.push.apply(p, epFunnels(spec, [104, 110], 25, 7, 9));
+      for (const x of [140, 158, 176]) p.push.apply(p, epPlane(x, 34));
+      p.push(EP_L(190, 34, 190, 28, 'STERN_CRANE', 4), EP_L(190, 29, 200, 33, 'STERN_CRANE', 4));
+      return p;
+    },
+    seaplane: function (spec) {
+      const p = [];
+      p.push(epPoly([12, 59, 12, 46, 24, 45, 112, 46, 112, 50, 202, 51, 206, 52, 206, 59], 'HULL', 0));
+      p.push(epBox(60, 37, 46, 9, 'SUPER', 0));
+      p.push(epBox(70, 30, 20, 7, 'BRIDGE', 1));
+      p.push.apply(p, epFunnels(spec, [96, 104], 26, 8, 11));
+      p.push.apply(p, epMast(56, 46, 22, false));
+      p.push(EP_L(162, 50, 162, 26, 'STERN_CRANE', 4), EP_L(162, 28, 196, 44, 'STERN_CRANE', 4), EP_L(162, 28, 150, 40, 'STERN_CRANE', 4));
+      p.push(EP_L(118, 48, 146, 45, 'CATAPULT', 4)); p.push.apply(p, epPlane(124, 44));
+      return p;
+    },
+  };
+  /* 함급 고유 도형(예전 생성기)이 남아 있는 경우를 위한 다듬기 — 굴뚝은 기울이고 포탑은 어깨를 준다 */
+  function silRefine(parts) {
+    const out = [];
+    for (const q of parts) {
+      const f = q.f || '';
+      if (q.t === 'rect' && f === 'FUNNEL') { out.push(Object.assign(epFunnel(q.x, q.y, q.w, q.h, q.d), { d: q.d })); continue; }
+      if (q.t === 'rect' && f === 'GUN' && q.h > 2.5) { out.push(Object.assign(epTurret(q.x + q.w / 2, q.y + q.h, q.w, 1, q.d)[0], { d: q.d })); continue; }
+      if (q.t === 'rect' && (f === 'SUPER' || f === 'BRIDGE')) { out.push(epBox(q.x, q.y, q.w, q.h, f, q.d)); continue; }
+      out.push(q);
+    }
+    return out;
+  }
+  function silGeomRaw(spec) {
     if (!spec) return [];
     const p = [];
     const push = a => { for (const q of (a.length ? a : [a])) p.push(q); };
@@ -42152,7 +42315,8 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
   /* 「함종 판단」을 누르면 대조판으로 끌어다 놓는다 — 원래 목표(#decChecks)는 감춰져 있다 */
   const acts = $('sheetActs');
   if (acts) acts.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
-    if (b === acts.lastElementChild) setTimeout(() => { const m = $('epMatch'); if (m) m.scrollIntoView({ block: 'start' }); }, 60); });
+    if (b === acts.lastElementChild) { lastKey = ''; try { render(); } catch (err) {}
+      setTimeout(() => { const m = $('epMatch'); const h = m && m.closest('.card') && m.closest('.card').querySelector(':scope > h3'); (h || m) && (h || m).scrollIntoView({ block: 'start' }); }, 80); } });
 
   /* ══════════ ① 실루엣 대조 ══════════ */
   const WS = () => window.WARSHIPS, SIL = () => window.Sil;
@@ -42262,6 +42426,41 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
     const sh = $('sheet'); if (sh && sh.classList.contains('open')) render();
   }
   function init() { try { build(); } catch (e) { console.warn('EP ident', e); } setInterval(tick, 150); window.EP_V627_IDENT = { version: '6.27.0', render }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v6272-peridrag-script">
+/* ══════════ V6.27.2 잠망경 — 손으로 돈다 ══════════
+   잠망경 화면을 좌우로 끌면 시야가 그쪽으로 돈다. 화면 폭이 지금 배율의 시야각(±20° 또는 ±5°)이라
+   손가락이 간 만큼 정확히 그 각도가 돈다. 위아래 스크롤은 그대로 통과한다.
+   관측원 AUTO 가 잡고 있을 때 사람이 끌면 단추를 눌렀을 때와 같이 수동으로 넘어온다. */
+(function EP_PERI_DRAG(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  function init() {
+    const cv = $('cvPeri'); if (!cv) return;
+    cv.style.touchAction = 'pan-y';
+    let drag = null;
+    const half = () => { const b = $('btnPeriMag'); return b && /6×|6x/.test(b.textContent) ? 5 : 20; };
+    cv.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const g = U.state(); if (!g) return;
+      drag = { x: e.clientX, brg: g.boat.periscopeBearing, moved: false, half: half(), w: cv.getBoundingClientRect().width || 1 };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const dx = e.clientX - drag.x;
+      if (!drag.moved && Math.abs(dx) < 4) return;
+      if (!drag.moved) { drag.moved = true; const g = U.state(); if (g && g.autocrew && g.autocrew.observer) U.setAutocrew('observer', false); }
+      const deg = dx * (2 * drag.half) / drag.w;           /* 화면 폭 = 시야각 */
+      U.setPeriscopeBearing(drag.brg - deg, true);
+    });
+    const drop = () => { drag = null; };
+    cv.addEventListener('pointerup', drop); cv.addEventListener('pointercancel', drop);
+    window.EP_V6272_PERIDRAG = { version: '6.27.2' };
+  }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
