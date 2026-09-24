@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.26.2 Boat Submenu</title>
+<title>ETERNAL PATROL: Silent Seas — v6.27.0 Silhouette Match</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -42061,6 +42061,192 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
     window.EP_V6262_SUBMENU = { version: '6.26.2', show };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
+})();
+</script>
+<style id="ep-v627-ident-style">
+/* ══════════ V6.27.0 실루엣 대조 · 접촉 띠 ══════════
+   ① 함종 판단 — 질문지(굴뚝 몇 개, 함교 어디)를 버리고 **대조**로 바꾼다. 위에는 잠망경이 실제로
+      본 형태(그 거리의 세부 수준 그대로), 아래에는 같은 세부 수준으로 그린 후보들. 가장 닮은 것을
+      손가락으로 댄다. 그 거리에서 서로 구분되지 않는 함형은 한 장으로 묶여 「구분 불가」로 나온다.
+      고른 것은 그 함형의 **지금 보이는** 특징들로 번역되어 기존 증거 체계(Identify)에 그대로 들어간다.
+      규칙은 하나도 바꾸지 않는다 — 입력 방식만 바꾼다.
+   ② 접촉 띠 — 접촉을 고르면 올라오던 시트를 한 줄 띠로 줄인다. 저절로 펼쳐지지 않고, 공격 탭에서는
+      아예 나오지 않는다. 탭을 옮기면 접힌다. */
+
+/* ── 접촉 띠 ── */
+#sheetGrip{ height:8px; }
+#sheetGrip::after{ margin-top:2px; }
+#sheetTop{ min-height:0; padding:0 54px 4px 12px; display:grid; grid-template-columns:minmax(0,1fr) auto; column-gap:8px; align-items:center; }
+#sheetTitle{ font-size:13.5px; line-height:1.3; grid-column:1; }
+#sheetTitle .pct{ float:none; margin-left:6px; }
+#sheetLine{ margin:0; font-size:10.5px; line-height:1.35; grid-column:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#sheetMore{ grid-column:2; grid-row:1 / span 2; margin:0; min-height:24px; line-height:24px; padding:0 8px; font-size:10.5px; white-space:nowrap; }
+#sheetActs{ padding:0 10px 6px; gap:4px; }
+#sheetActs button{ min-height:38px; font-size:11px; padding:6px 2px; }
+#sheetClose{ top:4px; right:6px; width:38px; height:38px; min-height:38px; font-size:14px; }
+#sheet.open #sheetLine{ white-space:normal; }
+/* 공격 탭에서는 띠도 접어 둔다 — 접촉은 칩과 표적판으로 고른다 */
+body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
+
+/* ── 실루엣 대조 ── */
+#decModeBar, #decChecks{ display:none !important; }
+#decSilCard #decObsSil, #decSilCard #decSilMain, #decSilCard #decSilNote{ display:none !important; }
+.epMatch{ display:flex; flex-direction:column; gap:8px; }
+.epObs{ background:var(--chartBg); border:1px solid var(--steel); border-radius:10px; padding:6px 10px 4px; color:var(--chartInk); }
+.epObs .h{ display:flex; justify-content:space-between; align-items:baseline; font-size:11px; color:var(--dim); }
+.epObs .h b{ color:var(--ink); font-weight:600; }
+.epObs svg{ display:block; width:100%; height:78px; }
+.epObs.empty{ color:var(--dim); font-size:11.5px; line-height:1.5; padding:12px; text-align:center; }
+.epObs.empty button{ margin-top:8px; min-height:40px; padding:0 14px; border-radius:8px; border:1px solid var(--selBd); background:var(--btnBg); color:var(--sky); font-size:12px; }
+.epGate{ font-size:11px; color:var(--dim); line-height:1.5; }
+.epGate b{ color:var(--amber); font-weight:600; }
+.epCands{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+@media (max-width:359px){ .epCands{ grid-template-columns:repeat(2,1fr); } }
+.epCand{ position:relative; border:1px solid var(--steel); border-radius:10px; background:var(--chartBg); color:var(--chartInk); padding:6px 6px 5px; text-align:left; min-height:96px; }
+.epCand svg{ display:block; width:100%; height:44px; }
+.epCand b{ display:block; font-size:11px; color:var(--ink); font-weight:600; line-height:1.3; margin-top:2px; }
+.epCand small{ display:block; font-size:9.5px; color:var(--dim); line-height:1.3; }
+.epCand .p{ position:absolute; top:5px; right:7px; font-size:10px; color:var(--dim); }
+.epCand.on{ border-color:var(--green); box-shadow:0 0 0 1px var(--green) inset; }
+.epCand.on b{ color:var(--green); }
+.epCand.merged{ border-style:dashed; }
+.epCand:active{ background:var(--panel2); }
+.epVerdict{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:var(--sunk); font-size:12px; }
+.epVerdict .t{ flex:1 1 auto; line-height:1.4; }
+.epVerdict .t b{ color:var(--ink); }
+.epVerdict .t small{ display:block; color:var(--dim); font-size:10.5px; }
+.epVerdict button{ flex:0 0 auto; min-height:40px; padding:0 12px; border-radius:8px; border:1px solid var(--amber); background:var(--goBg); color:var(--amber); font-size:12px; font-weight:600; }
+.epVerdict button:disabled{ opacity:.4; }
+.epMatch .tiny{ align-self:flex-end; }
+</style>
+<script id="ep-v627-ident-script">
+(function EP_IDENT_MATCH(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  /* ══════════ ② 접촉 띠 ══════════ */
+  function paneNow() { const p = document.querySelector('.pane.on'); return p ? p.dataset.pane : ''; }
+  function tabOfPane(p) { return p === 'torp' ? 'attack' : p === 'boat' ? 'boat' : (p === 'peri' || p === 'sect') ? 'obs' : p === 'chart' || p === 'hydro' ? 'situ' : p; }
+  /* 탭을 옮기면 펼친 시트는 접힌다(닫히지는 않는다) */
+  const tabs = $('tabs');
+  if (tabs) tabs.addEventListener('click', e => { if (e.target.closest('button') && window.openSheet) window.openSheet(false); }, true);
+  /* 「함종 판단」을 누르면 대조판으로 끌어다 놓는다 — 원래 목표(#decChecks)는 감춰져 있다 */
+  const acts = $('sheetActs');
+  if (acts) acts.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+    if (b === acts.lastElementChild) setTimeout(() => { const m = $('epMatch'); if (m) m.scrollIntoView({ block: 'start' }); }, 60); });
+
+  /* ══════════ ① 실루엣 대조 ══════════ */
+  const WS = () => window.WARSHIPS, SIL = () => window.Sil;
+  let panel = null, lastKey = '';
+
+  function build() {
+    const checks = $('decChecks'); if (!checks || !WS() || !SIL()) return;
+    const card = checks.closest('.card'); if (!card) return;
+    const h3 = card.querySelector(':scope > h3');
+    if (h3) h3.innerHTML = '실루엣 대조 <span style="font-size:10px;color:var(--dim);font-weight:400">— 잠망경에서 본 형태에 가장 닮은 것을 대십시오</span>';
+    panel = document.createElement('div'); panel.id = 'epMatch'; panel.className = 'epMatch';
+    card.insertBefore(panel, checks);
+    const guide = $('silGuideBox'); if (guide) card.appendChild(guide);     /* 도감 비교표는 대조판 아래로 */
+    panel.addEventListener('click', e => {
+      const b = e.target.closest('[data-ep-pick]'); if (b) { pick(b.dataset.epPick.split(',')); buzz(6); return; }
+      const s = e.target.closest('[data-ep-save]'); if (s) { const d = $('decSave'); if (d) d.click(); buzz([10, 30, 10]); return; }
+      const o = e.target.closest('[data-ep-obs]'); if (o) { const a = $('sheetActs'); const f = a && a.firstElementChild; if (f) f.click(); return; }
+      const r = e.target.closest('[data-ep-reset]'); if (r) { const c = sel(); if (c) { U.resetIdent(c.id); lastKey = ''; } return; }
+    });
+  }
+  function sel() { const g = U.state(); if (!g || !g.selectedContactId) return null; return g.contacts.find(c => c.id === g.selectedContactId) || null; }
+
+  /* 함형의 「이 세부 수준에서 보이는 서명」 — 배타 묶음에서는 가장 무거운 낱말 하나, 나머지는 무게 12 이상 */
+  const EXCL = () => { const M = WS().MANUAL, out = []; for (const g of WS().MANUAL_ORDER) for (const grp of (M[g].exclusive || [])) out.push(grp); return out; };
+  const ALL_MANUAL = () => { const M = WS().MANUAL, out = []; for (const g of WS().MANUAL_ORDER) for (const it of M[g].items) out.push(it.key); return out; };
+  function signature(typeId, detail) {
+    const w = WS().TYPES[typeId].weights, fd = WS().featureDetail, keys = [];
+    const inExcl = new Set(); 
+    for (const grp of EXCL()) { let best = null, bw = 5;
+      for (const k of grp) { inExcl.add(k); if (fd(k) <= detail && (w[k] || 0) > bw) { bw = w[k]; best = k; } }
+      if (best) keys.push(best); }
+    for (const k of ALL_MANUAL()) if (!inExcl.has(k) && fd(k) <= detail && (w[k] || 0) >= 12) keys.push(k);
+    return keys.sort();
+  }
+  function groups(detail, cands) {
+    const P = {}; for (const c of (cands || [])) P[c.type] = c.p;
+    const map = new Map();
+    for (const t of WS().TYPE_ORDER) { const sig = signature(t, detail), key = sig.join('|');
+      if (!map.has(key)) map.set(key, { types: [], sig, p: 0, prior: 0 });
+      const gr = map.get(key); gr.types.push(t); gr.p += P[t] || 0; gr.prior += WS().TYPES[t].prior || 0; }
+    return [...map.values()].sort((a, b) => (b.p - a.p) || (b.prior - a.prior));
+  }
+  function pick(sig) {
+    const c = sel(); if (!c) return;
+    const vs = c.visualSil; const detail = vs ? vs.detail : 0;
+    const chosen = new Set(sig.filter(Boolean));
+    /* 이전에 대조로 주장한 낱말은 걷어 내고, 고른 함형의 보이는 서명만 남긴다 */
+    const fd = WS().featureDetail;
+    for (const k of ALL_MANUAL()) if (fd(k) <= detail && !chosen.has(k) && c.manual && c.manual[k]) U.setManual(c.id, k, false);
+    for (const k of chosen) U.setManual(c.id, k, true);
+    lastKey = '';
+  }
+  const KO = { BEAM: '측면', BOW: '정면·선수사선' };
+  function render() {
+    if (!panel) return;
+    const c = sel();
+    const id = c ? U.identify(c.id) : null;
+    const vs = c && c.visualSil;
+    const manual = (c && c.manual) ? Object.keys(c.manual).sort().join(',') : '';
+    const key = [c && c.id, vs && vs.detail, vs && vs.quality && vs.quality.toFixed(2), manual, id && id.top, id && id.topP && id.topP.toFixed(2), id && id.saved].join('|');
+    if (key === lastKey) return; lastKey = key;
+    if (!c) { panel.innerHTML = '<div class="epObs empty">접촉을 고르면 여기에 본 형태와 후보가 나타납니다.</div>'; return; }
+    const S = SIL(), T = WS().TYPES;
+    let html = '';
+    /* 위 — 실제로 본 형태 */
+    if (!vs) {
+      html += '<div class="epObs empty">아직 잠망경으로 본 형태가 없습니다. 형태 없이는 대조할 것이 없습니다.<br>' +
+        '<button type="button" data-ep-obs>잠망경 관측으로</button></div>';
+    } else {
+      const spec = (vs.classId ? S.classSpec(vs.classId) : null) || S.typeSpec(vs.typeId);
+      html += '<div class="epObs"><div class="h"><b>이번 관측에서 본 형태</b><span>' + esc(KO[vs.side] || '사선') + ' · 세부 ' + (vs.detail + 1) + '/5' +
+        (vs.range != null ? ' · ' + Math.round(vs.range / 10) * 10 + 'm' : '') + '</span></div>' + S.svg(spec, false, vs.detail) + '</div>';
+    }
+    const detail = vs ? vs.detail : 0;
+    /* 문 — 이 세부 수준에서 무엇까지 갈리는가 */
+    const gate = detail <= 0 ? '세부 <b>1/5</b> — 덩치와 선체 윤곽만 보입니다. 함교·굴뚝은 아직 없습니다. 좁히려면 접근하거나 배율을 올리십시오.'
+      : detail === 1 ? '세부 <b>2/5</b> — 함교 위치와 갑판 윤곽까지 보입니다. 굴뚝은 아직 갈리지 않습니다.'
+      : detail === 2 ? '세부 <b>3/5</b> — 굴뚝과 마스트가 갈립니다. 포탑은 더 가까이 옆에서 봐야 합니다.'
+      : detail === 3 ? '세부 <b>4/5</b> — 포탑·갑판 구조물까지 보입니다.' : '세부 <b>5/5</b> — 크레인·사출기까지, 거의 확정 관측입니다.';
+    html += '<div class="epGate">' + gate + (vs ? '' : ' (관측 전이라 후보는 윤곽만 그렸습니다.)') + '</div>';
+    /* 아래 — 같은 세부 수준으로 그린 후보. 서로 구분 안 되는 함형은 한 장 */
+    const grs = groups(detail, id && id.candidates).slice(0, 6);
+    const cur = new Set(Object.keys(c.manual || {}));
+    html += '<div class="epCands">' + grs.map(gr => {
+      const on = gr.sig.length > 0 && gr.sig.every(k => cur.has(k));
+      const merged = gr.types.length > 1;
+      const label = gr.types.map(t => T[t].label.split(' · ')[0]).join(' / ');
+      const feats = gr.sig.map(k => WS().EV_KO ? WS().EV_KO[k] : k).filter(Boolean);
+      const spec = S.typeSpec(gr.types[0]);
+      return '<button type="button" class="epCand' + (on ? ' on' : '') + (merged ? ' merged' : '') + '" data-ep-pick="' + gr.sig.join(',') + '">' +
+        (gr.p > 0.01 ? '<span class="p">' + Math.round(gr.p * 100) + '%</span>' : '') + S.svg(spec, true, detail) +
+        '<b>' + esc(label) + '</b><small>' + (merged ? '이 거리에선 구분 불가' : esc(feats.slice(0, 2).join(' · ')) || '윤곽만') + '</small></button>';
+    }).join('') + '</div>';
+    /* 판정 — 기존 Identify 가 낸 것을 그대로 읽는다 */
+    const top = id && id.top ? T[id.top] : null;
+    const verdict = top
+      ? '<b>' + esc(top.label) + '</b> ' + Math.round((id.topP || 0) * 100) + '% · ' + esc(id.tierKo || '') +
+        (id.saved ? '<small>저장된 판단 — ' + esc(T[id.saved] ? T[id.saved].label : id.saved) + (id.correctionDue ? ' · 뒤집힐 만큼 바뀌었습니다' : '') + '</small>' : '<small>' + esc(id.advice || '고른 형태가 청음·움직임 증거와 합쳐져 판단이 됩니다.') + '</small>')
+      : '근거가 아직 없습니다.<small>후보를 대면 그 형태의 보이는 특징이 증거로 들어갑니다.</small>';
+    html += '<div class="epVerdict"><div class="t">' + verdict + '</div><button type="button" data-ep-save' + (top ? '' : ' disabled') + '>판단 저장</button></div>';
+    html += '<button type="button" class="tiny" data-ep-reset>대조 초기화</button>';
+    panel.innerHTML = html;
+  }
+
+  function tick() {
+    const t = tabOfPane(paneNow()); if (document.body.dataset.epPane !== t) document.body.dataset.epPane = t;
+    const sh = $('sheet'); if (sh && sh.classList.contains('open')) render();
+  }
+  function init() { try { build(); } catch (e) { console.warn('EP ident', e); } setInterval(tick, 150); window.EP_V627_IDENT = { version: '6.27.0', render }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
