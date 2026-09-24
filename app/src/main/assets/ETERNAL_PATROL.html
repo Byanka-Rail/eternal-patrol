@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.29.1 Basic Tutorial</title>
-<script id="ep-build">window.EP_BUILD='6.29.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.29.2 Basic Tutorial</title>
+<script id="ep-build">window.EP_BUILD='6.29.2';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -42846,17 +42846,22 @@ body.epTutOn .lrn-hl{ outline:none !important; }
 #epTutSpot{ position:fixed; z-index:9000; pointer-events:none; border:2px solid var(--amber); border-radius:12px;
    box-shadow:0 0 0 9999px rgba(0,0,0,.58), 0 0 18px var(--amber); transition:top .18s, left .18s, width .18s, height .18s; }
 #epTutSpot.none{ border-color:transparent; box-shadow:0 0 0 9999px rgba(0,0,0,.35); }
+#epTutSpot.soft{ box-shadow:0 0 0 9999px rgba(0,0,0,.16), 0 0 18px var(--amber); }
+#epTutSpot.soft.none{ box-shadow:0 0 0 9999px rgba(0,0,0,.12); }
 #epTutCard{ position:fixed; left:10px; right:10px; z-index:9001; background:var(--panel); border:1px solid var(--goBd); border-radius:14px;
-   padding:12px 14px 10px; box-shadow:0 8px 30px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
+   padding:9px 12px 8px; box-shadow:0 8px 30px rgba(0,0,0,.6); color:var(--ink); font-size:12.5px; line-height:1.45; }
+#epTutCard .row1{ display:flex; align-items:baseline; gap:8px; }
+#epTutCard .row1 h4{ flex:1 1 auto; margin:0; }
 #epTutCard .ch{ font-size:10.5px; color:var(--amber); letter-spacing:.06em; display:flex; justify-content:space-between; }
 #epTutCard .ch span{ color:var(--dim); letter-spacing:0; }
-#epTutCard h4{ margin:3px 0 4px; font-size:15px; font-weight:600; color:var(--ink); }
+#epTutCard h4{ margin:3px 0 4px; font-size:14px; font-weight:600; color:var(--ink); }
+#epTutCard p{ margin-top:3px !important; }
 #epTutCard p{ margin:0; color:var(--ink); }
 #epTutCard p b{ color:var(--amber); }
-#epTutCard .foot{ display:flex; gap:8px; margin-top:10px; align-items:center; }
+#epTutCard .foot{ display:flex; gap:8px; margin-top:7px; align-items:center; }
 #epTutCard .foot .bar{ flex:1 1 auto; height:4px; background:var(--steel); border-radius:2px; overflow:hidden; }
 #epTutCard .foot .bar i{ display:block; height:100%; background:var(--amber); width:0; transition:width .3s; }
-#epTutCard button{ min-height:36px; padding:0 12px; border-radius:8px; border:1px solid var(--steel); background:var(--btnBg); color:var(--dim); font-size:12px; }
+#epTutCard button{ min-height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--steel); background:var(--btnBg); color:var(--dim); font-size:12px; }
 #epTutCard button.go{ border-color:var(--amber); color:var(--amber); font-weight:600; }
 #epTutCard.done{ border-color:var(--green); }
 #epTutCard.done h4{ color:var(--green); }
@@ -42894,9 +42899,15 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   const CH = ['① 접근 · 관측', '② 두 번 보고 쏜다', '③ 잠항 · 이탈'];
   const STEPS = [
     /* ─ 1장 ─ */
+    { ch: 0, t: '소리를 듣는다', allow: [], spot: ['#hydroSlot'], soft: true, next: true,
+      text: g => '청음기가 배 소리를 잡았습니다. 가운데가 우리 배, 뻗은 선이 <b>소리가 오는 방위 ' + p3(brgTo(g)) + '°</b>입니다. 선이 길수록 소리가 큽니다. 거리는 아직 모릅니다.' },
+    { ch: 0, t: '해도로', allow: ['#viewRow button[data-view="chart"]'], text: () => '위 <b>해도</b>를 누르십시오. 같은 소리를 지도 위에서 봅니다.',
+      done: () => !!document.querySelector('#viewRow button[data-view="chart"].on') },
+    { ch: 0, t: '해도를 읽는다', allow: ['#btnZin', '#btnZout'], spot: ['#chartSlot'], soft: true, next: true,
+      text: g => '초록 점이 우리 배, 짧은 선이 지금 침로(' + p3(g.boat.heading) + '°)입니다. 점선이 청음 방위 — 배는 저 점선 어딘가에 있습니다. <b>침로를 점선 쪽으로</b> 돌리면 다가갑니다.' },
     { ch: 0, t: '함내로', allow: ['#tabs button[data-tab="boat"]'], text: () => '아래 <b>함내</b> 탭을 누르십시오. 배를 움직이는 곳입니다.', done: () => paneOn('boat') },
     { ch: 0, t: '조타', allow: ['.epSubBar button[data-g="helm"]'], text: () => '<b>조타</b>를 누르십시오.', done: () => subOn('helm') },
-    { ch: 0, t: '침로를 소리 쪽으로', allow: ['#epCompass', '.epNudge button'],
+    { ch: 0, t: '침로를 소리 쪽으로', allow: ['#epCompass', '.epNudge button'], soft: true, keep: ['#boatChartDock'],
       text: g => '컴퍼스 링을 끌어 호박색 표식을 <b>' + p3(brgTo(g)) + '°</b>에 맞추십시오. 청음이 잡은 상선의 방위입니다. 톱니(1°·10°)로 다듬어도 됩니다.',
       done: g => Math.abs(diff(g.orders.heading.value, brgTo(g))) <= 8 },
     { ch: 0, t: '기관', allow: ['.epSubBar button[data-g="eng"]'], text: () => '<b>기관</b>을 누르십시오.', done: () => subOn('eng') },
@@ -42906,8 +42917,10 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     { ch: 0, t: '시간을 돌린다', allow: ['.epSubBar button[data-g="cmd"]', '#tsRow button[data-ts="4"]', '#tsRow button[data-ts="8"]'], spot: ['#tsRow button[data-ts="4"]'],
       text: () => '<b>명령</b> 묶음의 시간에서 <b>×4</b>를 누르십시오. 접근은 오래 걸립니다.',
       done: g => g.timeScale >= 4 },
-    { ch: 0, t: '접근 중', allow: ['#tsRow button'], spot: [],
-      text: g => '거리 <b>' + Math.round(rangeTo(g) / 10) * 10 + 'm</b>. <b>1,800m</b> 안으로 들어가면 잠망경 심도로 올라갑니다. 기다리십시오.',
+    { ch: 0, t: '접근 중', allow: ['#tsRow button', '#boatChartDock'], spot: ['#boatChartDock'], soft: true,
+      text: g => { const d = Math.abs(diff(g.boat.heading, brgTo(g)));
+        return '해도에서 초록 점이 점선을 따라 가는 것을 보십시오. 거리 <b>' + Math.round(rangeTo(g) / 10) * 10 + 'm</b> — <b>1,800m</b> 안이면 올라갑니다.' +
+          (d > 20 ? ' 소리가 옆으로 비껴갑니다(' + Math.round(d) + '°) — 상선도 움직이니 괜찮습니다.' : ''); },
       done: g => rangeTo(g) <= 1800, exit: () => { const b = document.querySelector('#tsRow button[data-ts="1"]'); if (b) b.click(); } },
     { ch: 0, t: '심도', allow: ['.epSubBar button[data-g="depth"]'], text: () => '<b>심도</b>를 누르십시오.', done: () => subOn('depth') },
     { ch: 0, t: '잠망경 심도로', allow: ['#epDepthSvg', '#depRow button[data-dp="PERISCOPE"]'], spot: ['#depRow button[data-dp="PERISCOPE"]'],
@@ -42974,6 +42987,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       const b = e.target.closest('button'); if (!b) return;
       if (b.dataset.act === 'quit') { if (confirm('기초 훈련을 그만둘까요? 판은 그대로 이어집니다.')) stop(); }
       else if (b.dataset.act === 'continue') stop();
+      else if (b.dataset.act === 'next') { S.nextHit = true; buzz(6); }
       else if (b.dataset.act === 'again') location.reload();
     });
   }
@@ -42997,7 +43011,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   document.addEventListener('touchstart', gate, { capture: true, passive: false });
 
   function enter(i) {
-    idx = i; const st = STEPS[i]; lastScrollStep = -1;
+    idx = i; const st = STEPS[i]; lastScrollStep = -1; S.nextHit = false;
+    if (st && st.next) st.done = () => S.nextHit;
     const g = U.state(); if (st && st.enter && g) st.enter(g);
     render(g, true);
   }
@@ -43021,15 +43036,20 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     /* 목표가 화면 밖이면 한 번 끌어온다 */
     if (fresh || lastScrollStep !== idx) { const el = firstEl(sels); if (el) { const b = el.getBoundingClientRect(); if (b.top < 120 || b.bottom > innerHeight - 70) try { el.scrollIntoView({ block: 'center' }); } catch (e) {} } lastScrollStep = idx; }
     const r = rectOf(sels);
-    if (r) { spot.className = ''; spot.style.left = (r.left - 6) + 'px'; spot.style.top = (r.top - 6) + 'px'; spot.style.width = (r.right - r.left + 12) + 'px'; spot.style.height = (r.bottom - r.top + 12) + 'px'; }
-    else { spot.className = 'none'; spot.style.left = '-20px'; spot.style.top = '-20px'; spot.style.width = '0px'; spot.style.height = '0px'; }
-    /* 카드는 목표를 가리지 않는 쪽에 */
-    const cy = r ? (r.top + r.bottom) / 2 : innerHeight;
-    if (cy > innerHeight * 0.5) { card.style.top = '106px'; card.style.bottom = 'auto'; } else { card.style.bottom = '66px'; card.style.top = 'auto'; }
+    const soft = st.soft ? ' soft' : '';
+    if (r) { spot.className = soft.trim(); spot.style.left = (r.left - 6) + 'px'; spot.style.top = (r.top - 6) + 'px'; spot.style.width = (r.right - r.left + 12) + 'px'; spot.style.height = (r.bottom - r.top + 12) + 'px'; }
+    else { spot.className = ('none' + soft); spot.style.left = '-20px'; spot.style.top = '-20px'; spot.style.width = '0px'; spot.style.height = '0px'; }
     const pct = Math.round(idx / STEPS.length * 100);
     card.className = '';
     card.innerHTML = '<div class="ch">' + CH[st.ch] + '<span>' + (idx + 1) + ' / ' + STEPS.length + '</span></div><h4>' + st.t + '</h4><p>' + (g ? st.text(g) : '') + '</p>' +
-      '<div class="foot"><div class="bar"><i style="width:' + pct + '%"></i></div><button type="button" data-act="quit">그만두기</button></div>';
+      '<div class="foot"><div class="bar"><i style="width:' + pct + '%"></i></div><button type="button" data-act="quit">그만두기</button>' +
+      (st.next ? '<button type="button" class="go" data-act="next">다음 ›</button>' : '') + '</div>';
+    /* 카드는 목표와 「보여야 할 곳」(해도 등)을 덜 가리는 쪽에 — 위 또는 아래 */
+    const keep = [r].concat((st.keep || []).map(k => rectOf([k]))).filter(Boolean);
+    const ch = card.offsetHeight || 120, topY = 58, botY = innerHeight - 64 - ch;
+    const cost = y => keep.reduce((a, k) => a + Math.max(0, Math.min(y + ch, k.bottom) - Math.max(y, k.top)), 0);
+    const y = cost(botY) <= cost(topY) ? botY : topY;
+    card.style.top = y + 'px'; card.style.bottom = 'auto';
   }
   function finish() {
     finished = true; spot.className = 'none'; spot.style.width = '0px';
@@ -43061,6 +43081,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
         setTimeout(() => { try { U.setAutocrewPreset('MANUAL'); } catch (e) {}
           const t1 = document.querySelector('#tsRow button[data-ts="1"]'); if (t1) t1.click();
           const situ = document.querySelector('#tabs button[data-tab="situ"]'); if (situ) situ.click();
+          const hv = document.querySelector('#viewRow button[data-view="hydro"]'); if (hv) hv.click();
           begin(); }, 700); }, 150);
     }, 250);
   }
