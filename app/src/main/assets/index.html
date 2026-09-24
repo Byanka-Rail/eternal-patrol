@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.27.2 Silhouette Art</title>
+<title>ETERNAL PATROL: Silent Seas — v6.27.3 Silhouette Fix</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -30495,7 +30495,8 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
      같은 표를 보므로 체크리스트와 어긋나지 않는다. 좌현이 뱃머리다(x 10 → 206). */
   function silGeom(spec) {
     if (!spec) return [];
-    const art = SIL_EP_ART[spec.kind];
+    /* 함급 고유 도형(profile)은 그대로 살리되 새 그림말로 다듬고, 함형 대표는 새 그림으로 */
+    const art = !spec.profile && SIL_EP_ART[spec.kind];
     return art ? art(spec) : silRefine(silGeomRaw(spec));
   }
   const EP_P = (pts, f, d) => ({ t: 'poly', pts: pts, f: f, d: d || 0 });
@@ -30544,7 +30545,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(epBox(102, 33, 16, 7, 'BRIDGE', 1));
       p.push.apply(p, epFunnels(spec, [112, 126], 26, 7, 14));
       p.push.apply(p, epDerrick(62, 47, 20)); p.push.apply(p, epDerrick(152, 50, 22));
-      p.push.apply(p, epTurret(194, 47, 4, -1, 4));
+      p.push.apply(p, epTurret(194, 47, 4, 1, 4));
       return p;
     },
     tanker: function (spec) {
@@ -30564,7 +30565,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(epBox(64, 32, 16, 6, 'BRIDGE', 1));
       p.push.apply(p, epFunnels(spec, [90, 104], 30, 7, 16));
       p.push.apply(p, epMast(60, 46, 24, false));
-      p.push.apply(p, epTurret(40, 45, 6, 1)); p.push.apply(p, epTurret(160, 50, 4, -1));
+      p.push.apply(p, epTurret(40, 45, 6, -1)); p.push.apply(p, epTurret(160, 50, 4, 1));
       p.push(EP_R(178, 48, 10, 2, 'DECK', 4, 0.5), EP_R(190, 48, 4, 2, 'DECK', 4, 0.5));
       return p;
     },
@@ -30576,7 +30577,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(EP_R(63, tall ? 23 : 27, 7, 3, 'GUN', 3));
       p.push.apply(p, epFunnels(spec, [88, 118], 26, 9, 19));
       p.push.apply(p, epMast(50, 44, 20, true));
-      p.push.apply(p, epTurret(34, 44, 7, 1)); p.push.apply(p, epTurret(160, 49, 7, -1)); p.push.apply(p, epTurret(186, 49, 7, -1));
+      p.push.apply(p, epTurret(34, 44, 7, -1)); p.push.apply(p, epTurret(160, 49, 7, 1)); p.push.apply(p, epTurret(186, 49, 7, 1));
       p.push(EP_R(132, 46, 14, 3, 'TORPEDO_TUBES', 3), EP_R(150, 46, 14, 3, 'TORPEDO_TUBES', 3));
       return p;
     },
@@ -30587,8 +30588,8 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(epBox(64, 26, 18, 7, 'BRIDGE', 1)); p.push(epBox(68, 21, 10, 5, 'BRIDGE', 1)); p.push(EP_R(70, 18, 6, 3, 'GUN', 3));
       p.push.apply(p, epFunnels(spec, [100, 120], 24, 10, 19));
       p.push.apply(p, epMast(58, 43, 17, true)); p.push.apply(p, epMast(148, 46, 24, false));
-      p.push.apply(p, epTurret(30, 42, 9, 1)); p.push(EP_R(41, 39, 10, 3, 'GUN', 3)); p.push.apply(p, epTurret(46, 39, 9, 1));
-      p.push.apply(p, epTurret(182, 46, 9, -1)); p.push.apply(p, epTurret(196, 47, 9, -1));
+      p.push.apply(p, epTurret(30, 42, 9, -1)); p.push(EP_R(41, 39, 10, 3, 'GUN', 3)); p.push.apply(p, epTurret(46, 39, 9, -1));
+      p.push.apply(p, epTurret(182, 46, 9, 1)); p.push.apply(p, epTurret(196, 47, 9, 1));
       if (spec.catapult) { p.push(EP_L(128, 42, 148, 40, 'CATAPULT', 4)); p.push.apply(p, epPlane(134, 39)); }
       return p;
     },
@@ -30599,8 +30600,8 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(epBox(72, 22, 20, 8, 'BRIDGE', 1)); p.push(epBox(76, 17, 12, 5, 'BRIDGE', 1)); p.push(EP_R(78, 14.5, 7, 2.5, 'GUN', 3));
       p.push.apply(p, epFunnels(spec, [108, 128], 21, 12, 21));
       p.push.apply(p, epMast(66, 42, 15, true)); p.push.apply(p, epMast(146, 46, 22, true));
-      p.push.apply(p, epTurret(30, 41, 11, 1, 3, true)); p.push(EP_R(44, 37, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(50, 37, 11, 1, 3, true));
-      p.push.apply(p, epTurret(184, 45, 11, -1, 3, true)); p.push.apply(p, epTurret(198, 46, 10, -1, 3, true));
+      p.push.apply(p, epTurret(30, 41, 11, -1, 3, true)); p.push(EP_R(44, 37, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(50, 37, 11, -1, 3, true));
+      p.push.apply(p, epTurret(184, 45, 11, 1, 3, true)); p.push.apply(p, epTurret(198, 46, 10, 1, 3, true));
       if (spec.catapult) { p.push(EP_L(136, 42, 158, 40, 'CATAPULT', 4)); p.push.apply(p, epPlane(142, 39)); }
       return p;
     },
@@ -30611,8 +30612,8 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push(epBox(78, 20, 22, 12, 'BRIDGE', 1)); p.push(epBox(82, 14.5, 14, 5.5, 'BRIDGE', 1)); p.push(EP_R(85, 12.5, 8, 2, 'GUN', 3));
       p.push.apply(p, epFunnels(spec, [106, 128], 19, 15, 13));
       p.push.apply(p, epMast(150, 40, 18, true));
-      p.push.apply(p, epTurret(34, 40, 16, 1, 3, true)); p.push(EP_R(48, 35, 18, 5, 'GUN', 3)); p.push.apply(p, epTurret(56, 35, 16, 1, 3, true));
-      p.push(EP_R(160, 41, 17, 4, 'GUN', 3)); p.push.apply(p, epTurret(168, 41, 16, -1, 3, true)); p.push.apply(p, epTurret(190, 45, 15, -1, 3, true));
+      p.push.apply(p, epTurret(34, 40, 16, -1, 3, true)); p.push(EP_R(48, 35, 18, 5, 'GUN', 3)); p.push.apply(p, epTurret(56, 35, 16, -1, 3, true));
+      p.push(EP_R(160, 41, 17, 4, 'GUN', 3)); p.push.apply(p, epTurret(168, 41, 16, 1, 3, true)); p.push.apply(p, epTurret(190, 45, 15, 1, 3, true));
       for (const x of [104, 116, 128]) p.push(EP_R(x, 29, 6, 3, 'GUN', 4, 0.5));
       return p;
     },
@@ -30639,14 +30640,23 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       return p;
     },
   };
-  /* 함급 고유 도형(예전 생성기)이 남아 있는 경우를 위한 다듬기 — 굴뚝은 기울이고 포탑은 어깨를 준다 */
+  /* 함급 고유 도형(예전 생성기)을 새 그림말로 다듬는다 — 굴뚝은 기울이고, 포탑은 어깨와 뱃머리 쪽 포신을 주고,
+     상자는 모서리를 깎고, 마스트에는 가로대를 단다. 선체와 배치는 그 함급의 것 그대로다. */
   function silRefine(parts) {
     const out = [];
-    for (const q of parts) {
-      const f = q.f || '';
+    for (let i = 0; i < parts.length; i++) {
+      const q = parts[i], f = q.f || '';
       if (q.t === 'rect' && f === 'FUNNEL') { out.push(Object.assign(epFunnel(q.x, q.y, q.w, q.h, q.d), { d: q.d })); continue; }
-      if (q.t === 'rect' && f === 'GUN' && q.h > 2.5) { out.push(Object.assign(epTurret(q.x + q.w / 2, q.y + q.h, q.w, 1, q.d)[0], { d: q.d })); continue; }
+      if (q.t === 'rect' && f === 'GUN' && q.h > 2.5) {
+        const cx = q.x + q.w / 2, nxt = parts[i + 1];
+        /* 예전 생성기는 몸통 다음에 포신을 넣었다 — 함께 다시 그린다. 앞쪽 포는 뱃머리(-x)를 본다 */
+        if (nxt && nxt.t === 'rect' && nxt.f === 'GUN' && nxt.h <= 2.5) i++;
+        const tw = Math.max(6, q.w);
+        for (const t of epTurret(cx, q.y + q.h, tw, cx < 110 ? -1 : 1, q.d)) out.push(t);
+        continue;
+      }
       if (q.t === 'rect' && (f === 'SUPER' || f === 'BRIDGE')) { out.push(epBox(q.x, q.y, q.w, q.h, f, q.d)); continue; }
+      if (q.t === 'line' && f === 'MAST' && q.x1 === q.x2 && (q.d || 0) === 2) { out.push(q); out.push(EP_L(q.x1 - 5, q.y2 + 7, q.x1 + 5, q.y2 + 7, 'MAST', 3)); continue; }
       out.push(q);
     }
     return out;
