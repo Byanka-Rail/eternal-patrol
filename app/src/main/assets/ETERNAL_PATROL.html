@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.31.3 Crisis Fix</title>
-<script id="ep-build">window.EP_BUILD='6.31.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.32.0 Contact Report</title>
+<script id="ep-build">window.EP_BUILD='6.32.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -24635,7 +24635,7 @@ window.UBOAT_LEARNING = (function () {
       game: '이 게임의 시점은 **1943년 3월** — 아직 유보트가 성과를 내던 마지막 시기다. 그래서 호위함이 한 척뿐이고 항공기도 없다.',
       simplified: [
         '적의 레이더는 없다. 전파 방향탐지(HF/DF)는 초계 사건 「방위 측정 경보」로, 호위 항공기는 전략 지도의 항공 초계로 들어 있다.',
-        '늑대떼(여러 척의 협동)는 없다. 무전 보고는 전략 지도에서 들어온다.',
+        '늑대떼는 전술 화면에 나오지 않는다. 대신 선단 접촉 보고를 보내면 다른 보트의 공격 결과가 몇 시간 뒤 전략 지도의 무전으로 돌아온다(흩어진 선단·끌려간 호위). 무전 보고는 전략 지도에서도 들어온다.',
       ],
       myth: ['"유보트는 전쟁 내내 강했다" — 아니다. 강했던 기간은 짧았고, 그 뒤로는 대부분 돌아오지 못했다.'],
     },
@@ -43671,6 +43671,221 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildOpt, { once: true }); else buildOpt();
   window.EP_V631_PERIFX = { version: '6.31.1', get cost() { return +WB.cost.toFixed(1); }, get scale() { return WB.s; }, get enabled() { return enabled; }, set enabled(v) { enabled = !!v; } };
+})();
+</script>
+<style id="ep-v632-pack-style">
+/* ══════════ V6.32 접촉 보고 — 다른 보트를 부른다 ══════════ */
+#epEncReport{ width:100%; margin-top:7px; border-color:var(--sky) !important; color:var(--sky) !important; }
+#epEncReport small{ display:block; font-size:10.5px; color:var(--dim); font-weight:400; margin-top:2px; }
+#epEncReport:disabled{ opacity:.45; }
+#epRadioCard.epHide{ display:none !important; }
+#epRadioCard .st{ font-size:12px; color:var(--dim); line-height:1.5; margin:2px 0 8px; }
+#epRadioCard .st b{ color:var(--ink); font-weight:600; }
+#epRadioCard .st .warn{ color:var(--amber); }
+#epRadioBtn{ width:100%; min-height:46px; border-radius:9px; border:1px solid var(--sky); background:var(--btnBg); color:var(--sky); font-size:13px; font-weight:600; position:relative; overflow:hidden; }
+#epRadioBtn::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--p,0%); background:var(--sky); opacity:.16; }
+#epRadioBtn span{ position:relative; }
+#epRadioBtn:disabled{ opacity:.45; }
+</style>
+<script id="ep-v632-pack-script">
+/* 선단을 찾으면 사령부에 보고할 수 있다. 보고가 들어가면 근처의 다른 보트가 몇 시간 뒤 그 선단을 친다 —
+   그 결과는 전략 지도의 무전으로 돌아온다(흩어진 선단, 끌려간 호위, 남은 선단의 새 위치).
+   다른 잠수함을 전술 화면에 띄우지는 않는다: 「늑대떼는 없다」는 원칙은 지키고, 보고의 값과 대가만 들인다.
+   대가는 전파 방향탐지 — 송신이 길수록, 대서양일수록 잡히기 쉽다. */
+(function EP_PACK(){
+  'use strict';
+  const U = window.UBOAT, CP = window.Campaign; if (!U || !CP) return;
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { let s = seed >>> 0 || 1; return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; }; }
+  const log = (C, text, who, kind) => { C.log.unshift({ h: C.hours, text, who: who || 'radio', kind: kind || 'radio' }); if (C.log.length > 120) C.log.pop(); };
+  const THK = { ATLANTIC: '대서양', MEDITERRANEAN: '지중해', PACIFIC: '서태평양', EASTPAC: '동태평양' };
+  /* 전구마다 — 보고를 받고 달려올 보트가 얼마나 있나, 방향탐지가 얼마나 무서운가 */
+  const PACK = {
+    ATLANTIC:      { boats: 2.4, sinkP: 0.34, df: 0.42, name: '늑대떼' },
+    MEDITERRANEAN: { boats: 0.9, sinkP: 0.30, df: 0.34, name: '인근 보트' },
+    PACIFIC:       { boats: 1.2, sinkP: 0.30, df: 0.16, name: '협동 초계' },
+    EASTPAC:       { boats: 0.45, sinkP: 0.26, df: 0.26, name: '인근 잠수함' },
+  };
+  const pk = C => PACK[C.theater] || PACK.ATLANTIC;
+
+  /* ── 보고를 받아 시간 뒤에 풀릴 공격을 걸어 둔다 ── */
+  function schedule(C, enc, q, source, sunkByUs) {
+    if (!enc || enc.kind !== 'CONVOY') return null;
+    const R = rng(hash((C.seed || 0) + '|' + enc.id + '|pack'));
+    C.packs = C.packs || [];
+    if (C.packs.some(p => p.encId === enc.id)) return null;
+    const p = { id: 'P' + enc.id, encId: enc.id, at: C.hours, due: C.hours + 6 + R() * 8, q: +q.toFixed(2), source,
+      x: enc.x, y: enc.y, course: enc.course, speedKn: enc.speedKn, route: enc.route || null, grid: enc.grid,
+      ships: Math.max(0, (enc.ships || 0) - (sunkByUs || 0)), escorts: enc.escorts || 0, done: false };
+    C.packs.push(p);
+    return p;
+  }
+  /* 방향탐지 — 송신 길이와 전구에 따라. 잡히면 전략 지도의 「방위 측정 경보」 */
+  function strategicDF(C, seconds, tag) {
+    const risk = clamp(pk(C).df + Math.max(0, seconds - 10) * 0.012, 0, 0.88);
+    const R = rng(hash((C.seed || 0) + '|' + tag + '|df'));
+    C.alert = clamp((C.alert || 0) + 0.03 + risk * 0.06, 0, 1);
+    if (R() < risk) {
+      let fired = null; try { fired = CP._firePatrolEvent ? CP._firePatrolEvent('RADIO_FIX') : null; } catch (e) {}
+      if (!fired) { C.alert = clamp(C.alert + 0.2, 0, 1); log(C, '송신이 잡혔다는 경고 — 이 구역의 경계가 오른다.', 'radio', 'radio'); }
+      return true;
+    }
+    return false;
+  }
+  /* ── 때가 된 공격을 푼다 ── */
+  function tick() {
+    const C = CP.state(); if (!C || !C.packs) return false;
+    let changed = false;
+    for (const p of C.packs) {
+      if (!p.done && C.hours >= p.due) { resolvePack(C, p); changed = true; }
+      if (p.done && p.cut && !p.restored && C.hours >= p.boostUntil) { C.escortBonus = (C.escortBonus || 0) + p.cut; p.restored = true; changed = true; }
+    }
+    if (C.packs.length > 12) C.packs = C.packs.filter(p => !p.done || !p.restored || C.hours - p.due < 72);
+    return changed;
+  }
+  function resolvePack(C, p) {
+    p.done = true;
+    const P = pk(C), R = rng(hash((C.seed || 0) + '|' + p.id + '|resolve'));
+    /* 달려온 보트 수 — 보고의 질과 늦음에 따라 */
+    const lateness = clamp((C.hours - p.at) / 24, 0, 1);
+    const mean = P.boats * (0.55 + 0.7 * p.q) * (1 - 0.3 * lateness);
+    let boats = 0; for (let i = 0; i < 6; i++) if (R() < mean / 6) boats++;
+    if (p.ships <= 0) { log(C, '무전 — 보고한 선단은 이미 흩어졌다. 다른 보트가 잡을 것이 없었다.'); return; }
+    if (!boats) { log(C, '무전 — 보고는 들어갔지만 ' + P.name + '가 선단에 닿지 못했다.'); C.intel = (C.intel || 0) + 1; return; }
+    let sunk = 0; for (let b = 0; b < boats; b++) for (let k = 0; k < 2; k++) if (R() < P.sinkP) sunk++;
+    sunk = Math.min(sunk, Math.max(0, p.ships - 1));
+    const pulled = Math.min(p.escorts, Math.round(boats * (0.35 + R() * 0.4)));
+    const left = Math.max(1, p.ships - sunk);
+    /* 남은 선단의 지금 자리 — 침로와 속력으로 밀어 둔다 */
+    let nx = p.x, ny = p.y;
+    try { const th = window.THEATERS.THEATERS[C.theater], cell = th.grid.nmPerCell || 30, d = (p.speedKn * (C.hours - p.at)) / cell;
+      nx = p.x + Math.sin(p.course * Math.PI / 180) * d; ny = p.y - Math.cos(p.course * Math.PI / 180) * d; } catch (e) {}
+    const rep = { id: 'R' + p.id, x: nx, y: ny, at: C.hours, route: p.route, course: Math.round(p.course), speedKn: Math.max(4, Math.round(p.speedKn - 1)),
+      size: left, escorts: Math.max(0, p.escorts - pulled), strength: 1, pack: true, scattered: sunk > 0 };
+    try { rep.grid = window.THEATERS.gridName(C.theater, nx, ny); } catch (e) { rep.grid = p.grid; }
+    C.reports = C.reports || []; C.reports.unshift(rep); if (C.reports.length > 12) C.reports.pop();
+    /* 호위가 끌려간 동안(하루) 이 근처의 선단은 호위가 얇다 */
+    if (pulled > 0) { p.cut = pulled; p.boostUntil = C.hours + 24; C.escortBonus = (C.escortBonus || 0) - pulled; }
+    C.intel = (C.intel || 0) + Math.round(2 + p.q * 5);
+    C.disruption = (C.disruption || 0) + sunk * 2;
+    C.packLog = C.packLog || []; C.packLog.push({ h: C.hours, boats, sunk, pulled, grid: rep.grid });
+    const parts = [P.name + ' ' + boats + '척이 선단을 쳤다'];
+    parts.push(sunk ? sunk + '척 격침 보고' : '격침은 없다');
+    if (pulled) parts.push('호위 ' + pulled + '척이 뒤처진 배를 쫓아 떨어져 나갔다');
+    log(C, '무전 — ' + parts.join(' · ') + '. 남은 선단 ' + left + '척이 ' + rep.grid + ' 부근, 침로 ' + String(rep.course).padStart(3, '0') + '도.' +
+      (pulled ? ' 지금은 호위가 얇다.' : ''), 'radio', 'report');
+  }
+
+  /* ── 전략 지도: 교전 전에 「보고하고 흘려보낸다」 ── */
+  function buildEnc() {
+    const skip = $('encSkip'); if (!skip || $('epEncReport')) return;
+    const b = document.createElement('button'); b.id = 'epEncReport'; b.type = 'button';
+    b.innerHTML = '접촉 보고 — 다른 보트를 부른다<small>교전하지 않는다 · 송신은 방향탐지 위험</small>';
+    skip.parentNode.insertBefore(b, skip);
+    b.addEventListener('click', () => {
+      const C = CP.state(), enc = C && C.pendingEncounter; if (!enc) return;
+      if (!C.surfaced) { b.querySelector('small').textContent = '부상해야 안테나를 쓸 수 있다 — 지도에서 부상 후 다시'; return; }
+      const p = schedule(C, enc, 0.45, 'strategic', 0);
+      skip.click();                                          /* 흘려보내기 — 원래 경로 그대로 */
+      if (p) {
+        log(C, '접촉 보고 송신 — ' + enc.grid + ', 선단 침로 ' + String(enc.course).padStart(3, '0') + '도. 사령부가 받았다.', 'radio', 'radio');
+        if (strategicDF(C, 14, p.id)) log(C, '송신이 길었다 — 방향탐지에 걸렸을 수 있다.', 'exec');
+      }
+      try { CP.save(); } catch (e) {}
+    });
+    const ov = $('ovEnc');
+    const sync = () => { const C = CP.state(), enc = C && C.pendingEncounter; const show = !!(enc && enc.kind === 'CONVOY');
+      b.style.display = show ? '' : 'none'; b.disabled = !(C && C.surfaced);
+      const sm = b.querySelector('small'); if (sm) sm.textContent = C && C.surfaced ? '교전하지 않는다 · 송신은 방향탐지 위험(' + (THK[C.theater] || '') + ')' : '부상해야 안테나를 쓸 수 있다'; };
+    if (ov) new MutationObserver(sync).observe(ov, { attributes: true, attributeFilter: ['class'] });
+    sync();
+  }
+
+  /* ── 전술 화면: 교전 중 보고(함내 → 명령) ── */
+  let tx = null, sent = null;                                /* 이번 교전의 송신 상태 */
+  function encNow() { const C = CP.state(); return C && C.pendingEncounter && C.pendingEncounter.kind === 'CONVOY' ? C.pendingEncounter : null; }
+  function quality(g) {
+    const cs = (g.contacts || []), n = cs.length;
+    const classified = cs.some(c => c.ident && (c.ident.saved || (c.ident.topP || 0) > 0.6));
+    const solved = cs.some(c => { try { const s = U.solution(c.id); return s && s.ready && (c.solutionConfidence || 0) > 0.5; } catch (e) { return false; } });
+    const q = clamp(0.30 + (n ? 0.14 : 0) + (classified ? 0.24 : 0) + (solved ? 0.22 : 0) + Math.min(0.10, n * 0.025), 0, 1);
+    const dur = Math.round(clamp(9 + Math.min(5, n) + (classified ? 4 : 0) + (solved ? 6 : 0) + q * 3, 10, 28));
+    return { q, dur, n, classified, solved };
+  }
+  function tacticalDF(g, progress, dur) {
+    const C = CP.state(); if (!C) return false;
+    const risk = clamp((pk(C).df + Math.max(0, dur - 10) * 0.012) * clamp(progress, 0, 1), 0, 0.88);
+    const R = rng(hash((C.seed || 0) + '|' + (encNow() || {}).id + '|tac|' + Math.floor(g.time)));
+    if (R() < risk) { try { U.historicalRadioFix(clamp(0.35 + risk * 0.65, 0, 1)); } catch (e) {} return true; }
+    return false;
+  }
+  function buildCard() {
+    if ($('epRadioCard')) return;
+    const pane = document.querySelector('.pane[data-pane="boat"]'); if (!pane) return;
+    const ref = [...pane.children].find(c => c.classList.contains('card') && /^시간/.test((c.querySelector(':scope > h3') || {}).textContent || ''));
+    const card = document.createElement('div'); card.className = 'card epHide'; card.id = 'epRadioCard';
+    card.innerHTML = '<h3>무전</h3><div class="st" id="epRadioSt"></div><button type="button" id="epRadioBtn"><span>선단 접촉 보고 송신</span></button>';
+    if (ref && ref.nextSibling) pane.insertBefore(card, ref.nextSibling); else pane.appendChild(card);
+    card.dataset.epGroup = 'cmd';
+    $('epRadioBtn').addEventListener('click', () => {
+      const g = U.state(), enc = encNow(); if (!g || !enc) return;
+      if (tx) { const prog = (g.time - tx.start) / tx.dur; if (prog > 0.15) tacticalDF(g, prog, tx.dur); tx = null; render(); return; }
+      if (sent) return;
+      if (!(U.isSurfaced && U.isSurfaced(g.boat))) { flashSt('안테나를 쓰려면 부상해야 합니다.'); return; }
+      const qq = quality(g); if (!qq.n) { flashSt('보고할 접촉이 없습니다.'); return; }
+      tx = { start: g.time, dur: qq.dur, q: qq.q, enc: enc.id }; render();
+    });
+  }
+  let stMsg = null, stUntil = 0;
+  function flashSt(m) { stMsg = m; stUntil = performance.now() + 3000; render(); }
+  function render() {
+    const card = $('epRadioCard'); if (!card) return;
+    const enc = encNow(), g = U.state();
+    card.classList.toggle('epHide', !enc || !g);
+    if (!enc || !g) return;
+    if (sent && sent.enc !== enc.id) sent = null;          /* 다른 교전 */
+    const st = $('epRadioSt'), btn = $('epRadioBtn'), sp = btn.querySelector('span');
+    const qq = quality(g), P = pk(CP.state());
+    if (stMsg && performance.now() < stUntil) st.innerHTML = '<span class="warn">' + stMsg + '</span>';
+    else if (sent) st.innerHTML = '보고 <b>송신 완료</b>(' + (sent.q >= 0.78 ? '양호' : sent.q >= 0.55 ? '보통' : '거친 보고') + '). 몇 시간 뒤 ' + P.name + '의 공격 결과가 무전으로 옵니다.';
+    else if (tx) st.innerHTML = '송신 중 — <b>' + Math.max(0, Math.ceil(tx.start + tx.dur - g.time)) + '초</b>. 잠항하면 끊깁니다. 이미 나간 전파는 방향탐지에 잡힐 수 있습니다.';
+    else st.innerHTML = '사령부에 보고하면 ' + P.name + '가 이 선단을 칩니다. 송신 약 <b>' + qq.dur + '초</b>, 부상 필요.' +
+      ' 분류·해법이 있으면 보고가 정확해지지만 길어집니다. <span class="warn">송신이 길수록 방향탐지 위험.</span>';
+    btn.disabled = !!sent;
+    sp.textContent = sent ? '보고 완료' : tx ? '송신 중지' : '선단 접촉 보고 송신';
+    btn.style.setProperty('--p', tx ? clamp((g.time - tx.start) / tx.dur, 0, 1) * 100 + '%' : '0%');
+  }
+  function tacticalTick() {
+    const g = U.state(), enc = encNow();
+    if (tx && g && enc) {
+      if (!(U.isSurfaced && U.isSurfaced(g.boat))) { const prog = (g.time - tx.start) / tx.dur; if (prog > 0.15) tacticalDF(g, prog, tx.dur); tx = null; flashSt('송신 중단 — 잠항해 안테나가 물에 잠겼습니다.'); }
+      else if (g.time >= tx.start + tx.dur) { tacticalDF(g, 1, tx.dur); sent = { enc: enc.id, q: tx.q }; tx = null;
+        try { if (window.Snd && Snd.event) Snd.event('radio', { urgent: false }); } catch (e) {} }
+    } else if (tx && !enc) tx = null;
+    if (document.querySelector('.pane.on[data-pane="boat"]')) render();
+  }
+
+  /* ── 교전 결과를 초계에 넘길 때 보고를 함께 넘긴다 ── */
+  const origResolve = CP.resolveEncounter;
+  CP.resolveEncounter = function (aar) {
+    const C = CP.state(), enc = C && C.pendingEncounter;
+    const r = origResolve.apply(this, arguments);
+    try {
+      if (enc && sent && sent.enc === enc.id) {
+        const p = schedule(C, enc, sent.q, 'tactical', aar && aar.sunkCount || 0);
+        if (p) log(C, '교전 중 보낸 접촉 보고가 사령부에 들어갔다 — ' + pk(C).name + '가 선단 쪽으로 움직인다.', 'radio', 'radio');
+      }
+    } catch (e) {}
+    sent = null; tx = null;
+    return r;
+  };
+  const origAdvance = CP.advance;
+  CP.advance = function () { const r = origAdvance.apply(this, arguments); try { tick(); } catch (e) {} return r; };
+
+  function init() { buildEnc(); buildCard(); setInterval(tacticalTick, 400); window.EP_V632_PACK = { version: '6.32.0', tick, resolvePack, schedule }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
