@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.34.0 Voyage Life</title>
-<script id="ep-build">window.EP_BUILD='6.34.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.34.1 Voyage Life</title>
+<script id="ep-build">window.EP_BUILD='6.34.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -36003,7 +36003,7 @@ window.Lang.add('ja', {
       if (c2 && c2.navMode !== 'ROUTE' && !c2.pendingEncounter) stopVoyageTimer();
       Campaign.save();
       if(Date.now()-autoSaveLastV625>30000) autoSaveV625('항해 중');
-    }, 110);
+    }, 160);   /* v6.34.1 — 항해 시간을 조금 느리게(실제 1초에 약 3.1시간, 예전 4.5시간) */
     renderWorldPanel();
   }
   function stopVoyageTimer() {
@@ -44194,7 +44194,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     if (C.log.length > 120) C.log.length = 120;
     return { id: 'EP' + C._epChatSeq, at: C.hours, context: ctx, role: ls[0].who, lines: ls };
   }
-  /* 언제 — 대화는 22~40시간(항해 중 실제 5~9초)마다, 볼거리는 40~80시간마다 70%.
+  /* 언제 — 대화는 40~70시간(항해 중 실제 13~22초)마다, 볼거리는 80~140시간마다 60%.
      접촉·선택·높은 경계 중에는 쉰다. 모항 코앞과 첫 네 시간도 쉰다. */
   function quiet(C) { return !C || C.status !== 'AT_SEA' || C.pendingEncounter || C.pendingChoice || (C.alert || 0) > 0.55 || C.hours < 4; }
   function lang() { try { return window.Lang && window.Lang.get ? window.Lang.get() : 'ko'; } catch (e) { return 'ko'; } }
@@ -44204,14 +44204,14 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     try {
       const C = CP.state(); if (quiet(C) || lang() !== 'ko') return r;
       const evs = r && r.events; if (!evs || evs.some(e => e.kind === 'CREW_CHAT')) return r;   /* 원래 대화와 겹치지 않게 */
-      if (C._epTalkAt == null) C._epTalkAt = C.hours + 6 + Math.random() * 10;
-      if (C._epSightAt == null) C._epSightAt = C.hours + 20 + Math.random() * 30;
+      if (C._epTalkAt == null) C._epTalkAt = C.hours + 12 + Math.random() * 16;
+      if (C._epSightAt == null) C._epSightAt = C.hours + 40 + Math.random() * 40;
       if (C.hours >= C._epSightAt) {
-        C._epSightAt = C.hours + 40 + Math.random() * 40;
-        if (Math.random() < 0.7) { const s = chooseSight(C); if (s) { try { if (s.fx) s.fx(C); } catch (e) {} evs.push({ kind: 'CREW_CHAT', chat: toChat(C, s.t, 'SIGHT') }); C._epTalkAt = Math.max(C._epTalkAt, C.hours + 8); return r; } }
+        C._epSightAt = C.hours + 80 + Math.random() * 60;
+        if (Math.random() < 0.6) { const s = chooseSight(C); if (s) { try { if (s.fx) s.fx(C); } catch (e) {} evs.push({ kind: 'CREW_CHAT', chat: toChat(C, s.t, 'SIGHT') }); C._epTalkAt = Math.max(C._epTalkAt, C.hours + 8); return r; } }
       }
       if (C.hours >= C._epTalkAt) {
-        C._epTalkAt = C.hours + 22 + Math.random() * 18;
+        C._epTalkAt = C.hours + 40 + Math.random() * 30;
         const t = chooseTalk(C); if (t) evs.push({ kind: 'CREW_CHAT', chat: toChat(C, t.lines, t.key) });
       }
     } catch (e) {}
