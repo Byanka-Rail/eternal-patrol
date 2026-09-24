@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.31.1 Periscope Ocean</title>
-<script id="ep-build">window.EP_BUILD='6.31.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.31.2 Periscope Horizon</title>
+<script id="ep-build">window.EP_BUILD='6.31.2';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -43412,6 +43412,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     const deep = mix(mix([9, 24, 32], skyHor, 0.14 * (1 - pal.n)), [4, 8, 11], pal.p.dark * 0.4);
     const scatter = mix([22, 58, 66], skyHor, 0.3);        /* 파도 등을 비껴 지나온 빛 — 청록 */
     const visD = 2500 + pal.vis * 18000;
+    /* 먼 물이 녹아드는 빛 — 하늘 수평선보다 어둡게. 시정이 좋을수록 대비가 크다(안개면 거의 같아진다) */
+    const seaHaze = mix(skyHor, mix(deep, [0, 0, 0], 0.2), 0.3 + 0.32 * pal.vis * (1 - pal.p.dark * 0.5));
     const SX = 1.35;                                        /* 기울기 과장 — 잠망경 눈높이에서 결이 보이게 */
     const foamOn = sea >= 3, foamT = 0.44 - (sea - 3) * 0.05;
     let farR = 0, farG = 0, farB = 0, farN = 0;
@@ -43448,7 +43450,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
         let cr = lerp(skyHor[0], skyTop[0], kSky), cg = lerp(skyHor[1], skyTop[1], kSky), cb = lerp(skyHor[2], skyTop[2], kSky);
         /* 아래를 향한 반사는 바다(어둠)를 비춘다 — 경계를 부드럽게 넘어가야 줄무늬가 안 생긴다 */
         if (rz < 0.02) { const dk = 1 - 0.42 * smooth(0.02, -0.12, rz); cr *= dk; cg *= dk * 1.02; cb *= dk * 1.03; }
-        const F = 0.02 + 0.98 * Math.pow(1 - nv, 5);
+        /* 스치듯 보아도 물은 하늘을 다 비추지 못한다(물결 면의 절반은 제 그늘) — 그래서 바다 수평선은 하늘보다 어둡다 */
+        const F = 0.02 + 0.76 * Math.pow(1 - nv, 5);
         const sc = clamp(0.25 + gx * 0.4 - gy * 0.2, 0, 1) * 0.35;    /* 파도 앞면이 물빛을 조금 더 */
         let r = lerp(lerp(deep[0], scatter[0], sc), cr, F), gg = lerp(lerp(deep[1], scatter[1], sc), cg, F), bb = lerp(lerp(deep[2], scatter[2], sc), cb, F);
         /* 해 */
@@ -43460,7 +43463,9 @@ body.epTutOn .lrn-hl{ outline:none !important; }
             r = lerp(r, 214, fa); gg = lerp(gg, 224, fa); bb = lerp(bb, 226, fa); } }
         /* 대기 — 먼 물은 수평선 빛으로 */
         const hz = 1 - Math.exp(-dist / visD);
-        r = lerp(r, skyHor[0], hz * 0.9); gg = lerp(gg, skyHor[1], hz * 0.9); bb = lerp(bb, skyHor[2], hz * 0.9);
+        r = lerp(r, seaHaze[0], hz * 0.9); gg = lerp(gg, seaHaze[1], hz * 0.9); bb = lerp(bb, seaHaze[2], hz * 0.9);
+        /* 수평선 바로 아래 먼 물은 한 번 더 어둡게 — 하늘과 바다를 가르는 선이 생긴다 */
+        const edgeK = 1 - (0.1 + 0.16 * pal.vis) * (1 - smooth(0.0, 0.025, sd)); r *= edgeK; gg *= edgeK; bb *= edgeK;
         D[p] = r > 255 ? 255 : r; D[p + 1] = gg > 255 ? 255 : gg; D[p + 2] = bb > 255 ? 255 : bb;
         D[p + 3] = clamp(delDeg * ppd * s * 2.5, 0, 1) * 255;           /* 수평선 가장자리 부드럽게 */
         if (delDeg > 0.1 && delDeg < 0.4) { farR += r; farG += gg; farB += bb; farN++; }
@@ -43544,10 +43549,15 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       ctx.imageSmoothingEnabled = true; try { ctx.imageSmoothingQuality = 'high'; } catch (e) {}
       ctx.drawImage(water.cv, 0, 0, water.bw, water.bh, 0, water.yTop, W, water.bh / water.s);
     }
-    /* 수평선 연무 */
-    const hz = ctx.createLinearGradient(0, baseY - 10, 0, baseY + 8);
-    hz.addColorStop(0, rgb(pal.hor, 0)); hz.addColorStop(0.55, rgb(pal.hor, 0.35 + (1 - pal.vis) * 0.4)); hz.addColorStop(1, rgb(pal.hor, 0));
-    ctx.fillStyle = hz; ctx.fillRect(0, baseY - 10, W, 18);
+    /* 수평선 — 곧은 선(배의 옆질만큼 기운다). 멀리 있는 바다의 윗선은 물결로 굽지 않는다.
+       배는 waveY 를 이 선보다 위로 못 올라가게 고쳐서(아래 FX.waveY), 언제나 물 위에 앉는다. */
+    const hy = x => baseY + tilt * (x - cx);
+    const hz = ctx.createLinearGradient(0, baseY - 16, 0, baseY);
+    hz.addColorStop(0, rgb(pal.hor, 0)); hz.addColorStop(1, rgb(mix(pal.hor, [255, 255, 255], 0.07), 0.3 + (1 - pal.vis) * 0.3));
+    ctx.fillStyle = hz; ctx.beginPath(); ctx.moveTo(0, hy(0) - 16); ctx.lineTo(W, hy(W) - 16); ctx.lineTo(W, hy(W)); ctx.lineTo(0, hy(0)); ctx.closePath(); ctx.fill();
+    const far = water ? water.farCol : pal.hor;
+    ctx.strokeStyle = rgb(mix(far, [0, 0, 0], 0.3), 0.2 + 0.5 * pal.vis * (1 - pal.p.dark * 0.4)); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, hy(0) + 0.5); ctx.lineTo(W, hy(W) + 0.5); ctx.stroke();
     return { baseY, frame: fr, visibility: clamp(+opt.visibility || 0.25, 0.25, 1), seaState: sea, time, phase, _fx: { pal, vw, ppd, water, farCol: water ? water.farCol : pal.hor } };
   }
 
@@ -43561,15 +43571,15 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     const wt = env._fx.water;
     if (wt) {
       ctx.save(); ctx.beginPath(); ctx.moveTo(0, H);
-      for (let x = 0; x <= W + 8; x += 6) ctx.lineTo(x, ORIG.waveY(x, W, env.baseY, sea, time, 2, phase, fr));
+      for (let x = 0; x <= W + 8; x += 6) ctx.lineTo(x, waveYFX(x, W, env.baseY, sea, time, 2, phase, fr));
       ctx.lineTo(W, H); ctx.closePath(); ctx.clip();
       ctx.imageSmoothingEnabled = true; ctx.drawImage(wt.cv, 0, 0, wt.bw, wt.bh, 0, wt.yTop, W, wt.bh / wt.s);
       ctx.restore();
     }
     /* 수평선 쪽 대기 — 먼 배를 하늘빛으로 옅게 */
-    const hz = ctx.createLinearGradient(0, env.baseY - 26, 0, env.baseY + 4);
-    hz.addColorStop(0, rgb(pal.hor, 0)); hz.addColorStop(1, rgb(pal.hor, 0.12 + (1 - pal.vis) * 0.35));
-    ctx.fillStyle = hz; ctx.fillRect(0, env.baseY - 26, W, 30);
+    const hz = ctx.createLinearGradient(0, env.baseY - 26, 0, env.baseY - 2);
+    hz.addColorStop(0, rgb(pal.hor, 0)); hz.addColorStop(1, rgb(pal.hor, 0.06 + (1 - pal.vis) * 0.3));
+    ctx.fillStyle = hz; ctx.fillRect(0, env.baseY - 26, W, 24);
     /* 비 */
     if (pal.id === 'squall' || pal.id === 'gale') {
       const n = pal.id === 'squall' ? 140 : 90, R = rng(Math.floor(time * 24) + 11), slant = pal.id === 'gale' ? 0.42 : 0.2;
@@ -43619,7 +43629,21 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     }
   }
 
-  const FX = { quality: ORIG.quality, phaseOf: ORIG.phaseOf, frame: ORIG.frame, waveY: ORIG.waveY, paintBase, paintForeground, paintFog, __fx: true };
+  /* 배의 물선이 수평선 위로 뜨면 배가 공중에 뜬 것처럼 보인다. 먼 배는 너울에 **가라앉았다 올라오기만** 한다 —
+     물선은 수평선보다 위로 못 가고, 배의 오르내림(targetBob)은 아래쪽만 쓴다. 가려지는 선체는 앞 물결이 덮는다. */
+  function frameFX(seaState, time, phase) {
+    const f = ORIG.frame(seaState, time, phase); if (!enabled) return f;
+    return Object.assign({}, f, { targetBob: Math.abs(f.targetBob) * 0.45 });
+  }
+  function waveYFX(x, W, baseY, seaState, time, layer, phase, fr) {
+    const o = ORIG.waveY(x, W, baseY, seaState, time, layer, phase, fr); if (!enabled) return o;
+    const f = fr || ORIG.frame(seaState, time, phase), flat = baseY + Math.tan(f.roll) * (x - W / 2);
+    const L = layer || 0;
+    /* 3~6km 밖 너울이 보이는 각도는 한 화소도 안 된다 — 배가 앉는 물선은 거의 곧게 */
+    if (L === 0) return flat + 0.4 + 0.6 * f.n * Math.sin(x / 57 + time * 0.5 + phase);
+    return Math.max(flat + 1.2 + L * 0.9, o);
+  }
+  const FX = { quality: ORIG.quality, phaseOf: ORIG.phaseOf, frame: frameFX, waveY: waveYFX, paintBase, paintForeground, paintFog, __fx: true };
   window.ObservationVisuals = FX;
 
   /* ── 옵션 — 잠망경 그래픽: 기본 / 향상(시험) ── */
