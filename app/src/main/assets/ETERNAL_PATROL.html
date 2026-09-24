@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.29.0 Basic Tutorial</title>
+<title>ETERNAL PATROL: Silent Seas — v6.29.1 Basic Tutorial</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -42831,6 +42831,10 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<style id="ep-v6291-hide-train">
+/* V6.29.1 — 「전투 훈련」 메뉴는 기초 훈련(첫 출항)으로 대신한다. 단추만 감춘다 — 훈련 코드·기록은 남긴다. */
+#btnTrain{ display:none !important; }
+</style>
 <style id="ep-v629-tutorial-style">
 /* ══════════ V6.29 기초 훈련 — 첫 출항 ══════════
    세 가지만 가르친다: ① 접근해서 잠망경으로 본다 ② 두 번 보고 쏜다 ③ 잠항해서 빠진다.
