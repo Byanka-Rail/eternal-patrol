@@ -1,0 +1,20 @@
+ETERNAL PATROL v6.28.1 변경사항 — 함급 고유 실루엣 나머지 40장
+
+기준본: v6.28.0. SIL_EP_CLASS2 표 추가(설정표 방식 epShip). 이제 60개 함급 전부 고유 그림이다. 규칙·데이터 변경 없음.
+
+1. 새로 그린 함급(40)
+- 상선·유조선: 연안 화물선 · C3 · 냉동선 · 소형 유조선 · 함대유조선
+- 소형 호위: Black Swan · SC(미 잠수함추적정) · 駆潜艇
+- 구축함: V·W · Soldati · Mahan
+- 경순양함: Dido(앞 3·뒤 2 연장포탑) · Leander(굴뚝 하나) · Crown Colony · Condottieri(선수 사출기) · 阿賀野 · Omaha(4연돌) · Brooklyn(앞 3·뒤 2 3연장, 함미 격납고 크레인)
+- 중순양함: Zara · 利根(주포 넷 모두 앞, 함미 항공갑판) · New Orleans · Pensacola(앞 2연장 아래·3연장 위)
+- 전함: KGV(4연장 앞·뒤, 2연장 위) · Queen Elizabeth(굴뚝 하나) · Renown(3연장 15인치 셋) · Littorio · 大和(거대 단일 굴뚝, 파고다) · Colorado(새장 마스트 둘, 굴뚝 하나) · North Carolina
+- 항공모함: Illustrious · Bogue · Attacker(측면 배기) · 飛鷹(경사 굴뚝 섬) · 瑞鳳(섬 없음, 우현 아래로 굽은 굴뚝) · Lexington(거대 굴뚝)
+- 수상기모함: 千歳 · 日進 · 秋津洲(거대 함미 크레인) · Curtiss · Tangier
+- 예전 생성기(silGeomRaw)와 다듬기(silRefine)는 profile 없는 임시 함급이 생길 때를 위해 남긴다.
+
+2. 검증
+- 60개 함급 전부 SVG 렌더 확인(누락 0, 예외 0). 인라인 스크립트 문법 통과.
+
+3. 유지
+- app/src/main/assets/index.html · ETERNAL_PATROL.html 동일 HTML. <title> v6.28.1.
