@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.34.3 Voyage Life</title>
-<script id="ep-build">window.EP_BUILD='6.34.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.34.4 Stealth Ease</title>
+<script id="ep-build">window.EP_BUILD='6.34.4';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -12152,6 +12152,9 @@ window.UBOAT = (function () {
   }
   applyEscSpec(null);
   const HEAR_MERCHANT = 9000, HEAR_ESCORT = 7000;
+  /* v6.34.4 — 은신·이탈 난이도를 아주 살짝 낮춘다. 의심이 자라는 속도와 수동청음 포착 확률 ×0.93,
+     이탈 판정(떨어져 있어야 할 시간·거리) 약 7% 짧게. 감지 물리와 적의 전술은 그대로. */
+  const STEALTH_EASE = 0.93, ESCAPE_EASE = 0.93;
   const FIXED_DT = 0.1;
   const RUN_DEPTH_MAX = 8;                                  /* 이보다 깊게 맞추면 배 밑을 지나간다 */
 
@@ -13215,8 +13218,8 @@ window.UBOAT = (function () {
               speedCap: null, depthCap: null, repair: null, pump: null, engineLag: 0 },
       /* 안전 판정의 문턱 — 난이도가 이 세 숫자만 만진다 */
       safety: {
-        holdSec: (opts.safetyHold != null ? opts.safetyHold : 150),
-        farRange: (opts.safetyRange != null ? opts.safetyRange : 4000),
+        holdSec: (opts.safetyHold != null ? opts.safetyHold : 150) * ESCAPE_EASE,
+        farRange: (opts.safetyRange != null ? opts.safetyRange : 4000) * ESCAPE_EASE,
         nearRange: 2200,
         clear: 0, range: 0, progress: 0, everGripped: false,
       },
@@ -17384,7 +17387,7 @@ window.UBOAT = (function () {
        바깥 지원함은 이 감점을 받지 않으므로 협동 수색의 이점은 남는다. */
     const ownMask = (b.depth > 18 && r <= asdicBlindRange(e, b) && e.speed / KNOT > 8) ? 0.18 : 1;
     const ps = r < hearR ? clamp(pn * (1 - r / hearR) * 2.2 * (1 + sk * 0.25) * ownMask, 0, 1) : 0;
-    if (ps > 0.30 && rnd() < ps * dt * 0.5) {
+    if (ps > 0.30 && rnd() < ps * dt * 0.5 * STEALTH_EASE) {
       const fake = { x: b.x + gauss(240), y: b.y + gauss(240) };
       pushEscortContact(e, fake, clamp(0.25 + ps * 0.3, 0, 0.6), 'passive');
       e.suspicion = clamp(e.suspicion + 0.05, 0, 1);
@@ -17470,6 +17473,8 @@ window.UBOAT = (function () {
     const gm = graceMul();
     if (gm < 1 && e.suspicion > susBefore)
       e.suspicion = susBefore + (e.suspicion - susBefore) * gm;
+    /* v6.34.4 — 은신을 아주 조금 쉽게: 이번 프레임에 자란 의심을 7% 덜 자라게 한다(모든 감각 공통) */
+    if (e.suspicion > susBefore) e.suspicion = susBefore + (e.suspicion - susBefore) * STEALTH_EASE;
 
     /* 의심은 서서히 잊는다 */
     e.suspicion = clamp(e.suspicion - dt * 0.006, 0, 1);
