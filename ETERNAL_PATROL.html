@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.28.1 All Class Silhouettes</title>
+<title>ETERNAL PATROL: Silent Seas — v6.29.0 Basic Tutorial</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -42827,6 +42827,247 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
     const drop = () => { drag = null; };
     cv.addEventListener('pointerup', drop); cv.addEventListener('pointercancel', drop);
     window.EP_V6272_PERIDRAG = { version: '6.27.2' };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v629-tutorial-style">
+/* ══════════ V6.29 기초 훈련 — 첫 출항 ══════════
+   세 가지만 가르친다: ① 접근해서 잠망경으로 본다 ② 두 번 보고 쏜다 ③ 잠항해서 빠진다.
+   그 단계에 필요한 단추 하나만 누를 수 있다. 나머지는 눌러도 반응하지 않는다(어두워진다).
+   판은 단독 상선 하나, 호위 없음, 맑음, 같은 판(시드 1000). 승조원은 완전 수동 — 손으로 다 해 본다. */
+body.epTutOn #sheet{ display:none !important; }
+body.epTutOn .lrn-hl{ outline:none !important; }
+#epTutSpot{ position:fixed; z-index:9000; pointer-events:none; border:2px solid var(--amber); border-radius:12px;
+   box-shadow:0 0 0 9999px rgba(0,0,0,.58), 0 0 18px var(--amber); transition:top .18s, left .18s, width .18s, height .18s; }
+#epTutSpot.none{ border-color:transparent; box-shadow:0 0 0 9999px rgba(0,0,0,.35); }
+#epTutCard{ position:fixed; left:10px; right:10px; z-index:9001; background:var(--panel); border:1px solid var(--goBd); border-radius:14px;
+   padding:12px 14px 10px; box-shadow:0 8px 30px rgba(0,0,0,.6); color:var(--ink); font-size:13.5px; line-height:1.5; }
+#epTutCard .ch{ font-size:10.5px; color:var(--amber); letter-spacing:.06em; display:flex; justify-content:space-between; }
+#epTutCard .ch span{ color:var(--dim); letter-spacing:0; }
+#epTutCard h4{ margin:3px 0 4px; font-size:15px; font-weight:600; color:var(--ink); }
+#epTutCard p{ margin:0; color:var(--ink); }
+#epTutCard p b{ color:var(--amber); }
+#epTutCard .foot{ display:flex; gap:8px; margin-top:10px; align-items:center; }
+#epTutCard .foot .bar{ flex:1 1 auto; height:4px; background:var(--steel); border-radius:2px; overflow:hidden; }
+#epTutCard .foot .bar i{ display:block; height:100%; background:var(--amber); width:0; transition:width .3s; }
+#epTutCard button{ min-height:36px; padding:0 12px; border-radius:8px; border:1px solid var(--steel); background:var(--btnBg); color:var(--dim); font-size:12px; }
+#epTutCard button.go{ border-color:var(--amber); color:var(--amber); font-weight:600; }
+#epTutCard.done{ border-color:var(--green); }
+#epTutCard.done h4{ color:var(--green); }
+#btnBasicTut{ border-color:var(--amber) !important; color:var(--amber) !important; }
+#btnBasicTut small{ display:block; font-size:10.5px; color:var(--dim); font-weight:400; margin-top:2px; }
+</style>
+<script id="ep-v629-tutorial-script">
+(function EP_TUTORIAL(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const norm = a => ((a % 360) + 360) % 360;
+  const diff = (a, b) => { let d = norm(b - a); if (d > 180) d -= 360; return d; };
+  const p3 = v => String(Math.round(norm(v))).padStart(3, '0');
+  const KNOT = U.KNOT || 0.514444;
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const paneOn = name => !!document.querySelector('.pane.on[data-pane="' + name + '"]');
+  const subOn = g => { const b = document.querySelector('.epSubBar button.on'); return b && b.dataset.g === g; };
+  const telKn = g => { const t = (U.TELEGRAPH || []).find(x => x.id === g.orders.speed.telegraph); return t ? (U.telegraphKn ? U.telegraphKn(t, g.boat) : t.kn) : g.orders.speed.value / KNOT; };
+
+  /* ── 표적 — 이 판에는 상선 하나 ── */
+  function target(g) {
+    const c = g.contacts && g.contacts[0];
+    const ships = (g.convoy && g.convoy.ships) || [];
+    const s = (c && ships.find(x => x.id === c.unitId)) || ships[0] || null;
+    return { c, s };
+  }
+  function brgTo(g) { const t = target(g); if (!t.s) return t.c ? t.c.bearing : g.boat.heading; return norm(Math.atan2(t.s.x - g.boat.x, t.s.y - g.boat.y) * 180 / Math.PI); }
+  function rangeTo(g) { const t = target(g); if (!t.s) return t.c && t.c.rangeEstimate || 9999; return Math.hypot(t.s.x - g.boat.x, t.s.y - g.boat.y); }
+  function obsN(g) { const t = target(g); return t.c ? t.c.obs.length : 0; }
+  function lastObsT(g) { const t = target(g); const o = t.c && t.c.obs[t.c.obs.length - 1]; return o ? o.t : -1e9; }
+
+  /* ── 단계표 ── allow: 누를 수 있는 것 · spot: 밝힐 것(없으면 allow) · done: 끝났는가 · text: 말 */
+  let S = {};                                              /* 단계가 시작될 때 적어 두는 기준값 */
+  const CH = ['① 접근 · 관측', '② 두 번 보고 쏜다', '③ 잠항 · 이탈'];
+  const STEPS = [
+    /* ─ 1장 ─ */
+    { ch: 0, t: '함내로', allow: ['#tabs button[data-tab="boat"]'], text: () => '아래 <b>함내</b> 탭을 누르십시오. 배를 움직이는 곳입니다.', done: () => paneOn('boat') },
+    { ch: 0, t: '조타', allow: ['.epSubBar button[data-g="helm"]'], text: () => '<b>조타</b>를 누르십시오.', done: () => subOn('helm') },
+    { ch: 0, t: '침로를 소리 쪽으로', allow: ['#epCompass', '.epNudge button'],
+      text: g => '컴퍼스 링을 끌어 호박색 표식을 <b>' + p3(brgTo(g)) + '°</b>에 맞추십시오. 청음이 잡은 상선의 방위입니다. 톱니(1°·10°)로 다듬어도 됩니다.',
+      done: g => Math.abs(diff(g.orders.heading.value, brgTo(g))) <= 8 },
+    { ch: 0, t: '기관', allow: ['.epSubBar button[data-g="eng"]'], text: () => '<b>기관</b>을 누르십시오.', done: () => subOn('eng') },
+    { ch: 0, t: '반속 전진', allow: ['#epTelegraph', '#tgRow button'],
+      text: () => '전신기 레버를 <b>반속(4kn)</b>쯤으로 올리십시오. 빠르면 시끄럽지만 지금은 호위가 없습니다.',
+      done: g => telKn(g) >= 3.8 },
+    { ch: 0, t: '시간을 돌린다', allow: ['.epSubBar button[data-g="cmd"]', '#tsRow button[data-ts="4"]', '#tsRow button[data-ts="8"]'], spot: ['#tsRow button[data-ts="4"]'],
+      text: () => '<b>명령</b> 묶음의 시간에서 <b>×4</b>를 누르십시오. 접근은 오래 걸립니다.',
+      done: g => g.timeScale >= 4 },
+    { ch: 0, t: '접근 중', allow: ['#tsRow button'], spot: [],
+      text: g => '거리 <b>' + Math.round(rangeTo(g) / 10) * 10 + 'm</b>. <b>1,800m</b> 안으로 들어가면 잠망경 심도로 올라갑니다. 기다리십시오.',
+      done: g => rangeTo(g) <= 1800, exit: () => { const b = document.querySelector('#tsRow button[data-ts="1"]'); if (b) b.click(); } },
+    { ch: 0, t: '심도', allow: ['.epSubBar button[data-g="depth"]'], text: () => '<b>심도</b>를 누르십시오.', done: () => subOn('depth') },
+    { ch: 0, t: '잠망경 심도로', allow: ['#epDepthSvg', '#depRow button[data-dp="PERISCOPE"]'], spot: ['#depRow button[data-dp="PERISCOPE"]'],
+      text: g => '심도계의 <b>잠망경 심도</b>를 누르십시오. 배가 <b>' + Math.round(g.boat.depth) + 'm</b>에서 떠오르는 데 시간이 좀 걸립니다.',
+      done: g => g.boat.depth <= ((U.UB && U.UB.periscopeDepth) || 14) + 1.5 },
+    { ch: 0, t: '관측으로', allow: ['#tabs button[data-tab="obs"]'], text: () => '아래 <b>관측</b> 탭을 누르십시오.', done: () => paneOn('peri') },
+    { ch: 0, t: '잠망경 올림', allow: ['#btnPeri'], text: () => '<b>잠망경 올림</b>. 올라간 동안은 들킬 수 있으니 오래 두지 않습니다.', done: g => !!g.boat.periscope },
+    { ch: 0, t: '배를 찾는다', allow: ['#cvPeri', '#btnPl', '#btnPr'],
+      text: g => '잠망경 화면을 <b>손으로 끌어</b> 배를 찾으십시오. 소리는 <b>' + p3(brgTo(g)) + '°</b>, 지금 보는 방위는 ' + p3(g.boat.periscopeBearing) + '°.',
+      done: g => Math.abs(diff(g.boat.periscopeBearing, brgTo(g))) <= 3 },
+    { ch: 0, t: '관측 기록', allow: ['#btnObserve'], enter: g => { S.obs0 = obsN(g); },
+      text: () => '배가 십자선에 있습니다. <b>관측 기록</b>을 누르십시오 — 방위와 거리가 적힙니다.',
+      done: g => obsN(g) >= S.obs0 + 1 },
+    /* ─ 2장 ─ */
+    { ch: 1, t: '기다린다', allow: ['#cvPeri', '#btnPl', '#btnPr', '#btnObserve'], spot: ['#btnObserve'], enter: g => { S.obs1 = obsN(g); S.t1 = lastObsT(g); },
+      text: g => { const left = Math.max(0, Math.ceil(20 - (g.time - S.t1))); return left > 0
+        ? '한 번 본 것은 점입니다. 배가 움직인 뒤 다시 보면 <b>침로와 속력</b>이 나옵니다. <b>' + left + '초</b> 뒤 다시 <b>관측 기록</b>. 그동안 화면을 끌어 배를 십자선에 두십시오.'
+        : '이제 배가 십자선에 있으면 <b>관측 기록</b>을 다시 누르십시오.'; },
+      done: g => obsN(g) >= S.obs1 + 1 && (g.time - S.t1) >= 15 },
+    { ch: 1, t: '공격으로', allow: ['#tabs button[data-tab="attack"]'], text: () => '아래 <b>공격</b> 탭을 누르십시오.', done: () => paneOn('torp') },
+    { ch: 1, t: '표적을 고른다', allow: ['#epPlot', '#attackTargetPick button'], spot: ['#epPlot'],
+      enter: () => { try { window.selectContact && window.selectContact(null); } catch (e) {} },
+      text: () => '표적판에서 <b>■ 표적</b>을 누르십시오. 자이로각 부채 안에 있으면 쏠 수 있는 각입니다.',
+      done: g => { const t = target(g); if (!t.c || g.selectedContactId !== t.c.id) return false; const s = U.solution(t.c.id); return !!(s && s.ready); } },
+    { ch: 1, t: '발사관', allow: ['#tubes button'], enter: () => { const on = document.querySelector('#tubes button.on'); if (on) on.click(); },
+      text: () => '<b>1관</b>을 누르십시오. 초록 램프가 장전된 관입니다.',
+      done: () => !!document.querySelector('#tubes button.on:not(:disabled)') },
+    { ch: 1, t: '발사', allow: ['#btnFire'], enter: g => { S.torp0 = (g.torpedoes || []).length; },
+      text: () => '<b>발 사</b>를 <b>길게</b> 누르십시오. 채워지는 동안 놓으면 취소됩니다.',
+      done: g => (g.torpedoes || []).length > S.torp0 },
+    { ch: 1, t: '어뢰 주행', allow: [], spot: [], enter: g => { S.fireT = g.time; S.alive0 = !!(target(g).s && target(g).s.alive);
+        const t4 = document.querySelector('#tsRow button[data-ts="4"]'); if (t4) t4.click(); },
+      text: g => { const t = target(g); const dead = t.s && !t.s.alive;
+        if (dead) return '<b>명중.</b> 배가 가라앉습니다. 그러나 폭음은 사방에 들립니다 — 이제 빠질 차례입니다.';
+        return '어뢰 주행 중 — <b>' + Math.round(g.time - S.fireT) + '초</b>. 시계를 ×4로 돌려 두었습니다. 어뢰가 물속을 달리는 동안은 기다립니다.'; },
+      done: g => { const t = target(g); const dead = t.s && !t.s.alive; const gone = !(g.torpedoes || []).length;
+        return (dead && g.time - S.fireT > 4) || (gone && g.time - S.fireT > 8) || g.time - S.fireT > 150; },
+      exit: g => { const t = target(g); S.hit = !!(t.s && !t.s.alive); const t1 = document.querySelector('#tsRow button[data-ts="1"]'); if (t1) t1.click(); } },
+    /* ─ 3장 ─ */
+    { ch: 2, t: '잠망경 내림', allow: ['#tabs button[data-tab="obs"]', '#btnPeri'], spot: ['#btnPeri'],
+      text: () => (S.hit ? '격침입니다. ' : '빗나갔습니다 — 실전에선 두 발을 쏘거나 더 기다립니다. ') + '먼저 <b>잠망경 내림</b>. 관측 탭에 있습니다.',
+      done: g => !g.boat.periscope },
+    { ch: 2, t: '심도로', allow: ['#tabs button[data-tab="boat"]', '.epSubBar button[data-g="depth"]'],
+      text: () => '<b>함내</b> 탭 → <b>심도</b>.', done: () => paneOn('boat') && subOn('depth') },
+    { ch: 2, t: '약층 아래로', allow: ['#epDepthSvg', '#depRow button[data-dp="LAYER_BELOW"]', '#depRow button'], spot: ['#depRow button[data-dp="LAYER_BELOW"]'],
+      text: g => { const th = g.thermo || {}; const bot = Math.round((th.thermoclineBottom || (th.depth + (th.thickness || 0) / 2)) || 80);
+        return '심도계의 <b>약층 아래</b>를 누르십시오. 수온약층(' + bot + 'm 아래)이 소리를 꺾어 위에서 잘 못 듣습니다.'; },
+      done: g => { const th = g.thermo || {}; const bot = (th.thermoclineBottom || (th.depth + (th.thickness || 0) / 2)) || 80; return g.orders.depth.value >= bot - 2 || g.orders.depth.value >= 90; } },
+    { ch: 2, t: '미속으로', allow: ['.epSubBar button[data-g="eng"]', '#epTelegraph', '#tgRow button'], spot: ['#epTelegraph'],
+      text: () => '<b>기관</b> → 레버를 <b>미속</b>으로. 물속에서 빠르면 소리가 납니다. 조용히, 천천히.',
+      done: g => telKn(g) <= 2.6 },
+    { ch: 2, t: '등을 돌린다', allow: ['.epSubBar button[data-g="helm"]', '#epCompass', '.epNudge button'], spot: ['#epCompass'],
+      text: g => '<b>조타</b> → 표식을 <b>' + p3(brgTo(g) + 180) + '°</b> 근처로. 소리 난 곳에서 멀어지는 침로입니다.',
+      done: g => Math.abs(diff(g.orders.heading.value, brgTo(g))) >= 100 },
+  ];
+
+  /* ── 겉옷 ── */
+  let on = false, idx = -1, spot = null, card = null, finished = false, lastScrollStep = -1;
+  function ensureUI() {
+    if (spot) return;
+    spot = document.createElement('div'); spot.id = 'epTutSpot'; document.body.appendChild(spot);
+    card = document.createElement('div'); card.id = 'epTutCard'; document.body.appendChild(card);
+    card.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.act === 'quit') { if (confirm('기초 훈련을 그만둘까요? 판은 그대로 이어집니다.')) stop(); }
+      else if (b.dataset.act === 'continue') stop();
+      else if (b.dataset.act === 'again') location.reload();
+    });
+  }
+  function allowedTarget(t) {
+    if (!(t instanceof Element)) return true;
+    if (t.closest('#epTutCard')) return true;
+    const st = STEPS[idx]; if (!st) return true;
+    return st.allow.some(sel => t.closest(sel));
+  }
+  const INTERACTIVE = 'button, input, select, textarea, a, [role="button"], summary, #epCompass, #epTelegraph, #epDepthSvg, #epPlot, #cvPeri, #cvChart, #cvHydro, [data-cid], .epCand';
+  function gate(e) {
+    if (!on || finished) return;
+    if (e.isTrusted === false) return;                       /* 계기가 대신 누르는 숨은 단추(btnHl 등)는 통과 */
+    const t = e.target instanceof Element ? e.target.closest(INTERACTIVE) : null;
+    if (!t) return;                                          /* 빈 곳·스크롤은 그대로 */
+    if (allowedTarget(e.target)) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    if (e.type === 'pointerdown') { card && card.classList.add('nudge'); buzz(15); setTimeout(() => card && card.classList.remove('nudge'), 200); }
+  }
+  for (const ev of ['pointerdown', 'mousedown', 'click']) document.addEventListener(ev, gate, true);
+  document.addEventListener('touchstart', gate, { capture: true, passive: false });
+
+  function enter(i) {
+    idx = i; const st = STEPS[i]; lastScrollStep = -1;
+    const g = U.state(); if (st && st.enter && g) st.enter(g);
+    render(g, true);
+  }
+  function rectOf(sels) {
+    let r = null;
+    for (const sel of sels) for (const el of document.querySelectorAll(sel)) {
+      if (!(el.offsetParent || el instanceof SVGElement)) continue;
+      const b = el.getBoundingClientRect(); if (b.width < 2 || b.height < 2) continue;
+      if (b.bottom < 0 || b.top > innerHeight) continue;
+      r = r ? { left: Math.min(r.left, b.left), top: Math.min(r.top, b.top), right: Math.max(r.right, b.right), bottom: Math.max(r.bottom, b.bottom) }
+            : { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+    }
+    return r;
+  }
+  function firstEl(sels) { for (const sel of sels) { const el = document.querySelector(sel); if (el) return el; } return null; }
+  function render(g, fresh) {
+    if (!on) return;
+    const st = STEPS[idx];
+    if (!st) return;
+    const sels = st.spot || st.allow;
+    /* 목표가 화면 밖이면 한 번 끌어온다 */
+    if (fresh || lastScrollStep !== idx) { const el = firstEl(sels); if (el) { const b = el.getBoundingClientRect(); if (b.top < 120 || b.bottom > innerHeight - 70) try { el.scrollIntoView({ block: 'center' }); } catch (e) {} } lastScrollStep = idx; }
+    const r = rectOf(sels);
+    if (r) { spot.className = ''; spot.style.left = (r.left - 6) + 'px'; spot.style.top = (r.top - 6) + 'px'; spot.style.width = (r.right - r.left + 12) + 'px'; spot.style.height = (r.bottom - r.top + 12) + 'px'; }
+    else { spot.className = 'none'; spot.style.left = '-20px'; spot.style.top = '-20px'; spot.style.width = '0px'; spot.style.height = '0px'; }
+    /* 카드는 목표를 가리지 않는 쪽에 */
+    const cy = r ? (r.top + r.bottom) / 2 : innerHeight;
+    if (cy > innerHeight * 0.5) { card.style.top = '106px'; card.style.bottom = 'auto'; } else { card.style.bottom = '66px'; card.style.top = 'auto'; }
+    const pct = Math.round(idx / STEPS.length * 100);
+    card.className = '';
+    card.innerHTML = '<div class="ch">' + CH[st.ch] + '<span>' + (idx + 1) + ' / ' + STEPS.length + '</span></div><h4>' + st.t + '</h4><p>' + (g ? st.text(g) : '') + '</p>' +
+      '<div class="foot"><div class="bar"><i style="width:' + pct + '%"></i></div><button type="button" data-act="quit">그만두기</button></div>';
+  }
+  function finish() {
+    finished = true; spot.className = 'none'; spot.style.width = '0px';
+    card.className = 'done'; card.style.top = 'auto'; card.style.bottom = '66px';
+    card.innerHTML = '<div class="ch">기초 훈련 끝</div><h4>세 가지를 다 했습니다</h4><p>소리 쪽으로 다가가 잠망경으로 보았고, 두 번 보고 쏘았고, ' +
+      (S.hit ? '<b>격침</b>시킨 뒤 ' : '빗나간 뒤 ') + '약층 아래로 조용히 빠졌습니다. 나머지는 이 세 가지의 변주입니다 — 호위가 있으면 더 천천히, 더 깊이.</p>' +
+      '<div class="foot"><button type="button" class="go" data-act="continue">이 판을 이어서</button><button type="button" data-act="again">처음 화면으로</button></div>';
+  }
+  function tick() {
+    if (!on || finished) return;
+    const g = U.state(); if (!g) return;
+    const st = STEPS[idx]; if (!st) return;
+    if (st.done(g)) { if (st.exit) try { st.exit(g); } catch (e) {} buzz(8);
+      if (idx + 1 >= STEPS.length) { finish(); return; } enter(idx + 1); return; }
+    render(g, false);
+  }
+  function begin() { ensureUI(); on = true; finished = false; document.body.classList.add('epTutOn'); S = {}; enter(0); }
+  function stop() { on = false; document.body.classList.remove('epTutOn'); if (spot) spot.remove(); if (card) card.remove(); spot = card = null; }
+
+  /* ── 시작 — 빠른 전투 창을 거쳐 같은 판을 연다 ── */
+  function start() {
+    const q = $('btnQuick'); if (!q) return;
+    q.click();
+    setTimeout(() => {
+      const d = document.querySelector('#diffList button[data-diff="EASY"]'); if (d) d.click();
+      const s = document.querySelector('#scnList [data-scn="LONE"]'); if (s) s.click();
+      const seed = $('qSeed'), wx = $('qWeather'); if (seed) seed.value = '1000'; if (wx) wx.value = 'clear';
+      setTimeout(() => { const go = $('diffGo'); if (go) go.click();
+        setTimeout(() => { try { U.setAutocrewPreset('MANUAL'); } catch (e) {}
+          const t1 = document.querySelector('#tsRow button[data-ts="1"]'); if (t1) t1.click();
+          const situ = document.querySelector('#tabs button[data-tab="situ"]'); if (situ) situ.click();
+          begin(); }, 700); }, 150);
+    }, 250);
+  }
+  function init() {
+    const anchor = $('btnStart') || $('btnTrain'); if (!anchor || $('btnBasicTut')) return;
+    const b = document.createElement('button'); b.id = 'btnBasicTut'; b.type = 'button'; b.className = ($('btnTrain') || anchor).className;
+    b.style.width = '100%';
+    b.innerHTML = '첫 출항 — 기초 훈련<small>접근 · 두 번 보고 발사 · 잠항 이탈 · 5분</small>';
+    b.addEventListener('click', start);
+    anchor.parentNode.insertBefore(b, anchor);
+    setInterval(tick, 200);
+    window.EP_V629_TUTORIAL = { version: '6.29.0', start, stop, get step() { return idx; } };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
