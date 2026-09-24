@@ -1,0 +1,23 @@
+ETERNAL PATROL v6.28.0 변경사항 — 함급 고유 실루엣 18장
+
+기준본: v6.27.3. 실루엣 생성기(silGeom) 안의 SIL_EP_CLASS 표 추가. 규칙·데이터 변경 없음.
+
+1. 도면 비례로 새로 그린 함급(18)
+- 상선: Liberty(EC2) · 트램프 · T2 유조선
+- 영국: Flower · River · Hunt · Town(4연돌, Clemson 공용) · Tribal · J/K/N · County · Yorktown(미)
+- 일본: 吹雪 · 陽炎(夕雲 공용) · 海防艦 · 妙高 · 金剛 · 翔鶴
+- 미국: Fletcher · Yorktown
+- 전장·건현·굴뚝 위치·주포 배치를 실제 비례에 맞추되 잠망경에서 읽히게 높이는 조금 과장. 예: 吹雪의 대형 함교와 앞이 큰 두 굴뚝,
+  Town/Clemson 의 가는 4연돌, Tribal 의 연장포탑 넷과 큰 앞 굴뚝, 翔鶴의 낮은 섬과 아래로 굽은 우현 굴뚝, 妙高·金剛의 파고다 함교,
+  County 의 가늘고 높은 굴뚝 셋, T2 의 중앙 함교섬과 함미 기관실.
+- 세부 사다리(0~4)는 그대로 — 체크리스트와 어긋나지 않는다.
+
+2. 나머지 함급(약 35)
+- 예전 배치를 새 그림말로 다듬은 스타일화 그림(silRefine) 그대로. 판별 특징(굴뚝 수·함교형·갑판 설비)은 맞고 윤곽은 대표형에 가깝다.
+- 다음 차수 후보: Kaibokan 외 일본 소형 호위, Mahan, Bogue/Attacker, Leander, Soldati, Zara, Littorio.
+
+3. 우선순위 근거
+- 전구별 조우표(WARSHIPS.CLASSES.theater)에서 네 전구 모두에 걸치는 상선·유조선, 각 전구의 기본 호위·구축 함급, 그리고 시나리오 표적으로 자주 등장하는 순양·항모를 먼저 골랐다.
+
+4. 유지
+- app/src/main/assets/index.html · ETERNAL_PATROL.html 동일 HTML. <title> v6.28.0.

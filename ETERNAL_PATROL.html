@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.27.3 Silhouette Fix</title>
+<title>ETERNAL PATROL: Silent Seas — v6.28.0 Class Silhouettes</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -30496,6 +30496,7 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
   function silGeom(spec) {
     if (!spec) return [];
     /* 함급 고유 도형(profile)은 그대로 살리되 새 그림말로 다듬고, 함형 대표는 새 그림으로 */
+    if (spec.profile && SIL_EP_CLASS[spec.profile]) return SIL_EP_CLASS[spec.profile](spec);
     const art = !spec.profile && SIL_EP_ART[spec.kind];
     return art ? art(spec) : silRefine(silGeomRaw(spec));
   }
@@ -30637,6 +30638,209 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
       p.push.apply(p, epMast(56, 46, 22, false));
       p.push(EP_L(162, 50, 162, 26, 'STERN_CRANE', 4), EP_L(162, 28, 196, 44, 'STERN_CRANE', 4), EP_L(162, 28, 150, 40, 'STERN_CRANE', 4));
       p.push(EP_L(118, 48, 146, 45, 'CATAPULT', 4)); p.push.apply(p, epPlane(124, 44));
+      return p;
+    },
+  };
+  /* ══════════ V6.28 함급 고유 실루엣 — 도면 비례로 그린 18장 ══════════
+     플레이어가 자주 만나는 함급은 함형 대표 그림이 아니라 그 함급의 옆모습으로 그린다.
+     전장·건현·굴뚝 위치·포탑 배치를 실제 비례에 맞추되, 잠망경에서 읽히도록 높이는 조금 과장한다.
+     나머지 함급은 예전 배치를 다듬은 그림(silRefine)으로 남는다 — 도감의 「스타일화」 표시가 그것이다.
+     좌현이 뱃머리(x 10), 우현이 함미(x 206). 물은 y 59. */
+  function epPagoda(x, deck, levels) {
+    /* 일본식 탑형 함교 — 위로 갈수록 좁아지는 층 */
+    const out = []; let y = deck, w = levels[0];
+    for (let i = 0; i < levels.length; i++) { const lw = levels[i], h = i === 0 ? 7 : 5; y -= h; out.push(epBox(x + (w - lw) / 2, y, lw, h, 'BRIDGE', 1)); }
+    out.push(EP_R(x + w / 2 - 3, y - 2.5, 6, 2.5, 'GUN', 3));
+    return out;
+  }
+  function epTubes(x, y, w) { return EP_R(x, y, w, 3, 'TORPEDO_TUBES', 3); }
+  function epDC(x, y) { return [EP_R(x, y, 10, 2, 'DECK', 4, 0.5), EP_R(x + 12, y, 4, 2, 'DECK', 4, 0.5)]; }
+  const SIL_EP_CLASS = {
+    /* ── 상선 ── */
+    merchant_liberty: function () {                         /* EC2 — 중앙 선루 하나, 굴뚝 하나, 마스트 셋 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 46, 20, 45, 92, 47, 92, 50, 126, 50, 126, 47, 200, 48, 206, 49, 206, 59], 'HULL', 0));
+      p.push(epBox(96, 39, 30, 8, 'SUPER', 0)); p.push(epBox(100, 32, 18, 7, 'BRIDGE', 1)); p.push(epBox(104, 28, 10, 4, 'BRIDGE', 1));
+      p.push(epFunnel(118, 22, 8, 17)); 
+      p.push.apply(p, epDerrick(46, 46, 20)); p.push.apply(p, epDerrick(76, 47, 21)); p.push.apply(p, epDerrick(158, 48, 21));
+      p.push(EP_R(20, 43, 8, 2, 'GUN', 4, 1), EP_R(192, 45, 8, 2, 'GUN', 4, 1));
+      return p;
+    },
+    merchant_tramp: function () {                           /* 3섬형 트램프 — 가늘고 긴 굴뚝, 카운터 스턴 */
+      const p = [];
+      p.push(epPoly([12, 59, 12, 48, 24, 47, 52, 48, 52, 51, 92, 51, 92, 47, 128, 47, 128, 51, 166, 51, 166, 49, 198, 48, 206, 50, 206, 59], 'HULL', 0));
+      p.push(epBox(98, 41, 26, 6, 'SUPER', 0)); p.push(epBox(102, 34, 16, 7, 'BRIDGE', 1));
+      p.push(epFunnel(120, 20, 6, 21));
+      p.push.apply(p, epDerrick(66, 48, 20)); p.push.apply(p, epDerrick(150, 51, 22));
+      return p;
+    },
+    tanker_t2: function () {                                /* T2 — 중앙 함교섬, 함미 기관·굴뚝, 캣워크 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 47, 24, 46, 24, 50, 168, 50, 168, 48, 200, 47, 206, 49, 206, 59], 'HULL', 0));
+      p.push(epBox(96, 41, 26, 9, 'SUPER', 0)); p.push(epBox(100, 34, 18, 7, 'BRIDGE', 1)); p.push(epBox(104, 30, 10, 4, 'BRIDGE', 1));
+      p.push(epBox(166, 40, 32, 8, 'SUPER', 0)); p.push(epFunnel(182, 26, 8, 14));
+      for (const x of [44, 138]) { p.push(EP_L(x, 50, x, 30, 'MAST', 2), EP_L(x + 6, 50, x + 6, 30, 'MAST', 2), EP_L(x - 2, 30, x + 8, 30, 'MAST', 3)); }
+      p.push(EP_L(28, 45, 96, 45, 'DECK_TANKS', 3), EP_L(122, 45, 166, 45, 'DECK_TANKS', 3), EP_L(30, 43, 94, 43, 'DECK_TANKS', 3));
+      return p;
+    },
+    /* ── 영국 호위·구축 ── */
+    escort_flower: function () {                            /* Flower — 짧고 높은 선체, 긴 선수루, 굴뚝 하나 */
+      const p = [];
+      p.push(epPoly([14, 59, 14, 44, 30, 43, 96, 45, 96, 50, 196, 51, 202, 50, 204, 59], 'HULL', 0));
+      p.push(epBox(52, 36, 30, 9, 'SUPER', 0)); p.push(epBox(58, 30, 16, 6, 'BRIDGE', 1));
+      p.push(epFunnel(90, 24, 9, 21));
+      p.push.apply(p, epMast(50, 44, 22, false));
+      p.push.apply(p, epTurret(34, 43, 6, -1)); p.push.apply(p, epTurret(150, 50, 4, 1));
+      p.push.apply(p, epDC(176, 49)); p.push(EP_L(186, 49, 202, 49, 'DECK', 4));
+      return p;
+    },
+    escort_river: function () {                             /* River — 긴 선수루, 함교 앞쪽, 굴뚝 하나 */
+      const p = [];
+      p.push(epPoly([12, 59, 12, 45, 26, 44, 112, 46, 112, 50, 196, 51, 202, 50, 204, 59], 'HULL', 0));
+      p.push(epBox(56, 37, 34, 9, 'SUPER', 0)); p.push(epBox(62, 31, 18, 6, 'BRIDGE', 1));
+      p.push(epFunnel(98, 26, 8, 20));
+      p.push.apply(p, epMast(54, 44, 20, false));
+      p.push.apply(p, epTurret(36, 44, 6, -1)); p.push.apply(p, epTurret(132, 50, 5, 1));
+      p.push.apply(p, epDC(178, 49));
+      return p;
+    },
+    escort_hunt: function () {                              /* Hunt — 높은 선체, 굴뚝 하나, 앞뒤 연장포 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 43, 26, 43, 84, 45, 84, 49, 196, 50, 202, 49, 204, 59], 'HULL', 0));
+      p.push(epBox(56, 34, 30, 11, 'SUPER', 0)); p.push(epBox(60, 28, 18, 6, 'BRIDGE', 1)); p.push(EP_R(64, 25, 8, 3, 'GUN', 3));
+      p.push(epFunnel(94, 26, 9, 19));
+      p.push.apply(p, epMast(54, 43, 18, true));
+      p.push.apply(p, epTurret(34, 43, 7, -1)); p.push.apply(p, epTurret(120, 49, 6, 1)); p.push.apply(p, epTurret(176, 49, 7, 1));
+      return p;
+    },
+    dd_town4: function () {                                 /* Town(구 Wickes/Clemson) — 플러시 데크, 가는 굴뚝 넷 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 44, 22, 43, 60, 45, 202, 50, 204, 59], 'HULL', 0));
+      p.push(epBox(52, 37, 18, 8, 'SUPER', 0)); p.push(epBox(55, 32, 12, 5, 'BRIDGE', 1));
+      for (const x of [76, 92, 108, 124]) p.push(epFunnel(x, 27, 6, 19));
+      p.push.apply(p, epMast(48, 45, 22, false)); p.push.apply(p, epMast(150, 49, 27, false));
+      p.push.apply(p, epTurret(32, 44, 5, -1)); p.push.apply(p, epTurret(170, 49, 5, 1));
+      p.push(epTubes(134, 46, 12)); p.push(epTubes(150, 47, 12));
+      p.push.apply(p, epDC(186, 49));
+      return p;
+    },
+    dd_clemson: function () { return SIL_EP_CLASS.dd_town4(); },
+    dd_tribal: function () {                                /* Tribal — 굴뚝 둘(앞이 크다), 연장포탑 넷, 삼각 마스트 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 43, 24, 42, 84, 44, 84, 49, 196, 50, 202, 49, 204, 59], 'HULL', 0));
+      p.push(epBox(56, 35, 30, 9, 'SUPER', 0)); p.push(epBox(60, 29, 20, 6, 'BRIDGE', 1)); p.push(EP_R(65, 26, 8, 3, 'GUN', 3));
+      p.push(epFunnel(92, 24, 11, 20)); p.push(epFunnel(124, 29, 8, 16));
+      p.push.apply(p, epMast(52, 43, 17, true));
+      p.push.apply(p, epTurret(30, 43, 8, -1)); p.push(EP_R(44, 40, 9, 3, 'GUN', 3)); p.push.apply(p, epTurret(48, 40, 8, -1));
+      p.push.apply(p, epTurret(156, 49, 8, 1)); p.push(EP_R(178, 46, 9, 3, 'GUN', 3)); p.push.apply(p, epTurret(182, 46, 8, 1));
+      p.push(epTubes(136, 46, 14));
+      return p;
+    },
+    dd_jkn: function () {                                   /* J/K/N — 큰 굴뚝 하나, 연장포탑 셋, 5연장 발사관 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 43, 24, 42, 82, 44, 82, 49, 196, 50, 202, 49, 204, 59], 'HULL', 0));
+      p.push(epBox(54, 35, 30, 9, 'SUPER', 0)); p.push(epBox(58, 29, 20, 6, 'BRIDGE', 1)); p.push(EP_R(63, 26, 8, 3, 'GUN', 3));
+      p.push(epFunnel(92, 23, 14, 21));
+      p.push.apply(p, epMast(50, 43, 18, true));
+      p.push.apply(p, epTurret(30, 43, 8, -1)); p.push(EP_R(44, 40, 9, 3, 'GUN', 3)); p.push.apply(p, epTurret(48, 40, 8, -1));
+      p.push.apply(p, epTurret(176, 49, 8, 1));
+      p.push(epTubes(120, 46, 16)); p.push(epTubes(146, 46, 16));
+      return p;
+    },
+    /* ── 일본 ── */
+    dd_fubuki: function () {                                /* 吹雪 — 큰 함교, 앞 굴뚝 크고 뒤 작다, 앞 1·뒤 2 연장포탑, S자 선수 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 41, 18, 40, 30, 41, 82, 43, 82, 49, 198, 50, 204, 49, 206, 59], 'HULL', 0));
+      p.push(epBox(52, 33, 34, 10, 'SUPER', 0)); p.push(epBox(56, 26, 24, 7, 'BRIDGE', 1)); p.push(epBox(60, 22, 14, 4, 'BRIDGE', 1)); p.push(EP_R(64, 19.5, 6, 2.5, 'GUN', 3));
+      p.push(epFunnel(94, 22, 11, 21)); p.push(epFunnel(124, 29, 8, 15));
+      p.push.apply(p, epMast(50, 43, 16, true)); p.push.apply(p, epMast(148, 49, 30, false));
+      p.push.apply(p, epTurret(30, 42, 8, -1)); p.push.apply(p, epTurret(164, 49, 8, 1)); p.push(EP_R(180, 46, 9, 3, 'GUN', 3)); p.push.apply(p, epTurret(184, 46, 8, 1));
+      p.push(epTubes(108, 46, 14)); p.push(epTubes(136, 46, 14));
+      return p;
+    },
+    dd_kagero: function () {                                /* 陽炎 — 작은 함교, 굴뚝 둘, 앞 1·뒤 2 포탑, 낮고 길다 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 42, 20, 41, 32, 42, 78, 44, 78, 49, 198, 50, 204, 49, 206, 59], 'HULL', 0));
+      p.push(epBox(52, 35, 28, 9, 'SUPER', 0)); p.push(epBox(56, 29, 18, 6, 'BRIDGE', 1)); p.push(EP_R(61, 26, 6, 3, 'GUN', 3));
+      p.push(epFunnel(90, 24, 10, 20)); p.push(epFunnel(122, 26, 9, 18));
+      p.push.apply(p, epMast(50, 44, 18, true)); p.push.apply(p, epMast(146, 49, 30, false));
+      p.push.apply(p, epTurret(30, 43, 8, -1)); p.push.apply(p, epTurret(164, 49, 8, 1)); p.push(EP_R(180, 46, 9, 3, 'GUN', 3)); p.push.apply(p, epTurret(184, 46, 8, 1));
+      p.push(epTubes(106, 46, 14)); p.push(epTubes(134, 46, 14));
+      return p;
+    },
+    dd_yugumo: function () { return SIL_EP_CLASS.dd_kagero(); },
+    escort_kaibokan: function () {                          /* 海防艦 — 플러시 데크, 굴뚝 하나, 앞뒤 단장포 */
+      const p = [];
+      p.push(epPoly([12, 59, 12, 46, 24, 45, 64, 46, 64, 49, 196, 50, 202, 49, 204, 59], 'HULL', 0));
+      p.push(epBox(52, 38, 26, 8, 'SUPER', 0)); p.push(epBox(56, 32, 16, 6, 'BRIDGE', 1));
+      p.push(epFunnel(86, 28, 8, 18));
+      p.push.apply(p, epMast(50, 46, 24, false));
+      p.push.apply(p, epTurret(32, 45, 5, -1)); p.push.apply(p, epTurret(150, 49, 5, 1));
+      p.push.apply(p, epDC(178, 48));
+      return p;
+    },
+    ca_myoko: function () {                                 /* 妙高 — 탑형 함교, 굴뚝 둘(앞이 크고 뒤로 굽음), 앞 3·뒤 2 포탑 */
+      const p = [];
+      p.push(epPoly([8, 59, 8, 41, 20, 40, 60, 41, 70, 42, 206, 45, 210, 59], 'HULL', 0));
+      p.push(epBox(64, 32, 50, 10, 'SUPER', 0)); p.push.apply(p, epPagoda(74, 32, [22, 18, 12, 8]));
+      p.push(epFunnel(112, 19, 14, 23)); p.push(epFunnel(134, 25, 10, 17));
+      p.push.apply(p, epMast(150, 45, 20, true));
+      p.push.apply(p, epTurret(28, 41, 11, -1, 3, true)); p.push(EP_R(42, 37, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(48, 37, 11, -1, 3, true)); p.push.apply(p, epTurret(64, 41, 10, -1, 3, true));
+      p.push(EP_R(172, 41, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(178, 41, 11, 1, 3, true)); p.push.apply(p, epTurret(196, 45, 11, 1, 3, true));
+      p.push(EP_L(156, 41, 174, 39, 'CATAPULT', 4)); p.push.apply(p, epPlane(160, 38));
+      return p;
+    },
+    bc_kongo: function () {                                 /* 金剛 — 파고다 마스트, 굴뚝 둘, 연장포탑 넷(앞 2·중 1·뒤 1) */
+      const p = [];
+      p.push(epPoly([8, 59, 8, 41, 22, 40, 208, 46, 210, 59], 'HULL', 0));
+      p.push(epBox(60, 32, 92, 9, 'SUPER', 0)); p.push.apply(p, epPagoda(70, 32, [26, 22, 18, 14, 10]));
+      p.push(epFunnel(104, 20, 14, 12)); p.push(epFunnel(122, 22, 12, 10));
+      p.push.apply(p, epMast(150, 41, 18, true));
+      p.push.apply(p, epTurret(30, 41, 15, -1, 3, true)); p.push(EP_R(44, 36, 16, 5, 'GUN', 3)); p.push.apply(p, epTurret(52, 36, 15, -1, 3, true));
+      p.push.apply(p, epTurret(138, 41, 14, 1, 3, true)); p.push.apply(p, epTurret(186, 45, 15, 1, 3, true));
+      for (const x of [76, 88, 100, 112, 124]) p.push(EP_R(x, 38, 6, 3, 'GUN', 4, 0.5));
+      return p;
+    },
+    cv_shokaku: function () {                               /* 翔鶴 — 낮은 섬, 우현 아래로 굽은 굴뚝, 긴 비행갑판 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 46, 26, 45, 30, 38, 200, 38, 204, 45, 208, 46, 208, 59], 'HULL', 0));
+      p.push(EP_R(8, 34, 204, 4, 'FLIGHT_DECK', 1, 0.5));
+      p.push(epBox(66, 27, 16, 7, 'BRIDGE', 1)); p.push.apply(p, epMast(70, 27, 15, false));
+      p.push(epPoly([120, 38, 128, 38, 130, 42, 124, 44, 118, 42], 'FUNNEL', 2));    /* 아래로 굽은 굴뚝 — 우현에 낮게 */
+      for (const x of [130, 148, 166, 184]) p.push.apply(p, epPlane(x, 34));
+      return p;
+    },
+    /* ── 미국 ── */
+    dd_fletcher: function () {                              /* Fletcher — 플러시 데크, 기운 굴뚝 둘, 단장 5인치 다섯 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 43, 22, 42, 60, 44, 202, 49, 204, 59], 'HULL', 0));
+      p.push(epBox(54, 35, 30, 9, 'SUPER', 0)); p.push(epBox(58, 29, 18, 6, 'BRIDGE', 1)); p.push(EP_R(62, 26, 8, 3, 'GUN', 3));
+      p.push(epFunnel(94, 25, 10, 20)); p.push(epFunnel(124, 26, 10, 19));
+      p.push.apply(p, epMast(52, 44, 16, true));
+      p.push.apply(p, epTurret(30, 43, 7, -1)); p.push(EP_R(43, 40, 8, 3, 'GUN', 3)); p.push.apply(p, epTurret(47, 40, 7, -1));
+      p.push.apply(p, epTurret(148, 47, 7, 1)); p.push(EP_R(166, 44, 8, 3, 'GUN', 3)); p.push.apply(p, epTurret(170, 44, 7, 1)); p.push.apply(p, epTurret(186, 48, 7, 1));
+      p.push(epTubes(108, 46, 14)); p.push(epTubes(136, 47, 14));
+      return p;
+    },
+    cv_yorktown: function () {                              /* Yorktown — 중앙 섬에 큰 굴뚝과 삼각 마스트 */
+      const p = [];
+      p.push(epPoly([10, 59, 10, 46, 24, 45, 28, 38, 200, 38, 204, 45, 208, 46, 208, 59], 'HULL', 0));
+      p.push(EP_R(8, 34, 204, 4, 'FLIGHT_DECK', 1, 0.5));
+      p.push(epBox(84, 25, 26, 9, 'BRIDGE', 1)); p.push(epFunnel(110, 15, 10, 19));
+      p.push.apply(p, epMast(90, 25, 12, true));
+      for (const x of [140, 158, 176]) p.push.apply(p, epPlane(x, 34));
+      p.push(EP_L(60, 34, 60, 28, 'STERN_CRANE', 4), EP_L(60, 29, 70, 33, 'STERN_CRANE', 4));
+      return p;
+    },
+    ca_county: function () {                                /* County — 높은 건현, 가늘고 높은 굴뚝 셋, 연장포탑 넷 */
+      const p = [];
+      p.push(epPoly([8, 59, 8, 40, 22, 39, 60, 40, 206, 44, 210, 59], 'HULL', 0));
+      p.push(epBox(60, 31, 34, 9, 'SUPER', 0)); p.push(epBox(66, 25, 20, 6, 'BRIDGE', 1)); p.push(epBox(70, 21, 12, 4, 'BRIDGE', 1));
+      for (const x of [98, 116, 134]) p.push(epFunnel(x, 17, 9, 24));
+      p.push.apply(p, epMast(58, 40, 14, true)); p.push.apply(p, epMast(152, 44, 20, true));
+      p.push.apply(p, epTurret(28, 40, 11, -1, 3, true)); p.push(EP_R(44, 36, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(50, 36, 11, -1, 3, true));
+      p.push(EP_R(172, 40, 12, 4, 'GUN', 3)); p.push.apply(p, epTurret(178, 40, 11, 1, 3, true)); p.push.apply(p, epTurret(196, 44, 11, 1, 3, true));
+      p.push(EP_L(156, 42, 172, 40, 'CATAPULT', 4)); p.push.apply(p, epPlane(160, 39));
       return p;
     },
   };
