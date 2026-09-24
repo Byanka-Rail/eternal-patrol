@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.27.0 Silhouette Match</title>
+<title>ETERNAL PATROL: Silent Seas — v6.27.1 Plot Symbols</title>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -41579,7 +41579,10 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
         const t = el('text', { x, y, 'text-anchor': 'middle', 'dominant-baseline': 'middle', class: 'epLbl epNum', transform: 'rotate(' + a + ' ' + x + ' ' + y + ')' }, rose);
         t.textContent = String(a).padStart(3, '0'); }
     }
-    el('path', { d: 'M' + C + ' ' + (C - 30) + ' l7 22 l-2 26 l-5 6 l-5 -6 l-2 -26 z', fill: 'var(--steel)', stroke: 'var(--dim)', 'stroke-width': 1 }, svg);
+    /* 자함 — 위에서 본 잠수함. 좁은 선체·뾰족한 함수·둥근 함미·사령탑. 컴퍼스 카드 위에 고정 */
+    { const k = 2.4, tr = 'translate(' + C + ' ' + C + ') scale(' + k + ')';
+      el('path', { d: 'M0 -15 C2.4 -11 3 -5 3 1 L3 9 C3 12.2 1.7 14 0 14 C-1.7 14 -3 12.2 -3 9 L-3 1 C-3 -5 -2.4 -11 0 -15 Z', fill: 'var(--steel)', stroke: 'var(--dim)', 'stroke-width': .6, 'stroke-linejoin': 'round', transform: tr }, svg);
+      el('path', { d: 'M-1.3 -3.5 h2.6 v6 h-2.6 z', fill: 'var(--chartInk)', opacity: .8, transform: tr }, svg); }
     el('line', { x1: C, y1: C - R - 2, x2: C, y2: C - R + 22, stroke: 'var(--chartInk)', 'stroke-width': 2.5, 'stroke-linecap': 'round' }, svg);
     const ord = el('path', { d: 'M' + C + ' ' + (C - R + 4) + ' l-7 -14 h14 z', fill: 'var(--amber)' }, svg);
     const txt = el('text', { x: C, y: C + 70, 'text-anchor': 'middle', class: 'epLbl epNum', 'font-size': '30', 'font-weight': '500' }, svg);
@@ -41826,6 +41829,14 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
     return c.propeller === 'fast';
   }
   const W = 388, H = 330, CX = 194, CY = 168, R = 150;
+  /* 저장된 판단이 있으면 그 이름, 아니면 대분류만 — 지어내지 않는다 */
+  function identWord(c) { const id = c.ident, WS = window.WARSHIPS;
+    if (id && id.saved && WS && WS.TYPES[id.saved]) return WS.TYPES[id.saved].label.split(' · ')[0];
+    if (id && id.broad && (id.broadP || 0) > 0.55) return { warship: '군함', merchant: '상선', escort: '호위' }[id.broad] || '';
+    return ''; }
+  /* 자함 — 위에서 본 잠수함. 좁은 선체, 뾰족한 함수, 둥근 함미, 가운데 사령탑 */
+  const SUB_PATH = 'M0 -15 C2.4 -11 3 -5 3 1 L3 9 C3 12.2 1.7 14 0 14 C-1.7 14 -3 12.2 -3 9 L-3 1 C-3 -5 -2.4 -11 0 -15 Z';
+  const SUB_TOWER = 'M-1.3 -3.5 h2.6 v6 h-2.6 z';
   let svg = null, dyn = null, headingUp = true, toggleBtn = null;
 
   function build() {
@@ -41929,18 +41940,21 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
           el('line', { x1: x - Math.sin(ca) * L * .6, y1: y + Math.cos(ca) * L * .6, x2: x + Math.sin(ca) * L, y2: y - Math.cos(ca) * L, stroke: col, 'stroke-width': 1, opacity: .6 }, grp);
           el('path', { d: 'M0 -5 L4 3 L-4 3 Z', fill: col, opacity: .7, transform: 'translate(' + (x + Math.sin(ca) * L) + ' ' + (y - Math.cos(ca) * L) + ') rotate(' + (ca * 180 / Math.PI) + ')' }, grp);
         }
-        /* 실루엣 — 호위는 날카롭게, 상선은 넓게. 실제 함종이 아니라 「이렇게 보인다」 */
-        const aspect = c.courseEstimate != null ? screenAng(c.courseEstimate, hdg) : screenAng(c.bearing, hdg) + 90;
-        const sil = el('g', { transform: 'translate(' + x + ' ' + y + ') rotate(' + (aspect - 90) + ')' }, grp);
-        if (host) el('path', { d: 'M-11 3 h22 l-3 -3 h-6 v-4 h-4 v4 h-6 z', fill: col }, sil);
-        else el('path', { d: 'M-13 3 h26 l-3 -3 h-7 v-4 h-5 v4 h-8 z', fill: col }, sil);
+        /* 기호 — 해도 부호처럼 읽는다. 모양 = 위협(◆ 호위·군함, ■ 상선·미상), 채움 = 거리를 안다.
+           추정 침로는 기호에서 나가는 선 하나로, 길이는 속력에 비례한다. 옆모습 실루엣은 위에서 보는 판에 맞지 않았다. */
+        el('path', { d: host ? 'M0 -7 L7 0 L0 7 L-7 0 Z' : 'M-6 -6 h12 v12 h-12 z', fill: col, stroke: 'var(--chartBg)', 'stroke-width': 1.2, transform: 'translate(' + x + ' ' + y + ')' }, grp);
+        if (c.courseEstimate != null) {
+          const ca = d2r(screenAng(c.courseEstimate, hdg));
+          const kn = (c.speedEstimate || 0) / (U.KNOT || 0.514444);
+          const L = 12 + clamp(kn, 0, 30) * 1.1;
+          el('line', { x1: x + Math.sin(ca) * 7, y1: y - Math.cos(ca) * 7, x2: x + Math.sin(ca) * L, y2: y - Math.cos(ca) * L, stroke: col, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, grp);
+        }
         if (isSel) el('circle', { cx: x, cy: y, r: 18, fill: 'none', stroke: 'var(--green)', 'stroke-width': 2 }, grp);
       } else {
-        /* 거리 없음(또는 사거리 밖) — 고리 위의 빈 표식 */
-        if (beyond) el('path', { d: 'M-5 4 L0 -4 L5 4', fill: 'none', stroke: col, 'stroke-width': 1.6,
-            transform: 'translate(' + x + ' ' + y + ') rotate(' + screenAng(c.bearing, hdg) + ')' }, grp);
-        else if (host) el('path', { d: 'M-6 4 L0 -5 L6 4 Z', fill: 'none', stroke: col, 'stroke-width': 1.5, transform: 'translate(' + x + ' ' + y + ')' }, grp);
-        else el('circle', { cx: x, cy: y, r: 5.5, fill: 'none', stroke: col, 'stroke-width': 1.5 }, grp);
+        /* 거리 없음(또는 사거리 밖) — 같은 기호를 비워서 그린다. 사거리 밖은 바깥쪽 꺾쇠를 덧붙인다 */
+        el('path', { d: host ? 'M0 -6 L6 0 L0 6 L-6 0 Z' : 'M-5 -5 h10 v10 h-10 z', fill: 'none', stroke: col, 'stroke-width': 1.6, transform: 'translate(' + x + ' ' + y + ')' }, grp);
+        if (beyond) el('path', { d: 'M-5 3 L0 -3 L5 3', fill: 'none', stroke: col, 'stroke-width': 1.4,
+            transform: 'translate(' + x + ' ' + y + ') rotate(' + screenAng(c.bearing, hdg) + ') translate(0 -13)' }, grp);
         if (isSel) el('circle', { cx: x, cy: y, r: 13, fill: 'none', stroke: 'var(--green)', 'stroke-width': 2 }, grp);
       }
       /* 이름표 — 선택 접촉만 자세히, 나머지는 이름만. 위 아래로 겹치면 비켜 앉는다 */
@@ -41951,7 +41965,7 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
       lx = clamp(lx, 14, W - 14);
       txt(c.id, { x: lx, y: ly, fill: col, 'font-size': 10.5, 'font-weight': 600, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
       const sub = beyond ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 사거리 밖'
-        : !hasR ? '방위만' : isSel ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 해법 ' + Math.round((c.solutionConfidence || 0) * 100) + '%' : '';
+        : !hasR ? '방위만' : isSel ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 해법 ' + Math.round((c.solutionConfidence || 0) * 100) + '%' : identWord(c);
       if (sub) txt(sub, { x: lx, y: ly + 10, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
     }
 
@@ -41974,7 +41988,9 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
     }
 
     /* 자함 — 마지막에 그려 위에 오게 */
-    el('path', { d: 'M0 -13 l4 9 v11 h-8 v-11 z', fill: 'var(--green)', transform: 'translate(' + CX + ' ' + CY + ') rotate(' + (ha * 180 / Math.PI) + ')' }, frag);
+    { const tr = 'translate(' + CX + ' ' + CY + ') rotate(' + (ha * 180 / Math.PI) + ') scale(1.35)';
+      el('path', { d: SUB_PATH, fill: 'var(--chartBg)', stroke: 'var(--green)', 'stroke-width': 1.3, 'stroke-linejoin': 'round', transform: tr }, frag);
+      el('path', { d: SUB_TOWER, fill: 'var(--green)', transform: tr }, frag); }
     txt('침로 ' + p3(hdg) + '° · ' + (b.speed / (U.KNOT || 0.514444)).toFixed(1) + 'kn' + (useAft ? ' · 함미 발사' : ''),
       { x: 8, y: 14, fill: 'var(--dim)', 'font-size': 9, 'font-family': NUM }, frag);
 
