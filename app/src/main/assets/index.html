@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.34.2 Voyage Life</title>
-<script id="ep-build">window.EP_BUILD='6.34.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.34.3 Voyage Life</title>
+<script id="ep-build">window.EP_BUILD='6.34.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -20230,7 +20230,7 @@ window.Campaign = (function () {
     C._crewChatSeq=(C._crewChatSeq||0)+1;
     return {id:'CC'+C._crewChatSeq,at:C.hours,role:role,tier:tier,skill:rec.skill,lines:lines.map(x=>Object.assign({},x))};
   }
-  const CREW_CHAT_MIN_H=200, CREW_CHAT_SPAN_H=80;   /* v6.34.2 — 항해 대화는 약 2분(1초 2시간 기준)에 한 번 */
+  const CREW_CHAT_MIN_H=38, CREW_CHAT_SPAN_H=18;   /* v6.34.3 — 항해 대화는 실측 약 30초(1초 2시간 기준)에 한 번 */
   function scheduleCrewChatAt(){ return C.hours+CREW_CHAT_MIN_H+rnd()*CREW_CHAT_SPAN_H; }
   function maybeCrewChat(th,events) {
     if (!C || C.pendingEncounter || C.pendingChoice || C.alert>0.55) return;
@@ -44194,7 +44194,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     if (C.log.length > 120) C.log.length = 120;
     return { id: 'EP' + C._epChatSeq, at: C.hours, context: ctx, role: ls[0].who, lines: ls };
   }
-  /* 언제 — v6.34.2: 대화는 원래 대화 자리(약 2분에 한 번)를 나눠 쓰고, 볼거리는 약 2분에 한 번.
+  /* 언제 — v6.34.3: 대화는 원래 대화 자리(약 30초에 한 번)를 나눠 쓰고, 볼거리는 약 1분에 한 번.
      접촉·선택·높은 경계 중에는 쉰다. 모항 코앞과 첫 네 시간도 쉰다. */
   function quiet(C) { return !C || C.status !== 'AT_SEA' || C.pendingEncounter || C.pendingChoice || (C.alert || 0) > 0.55 || C.hours < 4; }
   function lang() { try { return window.Lang && window.Lang.get ? window.Lang.get() : 'ko'; } catch (e) { return 'ko'; } }
@@ -44204,17 +44204,17 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     try {
       const C = CP.state(); if (quiet(C) || lang() !== 'ko') return r;
       const evs = r && r.events; if (!evs) return r;
-      /* 대화 — 원래 대화가 열리는 순간(약 2분에 한 번)에 절반 남짓은 새 은행의 장면으로 바꿔 낀다.
+      /* 대화 — 원래 대화가 열리는 순간(약 30초에 한 번)에 절반 남짓은 새 은행의 장면으로 바꿔 낀다.
          그래서 대화 수는 늘지 않고, 고를 거리만 넓어진다. */
       const ci = evs.findIndex(e => e.kind === 'CREW_CHAT' && e.chat && !String(e.chat.id).startsWith('EP'));
       if (ci >= 0 && Math.random() < 0.6) {
         const t = chooseTalk(C);
         if (t) { const oldId = evs[ci].chat.id; C.log = C.log.filter(l => l.chatId !== oldId); evs[ci] = { kind: 'CREW_CHAT', chat: toChat(C, t.lines, t.key) }; }
       }
-      /* 볼거리 — 약 2분에 한 번(게임 200~280시간), 대화와 겹치지 않게 반 박자 어긋나게 시작 */
-      if (C._epSightAt == null) C._epSightAt = C.hours + 100 + Math.random() * 40;
+      /* 볼거리 — 실측 약 1분에 한 번(게임 85~115시간), 대화와 겹치지 않게 어긋나게 시작 */
+      if (C._epSightAt == null) C._epSightAt = C.hours + 25 + Math.random() * 20;
       if (C.hours >= C._epSightAt && !evs.some(e => e.kind === 'CREW_CHAT')) {
-        C._epSightAt = C.hours + 200 + Math.random() * 80;
+        C._epSightAt = C.hours + 85 + Math.random() * 30;
         const s = chooseSight(C);
         if (s) { try { if (s.fx) s.fx(C); } catch (e) {} evs.push({ kind: 'CREW_CHAT', chat: toChat(C, s.t, 'SIGHT') }); }
       }
