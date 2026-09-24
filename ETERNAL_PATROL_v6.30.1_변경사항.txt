@@ -1,0 +1,20 @@
+ETERNAL PATROL v6.30.1 변경사항 — 음높이 조율 (APK 변경 포함)
+
+기준본: v6.30.0.
+
+1. APK — EternalVoiceBridge.java
+- 새 인터페이스 speakStyled2(..., pitch). 예전 speakStyled 는 pitch 1.0 으로 이것을 부른다(예전 HTML 과도 호환).
+- 음성 엔진(Supertonic 3)은 음높이를 받지 않는다. 그래서 합성 속도를 speed/pitch 로 늦춰 합성한 뒤 pitch 배로 재표본화(Catmull-Rom)한다.
+  → 음높이는 pitch 배, 길이는 원래 속도 그대로. 늘이기는 모델이 스스로 한 것이라 시간 늘이기 잡음이 없다. 성도(포먼트)도 같이 움직여 목소리 결 자체가 굵거나 가늘어진다.
+- pitch 범위 0.75~1.33(엔진 속도 한계 0.72~1.35 안에서 잘림). 1.0 이면 예전과 똑같다.
+- 상태 JSON 에 "pitch": true.
+- 검증: 220Hz 사인파 → ×0.84 184Hz · ×1.19 261Hz, 길이 비례 확인. javac 구문 검사 통과(안드로이드 기호 외 오류 0).
+
+2. HTML
+- EPVoice.styledArgs 가 역할의 pitch 를 싣고, nativeSpeak 는 speakStyled2 가 있고 pitch≠1 일 때만 그것을 쓴다. 없으면 예전 경로.
+- 음성 직접 조율: 역할마다 「음높이」 −4~+4 반음(0.5 단위). speakStyled2 가 없는 예전 APK 에서는 슬라이더가 꺼지고 안내가 붙는다.
+
+3. 버전 표기
+- APK versionCode/versionName/BUNDLED_GAME_VERSION 은 워크플로 검증 문자열(6.25.5)에 묶여 있어 그대로 둔다. 게임 HTML 은 6.30.1.
+
+4. 앱 내 업데이트: update.json → 6.30.1 (HTML). 음높이는 새 APK 설치가 필요하다.

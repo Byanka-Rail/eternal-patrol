@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.30.0 Voice Tuning</title>
-<script id="ep-build">window.EP_BUILD='6.30.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.30.1 Voice Pitch</title>
+<script id="ep-build">window.EP_BUILD='6.30.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -33837,7 +33837,7 @@ window.Lang.add('ja', {
       const mood=(forcedMood&&MOOD[forcedMood])?forcedMood:inferMood(r);
       const m=MOOD[mood];
       const speed=Math.max(0.72,Math.min(1.35,Number(cfg.speed||1)*m.speedMul));
-      return {mood,voice:cfg.voice,speed,gain:m.gain,pauseMs:m.pauseMs};
+      return {mood,voice:cfg.voice,speed,gain:m.gain,pauseMs:m.pauseMs,pitch:Number(cfg.pitch||1)};
     }
     function speechText(text){
       let s=String(text==null?'':text)
@@ -33859,6 +33859,12 @@ window.Lang.add('ja', {
     }
     function nativeSpeak(role,voice,text,priority,style){
       const n=native(); if(!n) return false;
+      /* v6.30.1 음높이 — speakStyled2 가 있는 APK 에서만. 없으면 예전 경로 그대로 */
+      if(n.speakStyled2&&Math.abs(Number(style.pitch||1)-1)>0.004){
+        n.speakStyled2(String(role),String(voice),String(text||''),String(priority||'P2'),
+          Number(style.speed||1),Number(style.gain||1)*voiceVolume,Number(style.pauseMs||0),String(style.mood||'CALM'),Number(style.pitch||1));
+        return true;
+      }
       if(n.speakStyled){
         n.speakStyled(String(role),String(voice),String(text||''),String(priority||'P2'),
           Number(style.speed||1),Number(style.gain||1)*voiceVolume,Number(style.pauseMs||0),String(style.mood||'CALM'));
@@ -43119,6 +43125,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
 .epVtRole .test:disabled{ opacity:.35; }
 .epVtSlider{ grid-column:2 / span 2; display:flex; align-items:center; gap:8px; font-size:10.5px; color:var(--dim); }
 .epVtSlider span{ white-space:nowrap; flex:0 0 auto; }
+.epVtSlider.pitch input:disabled{ opacity:.35; }
 .epVtSlider input{ flex:1 1 auto; accent-color:var(--amber); min-height:28px; }
 .epVtSlider b{ min-width:40px; text-align:right; color:var(--ink); font-weight:500; font-variant-numeric:tabular-nums; }
 .epVtGlobal{ display:flex; flex-direction:column; gap:4px; }
@@ -43159,6 +43166,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       const t = (tune.roles || {})[r.id] || {};
       v.ROLE[r.id].voice = VOICES.includes(t.voice) ? t.voice : b.voice;
       v.ROLE[r.id].speed = Number.isFinite(t.speed) ? t.speed : b.speed;
+      v.ROLE[r.id].pitch = Number.isFinite(t.semi) && pitchOK() ? Math.pow(2, t.semi / 12) : 1;
     }
     const k = Number.isFinite(tune.mood) ? tune.mood : 1, pm = Number.isFinite(tune.pause) ? tune.pause : 1;
     for (const m of Object.keys(base.MOOD)) {
@@ -43168,6 +43176,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       o.pauseMs = Math.round(Math.max(0, Math.min(400, b.pauseMs * pm)));
     }
   }
+  /* 음높이는 speakStyled2 가 있는 APK(v6.30.1 이후 빌드)에서만 */
+  function pitchOK() { const n = window.EternalVoice; return !!(n && typeof n.speakStyled2 === 'function'); }
   function ready() { const v = V(); const s = v && v.status ? v.status() : null; return !!(s && s.available && s.ready && !s.downloading) && !!window.EternalVoice; }
   function speakRole(r) {
     const v = V(), n = window.EternalVoice; if (!v || !n || !ready()) return;
@@ -43175,14 +43185,15 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     const speed = Math.max(0.72, Math.min(1.35, cfg.speed * m.speedMul));
     const gain = m.gain * (v.getVolume ? v.getVolume() : 0.55);
     try { if (n.clearError) n.clearError();
-      if (n.speakStyled) n.speakStyled(r.id, cfg.voice, r.line, 'P1', speed, gain, m.pauseMs, 'CALM');
+      if (n.speakStyled2 && Math.abs((cfg.pitch || 1) - 1) > 0.004) n.speakStyled2(r.id, cfg.voice, r.line, 'P1', speed, gain, m.pauseMs, 'CALM', cfg.pitch);
+      else if (n.speakStyled) n.speakStyled(r.id, cfg.voice, r.line, 'P1', speed, gain, m.pauseMs, 'CALM');
       else if (n.speak) n.speak(r.id, cfg.voice, r.line, 'P1', speed); } catch (e) {}
   }
 
   function build() {
     const anchor = document.getElementById('voiceMoodTestRowV6248'); if (!anchor || document.getElementById('epVoiceTune')) return;
     const d = document.createElement('details'); d.id = 'epVoiceTune';
-    d.innerHTML = '<summary><span>음성 직접 조율</span><small>역할별 목소리 · 속도 · 분위기</small></summary><div class="epVtBody"></div>';
+    d.innerHTML = '<summary><span>음성 직접 조율</span><small>역할별 목소리 · 속도 · 음높이 · 분위기</small></summary><div class="epVtBody"></div>';
     anchor.parentNode.insertBefore(d, anchor.nextSibling);
     const body = d.querySelector('.epVtBody');
     for (const r of ROLES) {
@@ -43190,7 +43201,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       row.innerHTML = '<div class="nm">' + r.ko + '<small>' + r.en + '</small></div>' +
         '<div class="epVtVoices">' + VOICES.map((x, i) => '<button type="button" data-v="' + x + '">' + (i + 1) + '</button>').join('') + '</div>' +
         '<button type="button" class="test" title="들어 보기">▶</button>' +
-        '<div class="epVtSlider"><span>속도</span><input type="range" min="0.80" max="1.25" step="0.01"><b></b></div>';
+        '<div class="epVtSlider"><span>속도</span><input type="range" min="0.80" max="1.25" step="0.01"><b></b></div>' +
+        '<div class="epVtSlider pitch"><span>음높이</span><input type="range" min="-4" max="4" step="0.5"><b></b></div>';
       body.appendChild(row);
     }
     const gl = document.createElement('div'); gl.className = 'epVtGlobal';
@@ -43215,7 +43227,9 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       const inp = e.target; if (inp.type !== 'range') return;
       const row = inp.closest('.epVtRole'), g = inp.closest('[data-g]');
       const val = Number(inp.value);
-      if (row) { const id = row.dataset.role; tune.roles = tune.roles || {}; tune.roles[id] = Object.assign({}, tune.roles[id], { speed: val }); }
+      if (row) { const id = row.dataset.role; tune.roles = tune.roles || {};
+        const isPitch = !!inp.closest('.pitch');
+        tune.roles[id] = Object.assign({}, tune.roles[id], isPitch ? { semi: val } : { speed: val }); }
       else if (g) tune[g.dataset.g] = val;
       save(); apply(); sync(false);
     });
@@ -43230,8 +43244,13 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       const row = document.querySelector('.epVtRole[data-role="' + r.id + '"]'); if (!row) continue;
       const cfg = v.ROLE[r.id];
       row.querySelectorAll('.epVtVoices button').forEach(b => b.classList.toggle('on', b.dataset.v === cfg.voice));
-      const inp = row.querySelector('input'); if (full !== false || document.activeElement !== inp) inp.value = cfg.speed;
-      row.querySelector('.epVtSlider b').textContent = '×' + Number(cfg.speed).toFixed(2);
+      const inp = row.querySelector('.epVtSlider:not(.pitch) input'); if (full !== false || document.activeElement !== inp) inp.value = cfg.speed;
+      row.querySelector('.epVtSlider:not(.pitch) b').textContent = '×' + Number(cfg.speed).toFixed(2);
+      const ps = row.querySelector('.epVtSlider.pitch'), pi = ps.querySelector('input');
+      const semi = Number(((tune.roles || {})[r.id] || {}).semi) || 0;
+      if (full !== false || document.activeElement !== pi) pi.value = semi;
+      pi.disabled = !pitchOK();
+      ps.querySelector('b').textContent = pitchOK() ? (semi > 0 ? '+' : semi < 0 ? '−' : '±') + Math.abs(semi) : '—';
       row.querySelector('.test').disabled = !ready();
     }
     const k = Number.isFinite(tune.mood) ? tune.mood : 1, pm = Number.isFinite(tune.pause) ? tune.pause : 1;
@@ -43241,6 +43260,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     const note = document.getElementById('epVtNote');
     if (note) note.textContent = ready() ? '▶ 로 들어 봅니다. 목소리를 바꾸면 바로 한 번 읽습니다.'
       : '설정은 저장됩니다. 들어 보기는 음성팩이 준비된 APK 에서만 됩니다.';
+    if (note && !pitchOK()) note.textContent += ' 음높이는 새 APK(v6.30.1 이후)가 필요합니다.';
   }
   function init() {
     tune = load();

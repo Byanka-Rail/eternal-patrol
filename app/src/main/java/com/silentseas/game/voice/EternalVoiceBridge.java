@@ -98,6 +98,16 @@ public final class EternalVoiceBridge implements Closeable {
 
     @JavascriptInterface public void speakStyled(String role, String voice, String text, String priority,
                                                  double speed, double gain, int pauseMs, String mood) {
+        speakStyled2(role, voice, text, priority, speed, gain, pauseMs, mood, 1.0);
+    }
+
+    /**
+     * v6.30.1: 음높이(pitch) 추가. 모델은 음높이를 받지 않으므로 합성 뒤 재표본화로 올리고 내린다.
+     * 길이가 pitch 배로 줄어드는 것은 합성 속도를 1/pitch 로 미리 늦춰 되돌린다 — 모델이 스스로 늘인
+     * 소리라 시간 늘이기 잡음이 없다. 1.0 이면 예전과 똑같이 재생한다.
+     */
+    @JavascriptInterface public void speakStyled2(String role, String voice, String text, String priority,
+                                                  double speed, double gain, int pauseMs, String mood, double pitch) {
         if (closed || !packManager.isReady()) return;
         String clean = normalizeText(text);
         if (clean.isEmpty()) return;
@@ -107,6 +117,7 @@ public final class EternalVoiceBridge implements Closeable {
         float s = (float) Math.max(0.72, Math.min(1.35, speed));
         float g = (float) Math.max(0.55, Math.min(1.0, gain));
         int pause = Math.max(0, Math.min(400, pauseMs));
+        float pt = (float) (Double.isNaN(pitch) ? 1.0 : Math.max(0.75, Math.min(1.33, pitch)));
 
         runtimeError = null;
         synchronized (queue) {
@@ -117,7 +128,7 @@ public final class EternalVoiceBridge implements Closeable {
             recentText.put(dedupe, now);
             recentText.entrySet().removeIf(e -> now - e.getValue() > 30_000);
 
-            SpeechTask task = new SpeechTask(role, v, clean, p, s, g, pause, m);
+            SpeechTask task = new SpeechTask(role, v, clean, p, s, g, pause, m, pt);
             if ("P0".equals(p)) {
                 queue.clear();
                 interruptCurrent(false);
@@ -156,7 +167,9 @@ public final class EternalVoiceBridge implements Closeable {
                         SupertonicEngine e = ensureEngine();
                         phase = "synthesizing";
                         notifyHtml();
-                        float[] wav = e.synthesizeKorean(task.text, task.voice, task.speed);
+                        float synthSpeed = Math.abs(task.pitch - 1f) < 0.005f ? task.speed : task.speed / task.pitch;
+                        float[] wav = e.synthesizeKorean(task.text, task.voice, synthSpeed);
+                        if (Math.abs(task.pitch - 1f) >= 0.005f) wav = pitchResample(wav, task.pitch);
                         lastSynthesisMs = Math.max(0, System.currentTimeMillis() - started);
                         lastSamples = wav.length;
                         if (wav.length <= 0) throw new IllegalStateException("합성 결과가 비어 있습니다.");
@@ -273,12 +286,33 @@ public final class EternalVoiceBridge implements Closeable {
         }
     }
 
+    /** 재표본화 음높이 이동 — Catmull-Rom 보간. factor 배 높아지고 길이는 1/factor. */
+    static float[] pitchResample(float[] in, float factor) {
+        if (in == null || in.length < 4 || factor <= 0f) return in;
+        int outLen = Math.max(1, (int) Math.floor((in.length - 1) / (double) factor));
+        float[] out = new float[outLen];
+        int last = in.length - 1;
+        for (int i = 0; i < outLen; i++) {
+            double x = i * (double) factor;
+            int i1 = (int) x;
+            float t = (float) (x - i1);
+            float p0 = in[Math.max(0, i1 - 1)], p1 = in[Math.min(last, i1)], p2 = in[Math.min(last, i1 + 1)], p3 = in[Math.min(last, i1 + 2)];
+            float a = -0.5f * p0 + 1.5f * p1 - 1.5f * p2 + 0.5f * p3;
+            float b = p0 - 2.5f * p1 + 2f * p2 - 0.5f * p3;
+            float c = -0.5f * p0 + 0.5f * p2;
+            float v = ((a * t + b) * t + c) * t + p1;
+            out[i] = Math.max(-1f, Math.min(1f, v));
+        }
+        return out;
+    }
+
     private JSONObject mergedStatus() {
         JSONObject o = packManager.status();
         try {
             if (runtimeError != null) o.put("error", runtimeError);
             o.put("engine", "Supertonic3-ONNX");
             o.put("voices", "M1,M2,M3,M4,M5");
+            o.put("pitch", true);
             o.put("phase", phase);
             o.put("speaking", speaking);
             o.put("engineLoaded", engine != null);
@@ -349,11 +383,11 @@ public final class EternalVoiceBridge implements Closeable {
 
     private static final class SpeechTask {
         final String role, voice, text, priority, mood;
-        final float speed, gain;
+        final float speed, gain, pitch;
         final int pauseMs;
-        SpeechTask(String role, String voice, String text, String priority, float speed, float gain, int pauseMs, String mood) {
+        SpeechTask(String role, String voice, String text, String priority, float speed, float gain, int pauseMs, String mood, float pitch) {
             this.role = role; this.voice = voice; this.text = text; this.priority = priority;
-            this.speed = speed; this.gain = gain; this.pauseMs = pauseMs; this.mood = mood;
+            this.speed = speed; this.gain = gain; this.pauseMs = pauseMs; this.mood = mood; this.pitch = pitch;
         }
     }
 }
