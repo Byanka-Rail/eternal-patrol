@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.31.2 Periscope Horizon</title>
-<script id="ep-build">window.EP_BUILD='6.31.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.31.3 Crisis Fix</title>
+<script id="ep-build">window.EP_BUILD='6.31.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -15745,6 +15745,9 @@ window.UBOAT = (function () {
   function openCrisis(kind, why) {
     if (!CRISES[kind]) return null;
     if (G.crises.some(c => c.kind === kind && !c.resolved)) return null;
+    /* v6.31.3 — 같은 위기에 이미 답했으면, 형편이 나아졌다가 다시 나빠지기 전에는 또 묻지 않는다.
+       (전지 22% 에서 답하면 다음 순간에도 22% 라 같은 카드가 곧바로 다시 열려 「선택이 안 되는」 것처럼 보였다) */
+    if (G._crisisHold && G._crisisHold[kind]) return null;
     /* 동시에 열리는 중대 위기는 둘까지 — 그 이상은 통제 상실이지 긴장이 아니다 */
     const severeOpen = G.crises.filter(c => !c.resolved && CRISES[c.kind].severe).length;
     if (CRISES[kind].severe && severeOpen >= 2) return null;
@@ -15766,6 +15769,7 @@ window.UBOAT = (function () {
     const ch = def.choices.find(c => c.id === choiceId);
     if (!ch) return { ok: false, err: '없는 선택입니다.' };
     cr.resolved = true; cr.chosen = ch.id; cr.at2 = G.time;
+    (G._crisisHold || (G._crisisHold = {}))[cr.kind] = true;
     applyCrisisEffect(cr, ch);
     /* 함장이 직접 고른 것만 손상통제의 우선순위를 옮긴다.
        대답하지 않아 상비 명령대로 처리된 경우에는 자리를 옮기지 않는다 —
@@ -15787,6 +15791,7 @@ window.UBOAT = (function () {
       if (G.time < cr.deadline) continue;
       const def = CRISES[cr.kind];
       cr.resolved = true; cr.chosen = def.auto; cr.auto = true; cr.at2 = G.time;
+      (G._crisisHold || (G._crisisHold = {}))[cr.kind] = true;
       applyCrisisEffect(cr, def.choices.find(c => c.id === def.auto));
       report('P1', 'exec', def.title + ' — 지시가 없어 상비 명령대로 처리했습니다.');
       emit('crisisAnswer', { id: cr.id, choice: def.auto, auto: true });
@@ -15836,6 +15841,13 @@ window.UBOAT = (function () {
   /* 손상이 나면 위기가 열린다 — 숫자가 줄어드는 것만으로는 판단거리가 되지 않는다 */
   function damageCrisisHook() {
     const b = G.boat;
+    const hold = G._crisisHold || (G._crisisHold = {});
+    if (hold.BATTERY && b.battery > 0.35) hold.BATTERY = false;
+    if (hold.ENGINE && b.damage.engine < 0.2) hold.ENGINE = false;
+    if (hold.SENSOR && (b.damage.sensor || 0) < 0.15) hold.SENSOR = false;
+    if (hold.AIR && b.air > 0.45) hold.AIR = false;
+    /* 더 크게 나빠지면 다시 묻는다 — 전지 10% 아래는 새 판단거리 */
+    if (hold.BATTERY && b.battery < 0.10 && !hold._bat10) { hold._bat10 = true; hold.BATTERY = false; }
     if (b.damage.depthCtrl > 0.30 && !b._floodSaid) {
       b._floodSaid = true;
       b.flood = Math.max(b.flood || 0, 0.3);
