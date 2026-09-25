@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.5 Update Button</title>
-<script id="ep-build">window.EP_BUILD='6.39.5';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.6 Menu Scene & Music</title>
+<script id="ep-build">window.EP_BUILD='6.39.6';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44860,10 +44860,17 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
 </script>
 <style id="ep-v637-title-style">
 /* ══════════ V6.37 제목 화면 — 깊은 바다 속 발령실 (실제 사진) ══════════ */
-#ovStart{ background:#040202 !important; }
+#ovStart{ background:transparent !important; }
+/* v6.39.6 — 게임에 들어가기 전의 모든 메뉴 화면 뒤에 같은 장면이 흐른다 */
+.ov.epSceneBg:not(#ovStart){ background:rgba(3,2,2,.42) !important; }
+.ov.epSceneBg:not(#ovStart) > .box, .ov.epSceneBg:not(#ovStart) > .card, .ov.epSceneBg:not(#ovStart) > div > .box{ background:rgba(16,22,28,.86) !important; box-shadow:0 10px 40px rgba(0,0,0,.6); }
+#lrnBook.epSceneBg{ background:rgba(3,2,2,.55) !important; }
+#ovStart.epUnder > *{ visibility:hidden !important; }   /* 교범이 제목 위에 열리면 제목 메뉴는 감추고 장면만 비치게 */
+body.epMenuScene{ background:#030101; }
 #ovStart > *:not(#epTitleScene):not(#epTitleSnd):not(#epTitleCredit):not(#epTitleCap){ position:relative; z-index:1; }
 #ovStart #ttl{ margin-top:max(20vh, 100px); text-shadow:0 0 22px rgba(255,80,50,.45), 0 2px 0 rgba(0,0,0,.9); }
-#epTitleScene{ position:fixed; inset:0; z-index:0; width:100%; height:100%; display:block; pointer-events:none; }
+#epTitleScene{ position:fixed; inset:0; z-index:499; width:100%; height:100%; display:none; pointer-events:none; background:#030101 !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; margin:0 !important; }
+#epTitleScene.on{ display:block; }
 #ovStart .box{ background:rgba(16,22,28,.82) !important; box-shadow:0 10px 40px rgba(0,0,0,.65); }
 #epTitleSnd{ position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:10px; z-index:2; min-height:34px; padding:0 12px; border-radius:6px;
   background:rgba(10,16,21,.72); color:var(--dim); border:1px solid var(--steel); font-size:12px; }
@@ -45309,7 +45316,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   }
   function frame(now) { if (!running) return; raf = requestAnimationFrame(frame); const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; step(dt);
     if (now - (frame.lastDraw || 0) < 32) return; frame.lastDraw = now; draw(); }
-  function setRunning(on) { if (on === running) return; running = on;
+  function setRunning(on) { if (on === running) return; running = on; if (cv) cv.classList.toggle('on', on); document.body.classList.toggle('epMenuScene', on);
     if (on) { resize(); if (!S.set) { let lastId = null; try { lastId = localStorage.getItem(LAST_KEY); } catch (e) {} switchTo(pickSet(lastId)); }
       last = performance.now(); raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
     audioVolume(); }
@@ -45317,7 +45324,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } q.putImageData(d, 0, 0); return g; }
   function init() {
     const ov = $('ovStart'); if (!ov || $('epTitleScene')) return;
-    cv = document.createElement('canvas'); cv.id = 'epTitleScene'; ov.insertBefore(cv, ov.firstChild); cx = cv.getContext('2d');
+    cv = document.createElement('canvas'); cv.id = 'epTitleScene'; document.body.appendChild(cv); cx = cv.getContext('2d');   /* 메뉴 화면 모두 아래에 깔리도록 문서에 둔다 */
     off = document.createElement('canvas'); ox = off.getContext('2d'); grain = makeGrain();
     const cr = document.createElement('div'); cr.id = 'epTitleCredit'; cr.textContent = '배경 사진 · 독일 잠수함 UB-110 발령실, 1918 · Tyne & Wear Archives & Museums'; ov.appendChild(cr);
     const cap = document.createElement('div'); cap.id = 'epTitleCap'; ov.appendChild(cap);
@@ -45326,8 +45333,25 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     btn.addEventListener('click', e => { e.stopPropagation(); try { const on = sndLevel() > 0; if (window.Snd) { Snd.unlock && Snd.unlock(); Snd.set(on ? 'off' : 'on', true); } } catch (err) {} unlockAudio(); syncBtn(); audioVolume(); });
     window.addEventListener('resize', () => running && resize());
     document.addEventListener('pointerdown', () => unlockAudio(), { passive: true });
-    new MutationObserver(() => setRunning(ov.classList.contains('on'))).observe(ov, { attributes: true, attributeFilter: ['class'] });
-    setRunning(ov.classList.contains('on')); syncBtn();
+    /* 게임에 들어가기 전까지 — 제목·사령부·빠른 전투·역사 작전·기록 보관소·훈련·옵션·교범 어느 화면이든 장면이 흐른다.
+       전략 지도나 전투로 들어가면(메뉴가 1초 넘게 하나도 안 떠 있으면) 멈추고, 제목으로 돌아오면 다시 흐른다.
+       게임 안에서 연 옵션·교범 뒤에는 흐르지 않는다. */
+    const MENU_IDS = ['ovStart', 'ovWar', 'ovArchiveV622', 'ovHistOps', 'ovDiff', 'ovTrain', 'ovOptions', 'lrnBook'];
+    let inMenus = true, emptyFor = 0;
+    const menuActive = () => {
+      const worldOn = !!document.querySelector('#world.on'), startOn = ov.classList.contains('on');
+      const open = MENU_IDS.map(id => $(id)).filter(e => e && e.classList.contains('on'));
+      if (startOn) { inMenus = true; emptyFor = 0; }
+      if (worldOn) inMenus = false;
+      else if (!open.length) { emptyFor += 1; if (emptyFor >= 4) inMenus = false; } else emptyFor = 0;
+      const act = inMenus && open.length > 0 && !worldOn;
+      for (const id of MENU_IDS) { const e = $(id); if (e) e.classList.toggle('epSceneBg', act && e.classList.contains('on')); }
+      const bk = $('lrnBook'); ov.classList.toggle('epUnder', !!(act && bk && bk.classList.contains('on') && startOn));
+      return act; };
+    window.EP_MENU_ACTIVE = () => running;
+    const poll = () => setRunning(menuActive());
+    new MutationObserver(poll).observe(ov, { attributes: true, attributeFilter: ['class'] });
+    setInterval(poll, 250); poll(); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
     window.EP_V637_TITLE = { version: '6.38.0', surface: (i) => { const s0 = SETS.find(s => s.id === 'surface'); switchTo(s0); if (i != null) { const w = WX[i]; S.wx = { id: w.id, sea: w.sea, vis: w.vis, night: (w.night[0] + w.night[1]) / 2 }; S.fake.night = S.wx.night; S.fake.weather = { id: w.id, vis: w.vis, sea: w.sea }; s0.cap = w.cap; surfaceAudio(S.wx); } }, fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, wx: S.wx && S.set && S.set.kind === 'surface' ? S.wx.id + '/' + S.wx.night.toFixed(2) : null, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
@@ -45600,6 +45624,123 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
   window.EP_V6395_UPDATE = { version: '6.39.5', check };
+})();
+</script>
+<style id="ep-v6396-music-style">
+#epTitleMus{ position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:104px; z-index:2; min-height:34px; padding:0 12px; border-radius:6px;
+  background:rgba(10,16,21,.72); color:var(--dim); border:1px solid var(--steel); font-size:12px; }
+#epTitleMus.on{ color:var(--amber); border-color:var(--amber); }
+</style>
+<script id="ep-v6396-music-script">
+/* ══════════ V6.39.6 메뉴 음악 — 「깊은 곳의 노래」 (창작곡) ══════════
+   게임에 들어가기 전의 메뉴 화면에서만 흐른다. 파일 없이 그 자리에서 합성한다.
+   · 곡: 라 단조(D 자연단음계에 이끎음 C# 을 섞음), 한 박 = 54 BPM, 16마디(약 71초)를 되풀이.
+     화성 Dm Dm Gm Dm | B♭ Gm A A | F C Dm B♭ | Gm Dm A7 Dm — 느린 행진 같은 애가.
+   · 음색: 멜로디는 낮은 리드(아코디언·반도네온 결 — 톱니+사각 두 줄을 살짝 어긋나게, 늦게 오는 떨림),
+     화음은 풍금(삼각파+톱니 옅게), 베이스는 첼로(톱니파를 어둡게), 첫 박마다 멀리서 먹먹한 북.
+     되풀이할 때마다 편성이 바뀐다: 1회 리드 · 2회 첼로가 한 옥타브 아래로 노래하고 북이 들어옴 · 3회 리드+풍금 겹침.
+   · 1940년대 축음기처럼: 대역을 좁히고(120Hz~3.2kHz), 살짝 찌그러뜨리고, 회전이 느리게 흔들리며(와우·플러터),
+     바늘 긁힘과 옅은 잡음.
+   · 게임 소리 설정을 따르고(꺼짐이면 무음), 제목 화면 「음악」 단추로 따로 끄고 켠다. 메뉴를 떠나면 2초에 걸쳐 잦아든다. */
+(function EP_MUSIC(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const KEY = 'ep.music.on';
+  const BPM = 54, BEAT = 60 / BPM, BAR = BEAT * 4;
+  const CH = { Dm: [50, 53, 57], Gm: [55, 58, 62], Bb: [46, 50, 53], A: [45, 49, 52], F: [53, 57, 60], C: [48, 52, 55], A7: [45, 49, 55] };
+  const BASS = { Dm: 38, Gm: 43, Bb: 46, A: 45, F: 41, C: 36, A7: 45 };
+  const PROG = ['Dm', 'Dm', 'Gm', 'Dm', 'Bb', 'Gm', 'A', 'A', 'F', 'C', 'Dm', 'Bb', 'Gm', 'Dm', 'A7', 'Dm'];
+  const MEL = [
+    [[69, 2], [65, 1], [64, 1]], [[62, 3], [57, 1]], [[58, 1.5], [62, .5], [67, 2]], [[65, 1], [64, 1], [62, 2]],
+    [[62, 1], [65, 1], [70, 2]], [[69, 1.5], [67, .5], [65, 1], [62, 1]], [[64, 2], [61, 1], [64, 1]], [[57, 4]],
+    [[72, 2], [69, 1], [65, 1]], [[67, 1.5], [64, .5], [60, 2]], [[62, 1], [65, 1], [69, 1], [74, 1]], [[74, 2], [72, 1], [70, 1]],
+    [[70, 1], [69, 1], [67, 2]], [[65, 1.5], [64, .5], [62, 2]], [[64, 1], [67, 1], [61, 1], [64, 1]], [[62, 4]],
+  ];
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+  /* ── 한 판(오프라인 미리듣기와 같은 코드) ── */
+  function makeSong(ac, dest) {
+    let nb = null; const noise = () => { if (nb) return nb; const n = ac.sampleRate * 2; nb = ac.createBuffer(1, n, ac.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return nb; };
+    /* 축음기 사슬 */
+    const inG = ac.createGain(); inG.gain.value = 0.8;
+    const sh = ac.createWaveShaper(); const cur = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; cur[i] = Math.tanh(x * 1.6) / Math.tanh(1.6); } sh.curve = cur;
+    const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 120; hp.Q.value = 0.6;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 3200; lp.Q.value = 0.5;
+    const lp2 = ac.createBiquadFilter(); lp2.type = 'lowpass'; lp2.frequency.value = 4200;
+    inG.connect(sh); sh.connect(hp); hp.connect(lp); lp.connect(lp2); lp2.connect(dest);
+    /* 와우·플러터 — 모든 음의 음정을 함께 흔든다 */
+    const wow = ac.createGain(); wow.gain.value = 1;
+    const w1 = ac.createOscillator(), w1g = ac.createGain(); w1.frequency.value = 0.55; w1g.gain.value = 7; w1.connect(w1g); w1g.connect(wow);
+    const w2 = ac.createOscillator(), w2g = ac.createGain(); w2.frequency.value = 5.7; w2g.gain.value = 2; w2.connect(w2g); w2g.connect(wow);
+    w1.start(); w2.start();
+    /* 바늘 긁힘·잡음 */
+    const crk = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), cd = crk.getChannelData(0);
+    for (let i = 0; i < cd.length; i++) { cd[i] = (Math.random() * 2 - 1) * 0.02; if (Math.random() < 14 / ac.sampleRate) { const a = (Math.random() < 0.2 ? 0.9 : 0.35) * (Math.random() < 0.5 ? -1 : 1); for (let k = 0; k < 24 && i + k < cd.length; k++) cd[i + k] += a * Math.exp(-k / 5); } }
+    const cs = ac.createBufferSource(); cs.buffer = crk; cs.loop = true; const cf = ac.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 2400; cf.Q.value = 0.7;
+    const cg = ac.createGain(); cg.gain.value = 0.05; cs.connect(cf); cf.connect(cg); cg.connect(dest); cs.start();
+    const osc = (type, f, t0, t1) => { const o = ac.createOscillator(); o.type = type; o.frequency.value = f; wow.connect(o.detune); o.start(t0); o.stop(t1); return o; };
+    function reed(m, t, dur, vel, oct) {
+      const f = hz(m + (oct || 0)), end = t + dur + 0.35, g = ac.createGain(), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1100; fl.Q.value = 0.9;
+      const a = osc('sawtooth', f, t, end), b = osc('square', f, t, end); a.detune.value = 5; b.detune.value = -5;
+      const ga = ac.createGain(); ga.gain.value = 0.55; const gb = ac.createGain(); gb.gain.value = 0.28; a.connect(ga); b.connect(gb); ga.connect(fl); gb.connect(fl); fl.connect(g); g.connect(inG);
+      const vib = ac.createOscillator(), vg = ac.createGain(); vib.frequency.value = 4.8; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(9, t + Math.min(0.9, dur * 0.6)); vib.connect(vg); vg.connect(a.detune); vg.connect(b.detune); vib.start(t); vib.stop(end);
+      const L = 0.075 * vel; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.09); g.gain.setValueAtTime(L, t + Math.max(0.1, dur - 0.1)); g.gain.linearRampToValueAtTime(L * 1.08, t + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    }
+    function cello(m, t, dur, vel) {
+      const f = hz(m), end = t + dur + 0.5, g = ac.createGain(), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 700; fl.Q.value = 1.2;
+      const a = osc('sawtooth', f, t, end); const vib = ac.createOscillator(), vg = ac.createGain(); vib.frequency.value = 4.3; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(7, t + 0.6); vib.connect(vg); vg.connect(a.detune); vib.start(t); vib.stop(end);
+      a.connect(fl); fl.connect(g); g.connect(inG); const L = 0.1 * vel;
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.28); g.gain.setValueAtTime(L, t + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.0001, end);
+    }
+    function pad(ch, t, dur, vel) {
+      for (const m of ch) { const f = hz(m), end = t + dur + 1.1, g = ac.createGain(), fl = ac.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 650;
+        const a = osc('triangle', f, t, end), b = osc('sawtooth', f, t, end); b.detune.value = 7; const gb = ac.createGain(); gb.gain.value = 0.25; a.connect(fl); b.connect(gb); gb.connect(fl); fl.connect(g); g.connect(inG);
+        const L = 0.028 * vel; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.7); g.gain.setValueAtTime(L, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, end); }
+    }
+    function drum(t, v) {
+      const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(82, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.5); o.connect(g); g.connect(inG);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16 * v, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9); o.start(t); o.stop(t + 1);
+      const n = ac.createBufferSource(); n.buffer = noise(); const nf = ac.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 380; const ng = ac.createGain(); n.connect(nf); nf.connect(ng); ng.connect(inG);
+      ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.08 * v, t + 0.01); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.35); n.start(t, Math.random()); n.stop(t + 0.4);
+    }
+    /* 한 마디 — pass: 몇 번째 되풀이인지(편성이 바뀜) */
+    function bar(i, t, pass) {
+      const ch = PROG[i], v = pass % 3; pad(CH[ch], t, BAR, v === 1 ? 0.8 : 1); cello(BASS[ch], t, BAR * 0.95, v === 1 ? 0.7 : 0.9);
+      if (v === 1) { drum(t, i % 4 === 0 ? 1 : 0.6); if (i >= 8) drum(t + BEAT * 2, 0.35); }
+      let bt = t; for (const [m, d] of MEL[i]) { const dur = d * BEAT * 0.96;
+        if (v === 0) reed(m, bt, dur, 1, 0); else if (v === 1) cello(m - 12, bt, dur, 1.25); else { reed(m, bt, dur, 0.9, 0); reed(m, bt, dur, 0.45, -12); }
+        bt += d * BEAT; }
+    }
+    function stop() { try { w1.stop(); w2.stop(); cs.stop(); } catch (e) {} }
+    return { bar, stop, BAR, BARS: PROG.length };
+  }
+  window.EP_MUSIC_SONG = makeSong;   /* 미리듣기 렌더용 */
+
+  /* ── 메뉴에서 틀기 ── */
+  let AC = null, master = null, song = null, nextT = 0, barI = 0, pass = 0, playing = false;
+  const userOn = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } };
+  function sndLevel() { try { const lv = window.Snd && Snd.get ? Snd.get() : 'off'; return { off: 0, quiet: .38, on: 1, hydro: .9, cinematic: 1 }[lv] || 0; } catch (e) { return 0; } }
+  function want() { return userOn() && sndLevel() > 0 && typeof window.EP_MENU_ACTIVE === 'function' && window.EP_MENU_ACTIVE() && !document.hidden; }
+  function ensure() { if (AC) return true; const C = window.AudioContext || window.webkitAudioContext; if (!C) return false; AC = new C(); master = AC.createGain(); master.gain.value = 0.0001; master.connect(AC.destination); return true; }
+  function tick() {
+    const w = want();
+    if (w) { if (!ensure()) return; if (AC.state === 'suspended') AC.resume().catch(() => {});
+      if (!playing) { playing = true; if (!song) song = makeSong(AC, master); nextT = AC.currentTime + 1.2; barI = 0; pass = 0; }
+      master.gain.setTargetAtTime(0.55 * sndLevel(), AC.currentTime, 0.8);
+      while (nextT < AC.currentTime + 1.6) { song.bar(barI, nextT, pass); nextT += BAR; barI++; if (barI >= PROG.length) { barI = 0; pass++; } }
+    } else if (playing && AC) { playing = false; master.gain.setTargetAtTime(0.0001, AC.currentTime, 0.7); }
+    const b = $('epTitleMus'); if (b) { const on = userOn(); b.classList.toggle('on', on && sndLevel() > 0); b.textContent = on ? '음악 켜짐' : '음악 꺼짐'; }
+  }
+  function build() {
+    const ov = $('ovStart'); if (!ov || $('epTitleMus')) return;
+    const b = document.createElement('button'); b.id = 'epTitleMus'; b.type = 'button'; ov.appendChild(b);
+    b.addEventListener('click', e => { e.stopPropagation(); try { localStorage.setItem(KEY, userOn() ? '0' : '1'); } catch (err) {}
+      if (userOn() && window.Snd && sndLevel() === 0) { try { Snd.unlock && Snd.unlock(); Snd.set('on', true); } catch (err) {} } ensure(); tick(); });
+    document.addEventListener('pointerdown', () => { if (want()) { ensure(); if (AC.state === 'suspended') AC.resume().catch(() => {}); } }, { passive: true });
+    setInterval(tick, 250); tick();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
+  window.EP_V6396_MUSIC = { version: '6.39.6', state: () => ({ playing, bar: barI, pass, want: want() }) };
 })();
 </script>
 </body>
