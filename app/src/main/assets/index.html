@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.38.0 Title Surface</title>
-<script id="ep-build">window.EP_BUILD='6.38.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.0 EW & Combat FX</title>
+<script id="ep-build">window.EP_BUILD='6.39.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -16174,6 +16174,69 @@ window.UBOAT = (function () {
     return clamp((crewSkillOf(station) - CREW_BASE) / (0.95 - CREW_BASE), 0, 1);
   }
 
+  /* ══════════ v6.39 자함 레이더 — 미 잠수함 SJ (1942년 8월부터) ══════════
+     물 위에서만 돈다(안테나가 함교 위). 약 6초마다 한 바퀴 — 그때 잡힌 배마다 거리·방위 한 점을 남긴다.
+     잠망경보다 훨씬 정확하다(방위 ±1°, 거리 ±40m 안팎). 밤·안개에도 된다. 다만 **무엇인지는 모른다** —
+     반사의 크고 작음만 알 뿐 함종 판단은 여전히 눈으로 해야 한다.
+     탐지 거리: 대형함 약 27km, 상선 16~22km, 구축함·해방함 약 18km, 부상한 잠수함 7km. 파도가 높으면 작은 반사가 묻힌다.
+     대가: 1944년 중반부터 일본 호위함은 이 전파를 잡는 수신기(E27)를 달았다 — 켜 두면 방위를 준다. */
+  function ownRadarInfo() {
+    const th = G.theaterId || 'ATLANTIC';
+    if (th !== 'PACIFIC') return { has: false };
+    const ym = (G._ymOverride != null ? G._ymOverride : (G.ym || 0));
+    return { has: ym === 0 || ym >= 1942 * 12 + 8, name: 'SJ', detectorRisk: ym >= 1944 * 12 + 6 ? 1 : 0 };
+  }
+  function radarRangeFor(u) {
+    const t = u.tonnage || 0, kind = String(u.kind || u.shipType || '').toUpperCase();
+    let R;
+    if (u.submarineTarget) R = 7000;
+    else if (/BATTLESHIP|CARRIER|CRUISER/.test(kind) || t >= 15000) R = 27000;
+    else if (u.isEscort || /ESCORT|DESTROYER|KAIBOKAN|FRIGATE|CORVETTE/.test(kind)) R = 18000;
+    else R = t >= 7000 ? 22000 : 16000;
+    const sea = (G.weather && G.weather.sea) || 1;
+    return R * (R < 20000 ? Math.max(0.55, 1 - Math.max(0, sea - 2) * 0.08) : 1);
+  }
+  function updateOwnRadar(dt) {
+    const b = G.boat, info = ownRadarInfo();
+    if (!G.radarOn || !info.has) { G._radarSweep = 0; return; }
+    if (!isSurfaced(b)) { G.radarOn = false; report('P2', 'exec', '잠항 — 레이더 정지.'); return; }
+    G._radarSweep = (G._radarSweep || 0) + dt;
+    if (G._radarSweep < 6) return;
+    G._radarSweep = 0; G._radarSweeps = (G._radarSweeps || 0) + 1;
+    let n = 0, nearest = null;
+    for (const u of units()) {
+      if (!u.alive) continue; if (u.submarineTarget && !u.mastVisible && !(u.depth != null && u.depth < 2)) continue;
+      const r = dist(b.x, b.y, u.x, u.y); if (r > radarRangeFor(u)) continue;
+      n++; if (!nearest || r < nearest.r) nearest = { r, u };
+      let c = G.contacts.find(z => z.unitId === u.id);
+      const trueB = bearing(b.x, b.y, u.x, u.y);
+      if (!c) { c = newContact(u.id, trueB, 'radar'); logMsg('레이더 — 새 반사 ' + c.id + ' 방위 ' + trueB.toFixed(0) + '° 거리 ' + (r / 1000).toFixed(1) + 'km', 'hydro'); }
+      const bEst = norm360(trueB + gauss(0.9)), rEst = Math.max(50, r + gauss(35 + r * 0.002));
+      c.bearing = bEst; c.bearingError = Math.min(c.bearingError || 8, 1.5); c.rangeEstimate = rEst; c.rangeError = 40 + r * 0.003;
+      c.radarUpdatedAt = G.time; c.radarEcho = (u.tonnage || 0) >= 7000 || u.isEscort === false ? '큰 반사' : '작은 반사';
+      if (c.source !== 'radar' && c.source !== 'both') c.source = 'both';
+      c.obs = c.obs || []; c.obs.push({ x: b.x + Math.sin(d2r(bEst)) * rEst, y: b.y + Math.cos(d2r(bEst)) * rEst, t: G.time, radar: true });
+      if (c.obs.length > 6) c.obs.shift();
+      if (c.obs.length >= 2) {
+        const z = c.obs[c.obs.length - 1]; let a = c.obs[0];
+        for (let i = 0; i < c.obs.length - 1; i++) { if (z.t - c.obs[i].t <= 150) { a = c.obs[i]; break; } }
+        const dtObs = z.t - a.t;
+        if (dtObs >= 18) {
+          c.courseEstimate = bearing(a.x, a.y, z.x, z.y); c.speedEstimate = dist(a.x, a.y, z.x, z.y) / dtObs; c.speedFrom = 'radar';
+          const tdcG = crewGain('tdc');
+          c.solutionConfidence = clamp((0.42 + tdcG * 0.06) + Math.min(1, dtObs / 80) * (0.40 + tdcG * 0.08) + (c.obs.length - 2) * (0.06 + tdcG * 0.03), 0, 0.95);
+        }
+      }
+      try { motionEvidence(c); } catch (e) {}
+    }
+    G.radarStatus = { n, nearest: nearest ? Math.round(nearest.r) : null, t: G.time };
+    /* 1944년 중반부터 — 일본 호위함의 전파 수신기가 우리 송신 방위를 잡는다 */
+    if (info.detectorRisk && G.escorts && G.escorts.length && rnd() < 0.22) {
+      try { for (const e of G.escorts.filter(e => !e.sunk && e.alive)) { const cl = addClue(e, b.x, b.y, 'HFDF', 0.3, null);
+        e.suspicion = clamp(Math.max(e.suspicion || 0, 0.3), 0, 1); e.searchAnchor = { x: cl.x, y: cl.y, heading: norm360(bearing(e.x, e.y, cl.x, cl.y)), t: G.time }; } } catch (e) {}
+      if (!G._radarDetWarned || G.time - G._radarDetWarned > 120) { G._radarDetWarned = G.time; report('P1', 'radio', '적이 우리 레이더 전파를 듣고 있을 수 있습니다 — 오래 켜 두지 마십시오.'); }
+    }
+  }
   function observe(contactId) {
     const b = G.boat;
     /* ── 물 위에서도 잰다 ──
@@ -19039,6 +19102,7 @@ window.UBOAT = (function () {
     updateBoatThermoState();             /* 이동 뒤 센서·표시는 새 심도를 읽는다 */
     updateConvoy(dt);
     updatePassive(dt);
+    updateOwnRadar(dt);
     updateTimedSalvo();
     updateTorpedoes(dt);
     updateDeckGun(dt);
@@ -19167,6 +19231,14 @@ window.UBOAT = (function () {
       return true;
     },
     on: function (fn) { listeners.push(fn); },
+    /* v6.39 — 자함 레이더와 승조원 보고 통로 */
+    radar: { info: function () { return G ? ownRadarInfo() : { has: false }; },
+             set: function (on) { if (!G) return { ok: false }; const inf = ownRadarInfo(); if (!inf.has) return { ok: false, err: '이 배에는 레이더가 없습니다.' };
+               if (on && !isSurfaced(G.boat)) return { ok: false, err: '레이더는 물 위에서만 돌 수 있습니다.' };
+               G.radarOn = !!on; G._radarSweep = on ? 5.5 : 0; report('P2', 'exec', on ? inf.name + ' 레이더 송신 시작.' : '레이더 정지.'); return { ok: true }; },
+             status: function () { return G ? { on: !!G.radarOn, st: G.radarStatus || null, sweeps: G._radarSweeps || 0 } : null; } },
+    crewReport: function (p, who, text) { return G ? report(p || 'P1', who || 'exec', text) : null; },
+    setCalendar: function (ym) { if (G) G.ym = ym; },
     observe: observe, solution: solution, fire: fire, fireSalvoPlan: fireSalvoPlan,
     startTimedSalvo: startTimedSalvo, aar: aar, endTraining: endTraining,
     getPeriscopeVisuals: getPeriscopeVisuals,
@@ -45115,6 +45187,210 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     window.EP_V637_TITLE = { version: '6.38.0', surface: (i) => { const s0 = SETS.find(s => s.id === 'surface'); switchTo(s0); if (i != null) { const w = WX[i]; S.wx = { id: w.id, sea: w.sea, vis: w.vis, night: (w.night[0] + w.night[1]) / 2 }; S.fake.night = S.wx.night; S.fake.weather = { id: w.id, vis: w.vis, sea: w.sea }; s0.cap = w.cap; surfaceAudio(S.wx); } }, fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, wx: S.wx && S.set && S.set.kind === 'surface' ? S.wx.id + '/' + S.wx.night.toFixed(2) : null, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v639-ewar-style">
+/* ══════════ V6.39 전자전 — 전파 경보기(유보트) · SJ 레이더(미 잠수함) ══════════ */
+#tbEnv #epRwr:not(.on){ display:none !important; }
+#epRwr.on{ display:inline-flex; }
+#epRwr.alert{ color:#ff6a5a !important; border-color:#ff6a5a !important; animation:epRwrBlink .8s steps(2) infinite; }
+@keyframes epRwrBlink{ 50%{ opacity:.45; } }
+#epEwCard .st{ font-size:12px; color:var(--dim); line-height:1.5; margin:2px 0 8px; }
+#epEwCard .st b{ color:var(--ink); font-weight:600; }
+#epEwCard .st .warn{ color:var(--amber); }
+#epEwCard .st .bad{ color:var(--red); }
+#epEwBtn{ width:100%; min-height:44px; }
+#epEwCard .hist{ font-size:11px; color:var(--dim); line-height:1.5; margin-top:8px; }
+</style>
+<script id="ep-v639-ewar-script">
+/* ══════ 전자전 ══════
+   · 날짜: 전투가 시작되면 그 바다의 달력(초계 중이면 전쟁 경과 달까지 더해)을 엔진에 알려 준다.
+   · 유보트(대서양·지중해) — 전파 경보기(FuMB). 적 레이더파가 우리를 훑으면 **잡히기 전에** 대략의 방위를 알려 준다.
+     단 역사대로 무엇을 잡는지는 시기가 정한다:
+       1942.8~ 메톡스(FuMB 1) — 1.5m 대역만. 대서양 호위함의 10cm 레이더(271형·SG)는 **못 잡는다**(1943년 봄의 비극).
+       1943.11~ 낙소스(FuMB 7) 추가 — 10cm 도 잡지만 가깝고 들쭉날쭉하다.
+       1944.5~ 투니스(FuMB 26) — 10cm·3cm 까지 믿을 만하게.
+     수신기는 함교에 둔 안테나라 **물 위에서만** 듣는다.
+   · 미 잠수함(서태평양) — SJ 수상 수색 레이더(엔진 쪽 v6.39). 여기서는 켜고 끄는 판과 상태만.
+   · 일본 잠수함(동태평양, 1942) — 레이더도 경보기도 없다. */
+(function EP_EWAR(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const norm = a => ((a % 360) + 360) % 360;
+  function hash(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+  /* ── 날짜 ── */
+  function calendar(g) {
+    const th = g.theaterId || 'ATLANTIC'; let months = 0;
+    try { const C = window.Campaign && Campaign.state(); if (C && C.status === 'AT_SEA' && C.pendingEncounter && C.theater === th) months = C.warMonths || 0; } catch (e) {}
+    try { const d = window.EVENTS.monthOf(th, months); return { y: d.y, m: d.m, ym: d.y * 12 + d.m }; } catch (e) {}
+    const S = { ATLANTIC: [1943, 3], MEDITERRANEAN: [1942, 6], PACIFIC: [1943, 9], EASTPAC: [1942, 2] }[th] || [1943, 3];
+    return { y: S[0], m: S[1], ym: S[0] * 12 + S[1] };
+  }
+  const nation = th => th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE';
+  /* ── 유보트 수신기 — 시기별 ── */
+  function receiver(ym) {
+    if (ym < 1942 * 12 + 8) return null;
+    if (ym < 1943 * 12 + 11) return { name: 'FuMB 1 메톡스', bands: { '1.5m': 0.85 }, reach: { '1.5m': 1.5 } };
+    if (ym < 1944 * 12 + 5) return { name: 'FuMB 1 메톡스 + FuMB 7 낙소스', bands: { '1.5m': 0.85, '10cm': 0.5 }, reach: { '1.5m': 1.5, '10cm': 0.75 } };
+    return { name: 'FuMB 26 투니스', bands: { '1.5m': 0.9, '10cm': 0.8, '3cm': 0.7 }, reach: { '1.5m': 1.5, '10cm': 1.2, '3cm': 1.0 } };
+  }
+  /* 호위함 레이더의 대역 — 대서양은 1941년 말부터 10cm, 지중해는 1943년 중반까지 절반쯤 1.5m(286·290형) */
+  function bandOf(e, th, ym) { if (e._band) return e._band;
+    e._band = th === 'MEDITERRANEAN' && ym < 1943 * 12 + 6 && (hash(e.id) % 100) < 50 ? '1.5m' : '10cm'; return e._band; }
+
+  let lastG = null, cal = null, rx = null, alertUntil = 0, lastBrg = null, lastLevel = 0;
+  const heard = new Map();
+  function beep() { try { if (!(window.Snd && Snd.get && Snd.get() !== 'off')) return; const Ctx = window.AudioContext || window.webkitAudioContext; const ac = beep.ac || (beep.ac = new Ctx());
+    const t = ac.currentTime; for (let i = 0; i < 3; i++) { const o = ac.createOscillator(), g = ac.createGain(); o.type = 'square'; o.frequency.value = 1180; o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(0.0001, t + i * 0.16); g.gain.exponentialRampToValueAtTime(0.05, t + i * 0.16 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.16 + 0.1); o.start(t + i * 0.16); o.stop(t + i * 0.16 + 0.12); } } catch (e) {} }
+  function tickRwr(g, dt) {
+    const b = g.boat; if (!rx || !U.isSurfaced(b)) return;
+    for (const e of (g.escorts || [])) {
+      if (!e.alive || e.sunk || !e.radar || !e.radar.equipped) continue;
+      const band = bandOf(e, g.theaterId, cal.ym), sens = rx.bands[band]; if (!sens) continue;
+      const R = (e.radar.range || 6000) * (rx.reach[band] || 1), r = Math.hypot(e.x - b.x, e.y - b.y); if (r > R) continue;
+      const near = 1 - r / R, p = sens * (0.35 + 0.65 * near) * (e.radar.reliability || 0.9);
+      const st = heard.get(e) || { acc: 0, at: -1e9, level: 0 }; st.acc += p * dt * 0.8;
+      if (st.acc >= 1) { st.acc = 0; const level = near > 0.66 ? 3 : near > 0.33 ? 2 : 1;
+        if (g.time - st.at > 25 || level > st.level) {
+          st.at = g.time; st.level = level; const brg = norm(Math.atan2(e.x - b.x, e.y - b.y) * 180 / Math.PI + rnd(-25, 25));
+          lastBrg = Math.round(brg / 5) * 5; lastLevel = level; alertUntil = performance.now() + 12000;
+          const word = level === 3 ? '아주 강함 — 곧 잡힌다' : level === 2 ? '강해지고 있다' : '약함';
+          try { U.crewReport(level >= 2 ? 'P0' : 'P1', 'radio', '레이더파 감지 — 방위 약 ' + String(lastBrg).padStart(3, '0') + '°, ' + word + (level >= 2 ? '. 잠항을 권합니다!' : '.')); } catch (err) {}
+          beep();
+        } }
+      heard.set(e, st);
+    }
+  }
+
+  /* ── 화면 ── */
+  function buildPill() { const env = $('tbEnv'); if (!env || $('epRwr')) return; const s = document.createElement('span'); s.id = 'epRwr'; s.title = '전파 경보기'; env.appendChild(s); }
+  function buildCard() {
+    if ($('epEwCard')) return; const pane = document.querySelector('.pane[data-pane="boat"]'); if (!pane) return;
+    const card = document.createElement('div'); card.className = 'card'; card.id = 'epEwCard'; card.dataset.epGroup = 'cmd';
+    card.innerHTML = '<h3>전자 장비</h3><div class="st" id="epEwSt"></div><button type="button" class="mini" id="epEwBtn">레이더</button><div class="hist" id="epEwHist"></div>';
+    pane.appendChild(card);
+    $('epEwBtn').addEventListener('click', () => { const s = U.radar && U.radar.status(); const r = U.radar.set(!(s && s.on)); if (!r.ok && r.err) try { U.crewReport('P2', 'exec', r.err); } catch (e) {} render(); });
+  }
+  function render() {
+    const g = U.state(); if (!g || !cal) return;
+    const pill = $('epRwr'), st = $('epEwSt'), btn = $('epEwBtn'), hist = $('epEwHist'), nat = nation(g.theaterId), dateTxt = cal.y + '년 ' + cal.m + '월';
+    if (pill) { const on = nat === 'DE' && !!rx; pill.classList.toggle('on', on);
+      const alert = on && performance.now() < alertUntil; pill.classList.toggle('alert', alert);
+      pill.textContent = !on ? '' : alert ? '레이더파 ' + String(lastBrg).padStart(3, '0') + '°' : (U.isSurfaced(g.boat) ? '경보기 대기' : '경보기 —'); }
+    if (!st) return;
+    if (nat === 'DE') {
+      btn.style.display = 'none';
+      st.innerHTML = rx ? '전파 경보기 <b>' + rx.name + '</b> · ' + (U.isSurfaced(g.boat) ? '<b>듣는 중</b>' : '잠항 중엔 못 듣는다') +
+        (performance.now() < alertUntil ? '<br><span class="bad">레이더파 — 방위 약 ' + String(lastBrg).padStart(3, '0') + '° ±25° · ' + ['', '약함', '강해지는 중', '아주 강함'][lastLevel] + '</span>' : '') +
+        (!rx.bands['10cm'] ? '<br><span class="warn">이 수신기는 10cm 레이더(연합군 호위함의 271형·SG)를 못 잡는다.</span>' : '')
+        : '이 시기(' + dateTxt + ')에는 전파 경보기가 아직 없다.';
+      hist.textContent = '메톡스(1942.8) → 낙소스 추가(1943.11, 10cm) → 투니스(1944.5). 지금 ' + dateTxt + '.';
+    } else if (nat === 'US') {
+      const inf = U.radar.info(), s = U.radar.status() || {}; btn.style.display = inf.has ? '' : 'none';
+      btn.textContent = s.on ? 'SJ 레이더 정지' : 'SJ 레이더 송신'; btn.classList.toggle('on', !!s.on);
+      st.innerHTML = !inf.has ? '이 시기(' + dateTxt + ')에는 SJ 레이더가 아직 없다.'
+        : (s.on ? '<b>송신 중</b> · 약 6초마다 한 바퀴' + (s.st ? ' · 반사 <b>' + s.st.n + '</b>개' + (s.st.nearest != null ? ' · 가장 가까운 <b>' + (s.st.nearest / 1000).toFixed(1) + 'km</b>' : '') : '')
+                : (U.isSurfaced(g.boat) ? '물 위 — 켤 수 있다. 거리·방위가 정확해 해법이 빨리 선다. 무엇인지는 눈으로 봐야 한다.' : '물 위에서만 켤 수 있다.')) +
+          (inf.detectorRisk ? '<br><span class="warn">1944년 중반부터 일본 호위함은 이 전파를 잡는다 — 켜 두면 우리 방위를 준다.</span>' : '');
+      hist.textContent = 'SJ 수상 수색 레이더(10cm, 1942.8~). 대형함 약 27km · 상선 16~22km · 구축함 약 18km · 부상 잠수함 7km. 지금 ' + dateTxt + '.';
+    } else {
+      btn.style.display = 'none'; st.innerHTML = '이 배(' + dateTxt + ' 일본 잠수함)에는 레이더도 전파 경보기도 없다. 눈과 귀뿐이다.'; hist.textContent = '';
+    }
+  }
+  let lastT = null;
+  function loop() {
+    const g = U.state();
+    if (g !== lastG) { lastG = g; heard.clear(); alertUntil = 0; lastT = null;
+      if (g) { cal = calendar(g); try { U.setCalendar(cal.ym); } catch (e) {} rx = nation(g.theaterId) === 'DE' ? receiver(cal.ym) : null; } }
+    if (g) { const dt = lastT == null ? 0 : Math.max(0, Math.min(3, g.time - lastT)); lastT = g.time; if (dt > 0) tickRwr(g, dt); render(); }
+  }
+  function init() { buildPill(); buildCard(); setInterval(loop, 400); window.EP_V639_EWAR = { version: '6.39.0', calendar: () => cal, receiver: () => rx, forceYm: ym => { cal = { y: Math.floor((ym - 1) / 12), m: ((ym - 1) % 12) + 1, ym }; try { U.setCalendar(ym); } catch (e) {} const g = U.state(); rx = g && nation(g.theaterId) === 'DE' ? receiver(ym) : null; return rx && rx.name; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v639-combatfx-style">
+#epCombatFx{ position:fixed; inset:0; z-index:58; pointer-events:none; width:100%; height:100%; display:block; background:transparent !important; border:0 !important; border-radius:0 !important; box-shadow:none !important; margin:0 !important; padding:0 !important; }
+#app.epJolt{ animation:epJolt .42s cubic-bezier(.36,.07,.19,.97); }
+@keyframes epJolt{ 15%{ transform:translate(calc(var(--j,4px) * -1), 1px); } 35%{ transform:translate(var(--j,4px), -2px); } 55%{ transform:translate(calc(var(--j,4px) * -0.6), 1px); } 75%{ transform:translate(calc(var(--j,4px) * 0.4), 0); } }
+@media (prefers-reduced-motion:reduce){ #app.epJolt{ animation:none; } }
+</style>
+<script id="ep-v639-combatfx-script">
+/* ══════════ V6.39 전투 중 화면 입자 ══════════
+   제목 화면처럼, 전투 중에도 **배 안에서 느껴질 일**이 생기면 화면 위로 입자가 흐른다. 누르는 데는 방해하지 않는다(통과).
+   · 가까운 폭뢰: 화면이 짧게 흔들리고, 조명이 깜빡이고, 천장에서 먼지가 쏟아진다. 아주 가까우면 가장자리에서 물이 뿜어진다.
+   · 선체 손상·침수: 천장에서 물방울이 떨어지고(손상에 비례), 침수가 크면 가장자리에서 물줄기.
+   · 시험심도 아래: 가끔 먼지가 부슬부슬 떨어진다(선체가 눌린다).
+   · 어뢰 발사: 아래에서 기포가 짧게 솟는다. 긴급 부상(빠르게 떠오름): 아래에서 기포가 계속 솟는다.
+   옵션 없이도 가볍게 돌고(입자 최대 400개), 동작 줄이기 설정이면 흔들림은 뺀다. 전투가 없으면 쉰다. */
+(function EP_COMBATFX(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  let cv, cx, W = 0, H = 0, dpr = 1, P = [], flick = 0, last = performance.now(), lastG = null;
+  const seenBoom = new WeakSet(); let lastTorp = 0, lastHp = null, lastDepth = null, dripAcc = 0, leakAcc = 0, creakAcc = 0, blowAcc = 0;
+  function size() { dpr = Math.min(1.5, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  function tacticalOn() { const app = $('app'); if (!app || !U.state()) return false; if (app.offsetParent === null && getComputedStyle(app).display === 'none') return false;
+    return !document.querySelector('#world.on') && !document.querySelector('#ovStart.on'); }
+  function jolt(px) { const app = $('app'); if (!app || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    app.style.setProperty('--j', Math.round(px) + 'px'); app.classList.remove('epJolt'); void app.offsetWidth; app.classList.add('epJolt'); setTimeout(() => app.classList.remove('epJolt'), 450); }
+  function dust(n, spread) { for (let i = 0; i < n && P.length < 400; i++) P.push({ k: 'dust', x: Math.random() * W, y: rnd(0, H * (spread || 0.25)), vx: rnd(-8, 8), vy: rnd(30, 110), r: rnd(0.8, 1.8), age: 0, life: rnd(1.5, 3) }); }
+  function jet(side, dur) { const y = rnd(H * 0.15, H * 0.7), x = side < 0 ? 0 : W; P.push({ k: 'jet', x, y, dir: side < 0 ? 1 : -1, age: 0, life: dur }); }
+  function bubbles(n, x0, spread) { for (let i = 0; i < n && P.length < 400; i++) P.push({ k: 'bub', x: (x0 != null ? x0 : W / 2) + rnd(-spread, spread), y: H + rnd(0, 30), vx: rnd(-10, 10), vy: -rnd(90, 220), r: rnd(1.5, 4.5), age: 0, life: rnd(1.6, 3) }); }
+  function scan(g, dt) {
+    const b = g.boat;
+    /* 폭뢰·폭발 — 가까울수록 크게 */
+    for (const bm of (g.booms || [])) { if (seenBoom.has(bm)) continue; seenBoom.add(bm); if (g.time - bm.t > 1.5) continue;
+      const dz = (bm.depth != null ? bm.depth : 0) - b.depth, d = Math.hypot(bm.x - b.x, bm.y - b.y, dz);
+      if (d > 420) continue; const k = Math.pow(1 - d / 420, 1.4);
+      jolt(3 + 10 * k); flick = Math.max(flick, 0.25 + 0.6 * k); dust(Math.round(20 + 140 * k), 0.3);
+      if (k > 0.55) { jet(Math.random() < 0.5 ? -1 : 1, rnd(1.2, 2.5)); if (k > 0.8) jet(Math.random() < 0.5 ? -1 : 1, rnd(1, 2)); } }
+    /* 선체 손상 — 물방울, 침수 — 물줄기 */
+    const hp = b.hp != null ? b.hp : 100, flood = b.flood || 0;
+    if (lastHp != null && hp < lastHp - 3) { dust(30, 0.2); flick = Math.max(flick, 0.3); }
+    lastHp = hp;
+    dripAcc += dt * ((1 - hp / 100) * 2.2 + flood * 3); while (dripAcc > 1) { dripAcc -= 1; P.push({ k: 'drip', x: rnd(W * 0.05, W * 0.95), y: -4, vy: 0, age: 0, life: 3 }); }
+    if (flood > 0.3) { leakAcc += dt * flood * 0.25; if (leakAcc > 1) { leakAcc = 0; jet(Math.random() < 0.5 ? -1 : 1, rnd(1.5, 3)); } }
+    /* 시험심도 아래 — 선체가 눌린다 */
+    const test = (U.UB && U.UB.testDepth) || 150;
+    if (b.depth > test * 0.92) { creakAcc += dt * (0.2 + (b.depth - test * 0.92) / test * 2); if (creakAcc > 1) { creakAcc = 0; dust(Math.round(rnd(8, 22)), 0.15); flick = Math.max(flick, 0.12); } }
+    /* 어뢰 발사 */
+    const nT = (g.torpedoes || []).length; if (nT > lastTorp) { bubbles(26, W * 0.5, W * 0.18); jolt(2.5); } lastTorp = nT;
+    /* 빠르게 떠오름(긴급 부상) — 기포가 계속 */
+    if (lastDepth != null && dt > 0) { const rise = (lastDepth - b.depth) / dt; if (rise > 1.6 && b.depth > 4) { blowAcc += dt * 18; while (blowAcc > 1) { blowAcc -= 1; bubbles(1, Math.random() < 0.5 ? W * 0.12 : W * 0.88, W * 0.1); } } }
+    lastDepth = b.depth;
+  }
+  function draw(dt) {
+    cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, W, H);
+    for (const p of P) {
+      p.age += dt; const a = Math.max(0, 1 - p.age / p.life);
+      if (p.k === 'dust') { p.x += p.vx * dt; p.y += p.vy * dt; cx.fillStyle = 'rgba(205,190,170,' + (0.55 * a).toFixed(3) + ')'; cx.fillRect(p.x, p.y, p.r, p.r); }
+      else if (p.k === 'drip') { p.vy += 900 * dt; p.y += p.vy * dt; if (p.y > H) p.age = p.life; cx.fillStyle = 'rgba(170,205,230,.55)'; cx.beginPath(); cx.ellipse(p.x, p.y, 1.2, 2.8, 0, 0, 6.283); cx.fill(); }
+      else if (p.k === 'bub') { p.x += p.vx * dt + Math.sin((p.age + p.r) * 7) * 12 * dt; p.y += p.vy * dt; cx.strokeStyle = 'rgba(190,220,240,' + (0.5 * a).toFixed(3) + ')'; cx.lineWidth = 1; cx.beginPath(); cx.arc(p.x, p.y, p.r, 0, 6.283); cx.stroke(); }
+      else if (p.k === 'jet') { for (let i = 0; i < 6; i++) { const t = Math.random(), len = 60 + 140 * t; cx.fillStyle = 'rgba(200,225,240,' + (0.35 * a * (1 - t * 0.6)).toFixed(3) + ')';
+          cx.fillRect(p.x + p.dir * len * rnd(0.2, 1), p.y + rnd(-6, 6) + t * t * 40, 2, 2); } }
+      else if (p.k === 'spray') { p.vy += 500 * dt; p.x += p.vx * dt; p.y += p.vy * dt; cx.fillStyle = 'rgba(200,225,240,' + (0.5 * a).toFixed(3) + ')'; cx.fillRect(p.x, p.y, 2, 2); }
+    }
+    P = P.filter(p => p.age < p.life && p.y < H + 40 && p.y > -60);
+    if (flick > 0) { const f = Math.random() < 0.55 ? flick : flick * 0.2; cx.fillStyle = 'rgba(0,0,0,' + (0.55 * f).toFixed(3) + ')'; cx.fillRect(0, 0, W, H); flick = Math.max(0, flick - dt * 1.6); }
+  }
+  function frame(now) {
+    requestAnimationFrame(frame); const rdt = Math.min(0.05, (now - last) / 1000); last = now;
+    const g = U.state(), on = g && tacticalOn();
+    if (g !== lastG) { lastG = g; lastTorp = g ? (g.torpedoes || []).length : 0; lastHp = null; lastDepth = null; P = []; }
+    if (!on) { if (P.length || flick) { P = []; flick = 0; cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); } return; }
+    const gt = g.time, dt = frame.gt == null ? 0 : Math.max(0, Math.min(1, gt - frame.gt)); frame.gt = gt;
+    scan(g, dt); if (!P.length && flick <= 0) { if (frame.dirty) { cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); frame.dirty = false; } return; }
+    frame.dirty = true; draw(rdt);
+  }
+  function init() { cv = document.createElement('canvas'); cv.id = 'epCombatFx'; document.body.appendChild(cv); cx = cv.getContext('2d'); size(); addEventListener('resize', size);
+    requestAnimationFrame(frame); window.EP_V639_COMBATFX = { version: '6.39.0', count: () => P.length, test: { dc: (d) => { const g = U.state(); g.booms.push({ x: g.boat.x + d, y: g.boat.y, t: g.time, depth: g.boat.depth + 10 }); } } }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
