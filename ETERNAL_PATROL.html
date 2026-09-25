@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.12 Pop Fix</title>
-<script id="ep-build">window.EP_BUILD='6.39.12';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.40.0 Convoy Intercept</title>
+<script id="ep-build">window.EP_BUILD='6.40.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -1971,6 +1971,17 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 }
 </style>
 
+<style id="ep-v640-track-style">
+#epTrackCard{ display:none; position:absolute; left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom,0px)); z-index:40; background:var(--el2); border:1px solid var(--steel);
+  border-radius:8px; box-shadow:0 6px 24px var(--shadow); padding:10px 11px; font-size:12.5px; line-height:1.45; max-height:62vh; overflow:auto; }
+#epTrackCard.on{ display:block; }
+#epTrackCard .hd{ display:flex; align-items:baseline; gap:8px; } #epTrackCard .hd b{ color:var(--amber); font-size:14px; } #epTrackCard .hd span{ color:var(--dim); font-size:11.5px; flex:1; }
+#epTrackCard .x{ min-width:34px; min-height:30px; }
+#epTrackCard .st{ margin:6px 0 8px; } #epTrackCard .st b{ color:var(--ink); }
+#epTrackCard .sp{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; } #epTrackCard .sp button{ min-height:36px; font-size:12px; }
+#epTrackCard .pl{ padding:6px 0; border-top:1px solid var(--steel); } #epTrackCard .pl small{ display:block; color:var(--dim); font-size:11px; } #epTrackCard .pl.bad{ color:var(--red); }
+#epTrackCard .ac{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; } #epTrackCard .ac button{ min-height:42px; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -2820,6 +2831,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <button class="mini go" id="wGo">항해 개시</button>
 <button class="mini" id="wStop">정지</button>
 <button class="mini" id="wDive">잠항 항해</button>
+<button class="mini" id="wSpeed">속력 · 순항</button>
 <button class="mini" id="wSnork">스노클</button>
 <button class="mini" id="wCharge">전지 충전</button>
 <button class="mini" id="wDock">기항</button>
@@ -20946,7 +20958,8 @@ window.Campaign = (function () {
     const rough=Math.max(0,sea-2);
     if (C.surfaced) {
       const loss=aspect==='선수파'?.045:aspect==='횡파'?.028:.010;
-      return SURFACE_KN*clamp(1-rough*loss,.76,1.02);
+      const mul={ECO:.8,CRUISE:1,FLANK:1.65}[C.speedMode||'CRUISE']||1;   /* v6.40 — 경제·순항·전속 */
+      return SURFACE_KN*mul*clamp(1-rough*loss,.76,1.02);
     }
     if (C.snorkel) {
       const loss=aspect==='선수파'?.020:aspect==='횡파'?.012:.005;
@@ -21036,21 +21049,128 @@ window.Campaign = (function () {
     return rep;
   }
 
+  /* ══════════ v6.40 추적 선단 ══════════
+     무전 보고 뒤에는 **진짜 선단**이 있다. 보고는 그 선단을 어느 정도의 오차로 본 것일 뿐이다.
+       · 보고의 질: 해독(B-Dienst 등) ±25해리·침로 ±8°·속력 ±1.5노트 / 촉접 보트·항공기 ±10해리·±4°·±1노트 / 막연한 첩보 ±45해리.
+       · 진짜 선단은 제 침로와 속력으로 가고, 16~32시간마다 몰래 15~35° 변침한다(우회 항로). 육지 앞에서는 꺾는다.
+       · 지도에 보이는 것은 보고 시점의 위치를 보고된 침로·속력으로 밀어 둔 **추정 위치**이고, 오차는 시간당 약 2.6해리씩 커진다.
+       · 촉접 보트가 붙어 있으면 10~18시간마다 절반쯤 새 위치를 보내온다(오차가 다시 좁아진다).
+       · 조우는 더 이상 확률 원 안의 주사위가 아니다 — 진짜 선단이 **탐지 거리 안에 들어오면** 만난다.
+         탐지 거리: 낮 수상 맑음 16해리(연무 10·폭풍 7·스콜 5·안개 3), 밤 수상 5해리(맑지 않으면 3), 잠항 청음 10해리(파도에 줄어듦), 스노클 5해리.
+       · 만났을 때의 기하는 실제 상대 위치가 정한다: 선단 진로 앞(±30°) → 진로 앞 매복, 앞쪽 비스듬히 → 정면 교차, 옆 → 측면 교차, 뒤 → 뒤쫓기. */
+  const TRK_Q = {
+    DECRYPT:  { ko: '해독', err: 25, crs: 8, spd: 1.5 },
+    SIGHTING: { ko: '촉접', err: 10, crs: 4, spd: 1.0 },
+    VAGUE:    { ko: '첩보', err: 45, crs: 15, spd: 2.5 },
+  };
+  function gaussR() { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+  function trackOf(r) {
+    if (r.trk) return r.trk;
+    const cell = T().THEATERS[C.theater].grid.nmPerCell;
+    const qid = r.pack ? 'SIGHTING' : (rnd() < 0.45 ? 'DECRYPT' : rnd() < 0.73 ? 'SIGHTING' : 'VAGUE'), Q = TRK_Q[qid];
+    const a = rnd() * Math.PI * 2, e = Math.abs(gaussR()) * Q.err * 0.6 / cell;
+    r.trk = { q: qid, err0: Q.err, tx: r.x + Math.cos(a) * e, ty: r.y + Math.sin(a) * e,
+              tc: norm360(r.course + gaussR() * Q.crs * 0.6), ts: Math.max(4, r.speedKn + gaussR() * Q.spd * 0.6),
+              nextTurn: C.hours + 16 + rnd() * 16, nextUpd: C.hours + 10 + rnd() * 8, engaged: false };
+    return r.trk;
+  }
+  function trackErrNm(r) { const k = trackOf(r); return k.err0 + 2.6 * Math.max(0, C.hours - r.at); }
+  function detectNm() {
+    const h = localClockHour(), day = h >= 6 && h < 19, w = C.weather || 'clear', sea = C.seaState == null ? 1 : C.seaState;
+    if (C.surfaced) {
+      if (day) return { clear: 16, haze: 10, gale: 7, squall: 5, fog: 3 }[w] || 12;
+      return w === 'clear' ? 5 : 3;
+    }
+    if (C.snorkel) return 5;
+    return 10 * clamp(1 - Math.max(0, sea - 1) * 0.1, 0.5, 1);
+  }
+  function relGeoId(k) {
+    const brg = gridBearing(k.tx, k.ty, C.x, C.y);
+    let rel = norm360(brg - k.tc); if (rel > 180) rel -= 360; rel = Math.abs(rel);
+    return rel <= 30 ? 'AHEAD' : rel <= 65 ? 'BOW' : rel <= 115 ? 'BEAM' : 'ASTERN';
+  }
+  const I18T = (ko, en, ja) => ({ ko: ko, en: en, ja: ja });   /* DIR_I18N 은 아래에서 늦게 정의되므로 따로 둔다 */
+  const GEO_BY_ID = {
+    AHEAD:  { id:'AHEAD', label:I18T('진로 앞 매복','Ahead-of-track ambush','進路前方の待ち伏せ'), startAspect:'AHEAD', startRange:1.40, minEscortRange:1500,
+              problem:I18T('선단 진로 앞에 자리를 잡았습니다 — 한 번의 공격창을 만들 수 있습니다.','You are ahead of the track — one attack window is yours.','船団進路前方に位置しました — 一度の攻撃窓を作れます。') },
+    BOW:    { id:'BOW', label:I18T('정면 교차','Bow-on crossing','正面交差'), startAspect:'BOW', startRange:1.48, minEscortRange:1800,
+              problem:I18T('선단이 비스듬히 다가옵니다. 좋은 측면각을 만들지, 짧은 기회를 받아들일지 정해야 합니다.','The convoy closes at an angle; build a better aspect or take the short chance.','船団が斜めに近づきます。') },
+    BEAM:   { id:'BEAM', label:I18T('측면 교차','Beam crossing','側面交差'), startAspect:'BEAM', startRange:1.30, minEscortRange:1700,
+              problem:I18T('선단 옆구리에 붙었습니다 — 측면각은 좋지만 호위 경계선과 가깝습니다.','You are on the convoy\'s beam — good aspect, but the screen is close.','船団の側面です。') },
+    ASTERN: { id:'MIXED', label:I18T('뒤쫓기','Stern chase','追尾'), startAspect:'MIXED', startRange:1.70, minEscortRange:1650,
+              problem:I18T('선단 뒤에서 만났습니다. 앞질러 자리를 잡기 전엔 공격창이 나지 않습니다.','You met the convoy from astern; no window until you get ahead.','船団の後方です。') },
+  };
+  function startTrackEncounter(th, r, events) {
+    const k = trackOf(r), geoId = relGeoId(k);
+    const enc = makeEncounter(th, 'CONVOY');
+    enc.course = Math.round(k.tc); enc.speedKn = +k.ts.toFixed(1); enc.ships = r.size != null ? r.size : enc.ships;
+    enc.from = '선단 ' + r.id + ' — 직접 발견'; enc.trackId = r.id; enc.geoFromTrack = geoId;
+    if (enc.director) {
+      enc.director.geometry = Object.assign({}, GEO_BY_ID[geoId]);
+      const day = localClockHour() >= 6 && localClockHour() < 19;
+      if (C.surfaced && day) Object.assign(enc.director.info, { id:'GOOD', label:DIR_I18N('신선한 접촉','Fresh contact','新鮮な接触'), startSolution:[0.54,0.68], errorMul:0.72, approachBonus:0.07 });
+      enc.director.problem = { ko: enc.director.geometry.problem.ko + ' ' + enc.director.opportunity.hint.ko,
+                               en: enc.director.geometry.problem.en + ' ' + enc.director.opportunity.hint.en,
+                               ja: enc.director.geometry.problem.ja + ' ' + enc.director.opportunity.hint.ja };
+      if (enc.director.crew && enc.director.crew[0]) enc.director.crew[0] = { role:'nav', ko: enc.director.geometry.problem.ko, en: enc.director.geometry.problem.en, ja: enc.director.geometry.problem.ja };
+    }
+    k.engaged = true; r.strength = 0;
+    events.push({ kind: 'ENCOUNTER', encounter: enc, track: r.id, geometry: geoId });
+  }
   /* 보고는 시간이 지나면 쓸모없어진다. 선단은 그 자리에 머물지 않는다. */
   function ageReports(dt) {
+    const cell = T().THEATERS[C.theater].grid.nmPerCell;
     for (const r of C.reports) {
-      const hrs = C.hours - r.at;
-      r.strength = clamp(1 - hrs / 30, 0, 1);
-      /* 보고된 선단은 계속 움직인다 — 추정 위치를 침로대로 밀어 둔다 */
+      const hrs = C.hours - r.at, k = trackOf(r);
+      r.strength = k.engaged ? 0 : clamp(1 - hrs / 60, 0, 1);
+      /* 추정 위치 — 보고된 침로·속력으로 밀어 둔다 */
       const nm = r.speedKn * dt;
-      const cell = T().THEATERS[C.theater].grid.nmPerCell;
       r.x += Math.sin(r.course * Math.PI / 180) * nm / cell;
       r.y -= Math.cos(r.course * Math.PI / 180) * nm / cell;
       r.grid = T().gridName(C.theater, r.x, r.y);
+      /* 진짜 선단 */
+      if (C.hours >= k.nextTurn) { k.tc = norm360(k.tc + (rnd() < 0.5 ? -1 : 1) * (15 + rnd() * 20)); k.nextTurn = C.hours + 16 + rnd() * 16; }
+      const tnm = k.ts * dt, nx = k.tx + Math.sin(k.tc * Math.PI / 180) * tnm / cell, ny = k.ty - Math.cos(k.tc * Math.PI / 180) * tnm / cell;
+      if (T().isLand(C.theater, nx + Math.sin(k.tc * Math.PI / 180) * 0.6, ny - Math.cos(k.tc * Math.PI / 180) * 0.6)) k.tc = norm360(k.tc + 40);
+      else { k.tx = nx; k.ty = ny; }
+      /* 촉접 보트의 새 보고 */
+      if (!k.engaged && C.hours >= k.nextUpd) {
+        k.nextUpd = C.hours + 10 + rnd() * 8;
+        if (rnd() < 0.5) { const Q = TRK_Q.SIGHTING, a = rnd() * Math.PI * 2, e = Math.abs(gaussR()) * Q.err * 0.6 / cell;
+          r.x = k.tx + Math.cos(a) * e; r.y = k.ty + Math.sin(a) * e; r.course = Math.round(norm360(k.tc + gaussR() * Q.crs * 0.6));
+          r.speedKn = Math.max(4, Math.round(k.ts + gaussR() * Q.spd * 0.6)); r.at = C.hours; k.err0 = Q.err; k.q = 'SIGHTING';
+          r.grid = T().gridName(C.theater, r.x, r.y);
+          say('무전 — 촉접 보트가 선단 ' + r.id + ' 의 새 위치를 보냈다. ' + r.grid + ', 침로 ' + String(r.course).padStart(3, '0') + '도, 약 ' + r.speedKn + '노트.', 'radio', 'report'); }
+      }
     }
     C.reports = C.reports.filter(r => r.strength > 0.05);
   }
-
+  /* 진짜 선단이 탐지 거리 안에 들어왔는가 */
+  function trackDetect(th, events) {
+    const cell = th.grid.nmPerCell, R = detectNm();
+    for (const r of C.reports) { const k = trackOf(r); if (k.engaged || r.strength <= 0) continue;
+      const d = Math.hypot(k.tx - C.x, k.ty - C.y) * cell;
+      if (d <= R) { say('선단이다 — ' + (C.surfaced ? '수평선에 연기와 돛대.' : '청음기에 여러 스크류.') + ' 선단 ' + r.id + ', 약 ' + Math.round(d) + '해리.', 'hydro', 'encounter');
+        startTrackEncounter(th, r, events); return true; } }
+    return false;
+  }
+  /* 요격 계산 — 플레이어가 아는 것(추정 위치·침로·속력)만으로. ahead 해리만큼 선단 앞을 노린다. */
+  function interceptPlan(id, kn, aheadNm) {
+    const r = C.reports.find(z => z.id === id); if (!r) return { ok: false, err: '보고가 없습니다.' };
+    const cell = T().THEATERS[C.theater].grid.nmPerCell, cr = r.course * Math.PI / 180, ux = Math.sin(cr), uy = -Math.cos(cr);
+    const ve = [ux * r.speedKn / cell, uy * r.speedKn / cell], vs = kn / cell, ah = (aheadNm || 0) / cell;
+    const D = [r.x + ux * ah - C.x, r.y + uy * ah - C.y];
+    const a = ve[0] * ve[0] + ve[1] * ve[1] - vs * vs, b = 2 * (D[0] * ve[0] + D[1] * ve[1]), c = D[0] * D[0] + D[1] * D[1];
+    let t = null;
+    if (Math.abs(a) < 1e-9) t = b < 0 ? -c / b : null;
+    else { const disc = b * b - 4 * a * c; if (disc >= 0) { const s = Math.sqrt(disc), t1 = (-b - s) / (2 * a), t2 = (-b + s) / (2 * a);
+      const ts = [t1, t2].filter(x => x > 0).sort((p, q) => p - q); t = ts.length ? ts[0] : null; } }
+    if (t == null || t > 96) return { ok: false, err: kn + '노트로는 따라잡을 수 없습니다.' };
+    const x = r.x + ve[0] * t + ux * ah, y = r.y + ve[1] * t + uy * ah;
+    const spec = T().BOATS[C.boatId], burn = (kn >= SURFACE_KN * 1.3 ? 2.3 : kn <= SURFACE_KN * 0.85 ? 0.7 : 1) / (spec.fuelDays * 24);
+    return { ok: true, hours: t, x, y, grid: T().gridName(C.theater, x, y), course: Math.round(gridBearing(C.x, C.y, x, y)),
+             nm: Math.round(Math.hypot(x - C.x, y - C.y) * cell), fuel: Math.round(burn * t * 1000) / 10, land: T().isLand(C.theater, x, y), errNm: Math.round(trackErrNm(r) + 2.6 * t) };
+  }
   /* ══════════ 조우 판정 ══════════ */
   /* ══════════ 조우 ══════════
      항로에 가까울수록, 신선한 보고 근처일수록 만난다.
@@ -21092,7 +21212,7 @@ window.Campaign = (function () {
     let p = 0.0126 * traffic * pace * falloff(near.dist * cell, ROUTE_NM);
     for (const r of C.reports) {
       const d = Math.hypot(r.x - C.x, r.y - C.y) * cell;
-      p += 0.12 * r.strength * falloff(d, REPORT_NM);
+      p += 0.015 * r.strength * falloff(d, REPORT_NM);   /* v6.40 — 보고된 선단은 이제 탐지로 만난다(주사위 몫은 작게) */
     }
     /* 먼바다 바닥값 — 오가는 길이 텅 비지 않게. 여기서 만나는 것은
        선단이 아니라 단독선이나 대잠 초계대다. */
@@ -21120,8 +21240,7 @@ window.Campaign = (function () {
   function rollKind(th) {
     const near = T().routeProximity(C.theater, C.x, C.y);
     const onRoute = near.route && near.dist < cells(NM.onRoute);
-    const fresh = C.reports.some(r => r.strength > 0.25 && within(r.x, r.y, NM.freshReport));
-    if (fresh) return 'CONVOY';
+    /* v6.40 — 보고된 선단은 진짜 위치에서 탐지로 만나므로, 근처라고 우연 조우를 선단으로 몰지 않는다 */
     const esc = clamp(C.escortSkill || 0, 0, 1);
     const table = onRoute
       ? [['CONVOY', 0.52], ['LONE', 0.26], ['STRAGGLER', 0.10],
@@ -21749,7 +21868,7 @@ window.Campaign = (function () {
       /* ── 연료 · 전지 · 함내 공기 ── */
       const spec = T().BOATS[C.boatId];
       const running = (C.surfaced || C.snorkel);
-      const burn = (C.navMode === 'ROUTE' ? (C.surfaced ? 1.0 : (C.snorkel ? 0.7 : 0.15)) : (running ? 0.3 : 0.08));
+      const burn = (C.navMode === 'ROUTE' ? (C.surfaced ? ({ECO:0.7,CRUISE:1.0,FLANK:2.3}[C.speedMode||'CRUISE']||1) : (C.snorkel ? 0.7 : 0.15)) : (running ? 0.3 : 0.08));
       C.fuel = clamp(C.fuel - burn * dt / (spec.fuelDays * 24), 0, 1);
       if (C.weather && C.snorkel) {
         if ((C.seaState == null ? 1 : C.seaState) >= 4) { C.snorkel = false; C.speedKn = cruiseKn();
@@ -21904,6 +22023,8 @@ window.Campaign = (function () {
       const air = airCheck(th, dt);
       if (air) { events.push(air); if (air.hit) return { events: events, stopped: true }; }
 
+      /* ── 추적 선단 탐지 ── */
+      if (C.hours - C.lastEncounterHour > 1 && trackDetect(th, events)) return { events: events, stopped: true };
       /* ── 조우 ── */
       if (C.hours - C.lastEncounterHour > 2 && rnd() < encounterChance(th) * dt) {
         events.push({ kind: 'ENCOUNTER', encounter: makeEncounter(th) });
@@ -22646,6 +22767,16 @@ window.Campaign = (function () {
     startVoyage: startVoyage, stopVoyage: stopVoyage, setSurfaced: setSurfaced,
     setSnorkel: setSnorkel, charge: charge, cruiseKn: cruiseKn,
     advance: advance,
+    /* v6.40 추적 선단 · 요격 · 속력 */
+    tracks: function () { if (!C) return []; return C.reports.filter(r => r.strength > 0).map(r => { const k = trackOf(r);
+      return { id: r.id, x: r.x, y: r.y, course: r.course, speedKn: r.speedKn, size: r.size, escorts: r.escorts, grid: r.grid, age: +(C.hours - r.at).toFixed(1),
+               err: Math.round(trackErrNm(r)), q: k.q, qKo: TRK_Q[k.q].ko, strength: r.strength }; }); },
+    interceptPlan: function (id, kn, ahead) { return C ? interceptPlan(id, kn, ahead) : { ok: false }; },
+    setSpeedMode: function (m) { if (!C || !{ECO:1,CRUISE:1,FLANK:1}[m]) return false; C.speedMode = m; C.speedKn = cruiseKn(); return true; },
+    speedMode: function () { return C ? (C.speedMode || 'CRUISE') : 'CRUISE'; },
+    speedFor: function (m) { if (!C) return 10; const o = C.speedMode; C.speedMode = m; const v = cruiseKn(); C.speedMode = o; return v; },
+    detectNm: function () { return C ? detectNm() : 0; },
+    _trackTruth: function (id) { const r = C && C.reports.find(z => z.id === id); return r ? trackOf(r) : null; },
     beginEncounter: beginEncounter, resolveEncounter: resolveEncounter, abortEncounter: abortEncounter,
     /* 발밑의 바다 — 지도와 항해 패널이 읽는다 */
     sea: function () {
@@ -35817,18 +35948,35 @@ window.Lang.add('ja', {
       if (C.orders.hours) { c.font='9px system-ui'; c.fillStyle='rgba(255,205,120,.85)';
         c.fillText(Math.min(C.orders.hours,+(C.orders.progress||0).toFixed(1))+'/'+C.orders.hours+'h',q[0]+rr+4,q[1]+9); }
     }
-    /* 무전 보고 — 오래될수록 흐리고 크게(=덜 확실하게) 그린다 */
-    for (const r of C.reports) {
-      const q = wpx(sc, r.x, r.y);
-      const a = (0.12 + r.strength * 0.7).toFixed(2);
-      const rad = Math.max(3, (0.5 + (1 - r.strength) * 1.6) * sc.k);
-      c.strokeStyle = 'rgba(255,176,32,' + a + ')'; c.lineWidth = 1.4; c.setLineDash([3, 4]);
-      c.beginPath(); c.arc(q[0], q[1], rad, 0, 7); c.stroke(); c.setLineDash([]);
-      const rr = r.course * Math.PI / 180;
-      c.beginPath(); c.moveTo(q[0], q[1]);
-      c.lineTo(q[0] + Math.sin(rr) * 22, q[1] - Math.cos(rr) * 22); c.stroke();
-      c.fillStyle = 'rgba(255,176,32,' + a + ')'; c.font = '10px system-ui'; c.textAlign = 'left';
-      c.fillText(r.grid + ' · ' + r.size + '척', q[0] + 7, q[1] + 12);
+    /* v6.40 — 보고된 선단: 추정 위치 · 오차 원(시간이 갈수록 커짐) · 침로 · 앞으로 24시간 예상 항적(6시간 눈금) */
+    { const cellNm = sc.t.grid.nmPerCell, sel = window.EP_TRACK_SEL || null;
+      for (const tr of (Campaign.tracks ? Campaign.tracks() : [])) {
+        const q = wpx(sc, tr.x, tr.y), a = (0.18 + tr.strength * 0.72), on = sel === tr.id;
+        const rad = Math.max(5, tr.err / cellNm * sc.k), cr = tr.course * Math.PI / 180, ux = Math.sin(cr), uy = -Math.cos(cr);
+        c.fillStyle = 'rgba(255,176,32,' + (0.05 + 0.05 * a).toFixed(3) + ')'; c.beginPath(); c.arc(q[0], q[1], rad, 0, 7); c.fill();
+        c.strokeStyle = 'rgba(255,176,32,' + (on ? 0.95 : a * 0.8).toFixed(2) + ')'; c.lineWidth = on ? 1.8 : 1.2; c.setLineDash([3, 4]);
+        c.beginPath(); c.arc(q[0], q[1], rad, 0, 7); c.stroke(); c.setLineDash([]);
+        /* 예상 항적 — 6시간마다 눈금 */
+        const perH = tr.speedKn / cellNm * sc.k;
+        c.strokeStyle = 'rgba(255,176,32,' + (a * 0.7).toFixed(2) + ')'; c.lineWidth = 1; c.setLineDash([2, 5]);
+        c.beginPath(); c.moveTo(q[0], q[1]); c.lineTo(q[0] + ux * perH * 24, q[1] + uy * perH * 24); c.stroke(); c.setLineDash([]);
+        c.fillStyle = 'rgba(255,190,90,' + a.toFixed(2) + ')'; c.font = '9px system-ui'; c.textAlign = 'center';
+        for (const hh of [6, 12, 18, 24]) { const tx = q[0] + ux * perH * hh, ty = q[1] + uy * perH * hh; c.beginPath(); c.arc(tx, ty, 1.8, 0, 7); c.fill();
+          if (perH * 6 > 16) c.fillText('+' + hh + 'h', tx + uy * 9, ty - ux * 9 + 3); }
+        /* 표식 — 마름모 + 침로 화살 */
+        c.strokeStyle = 'rgba(255,176,32,' + Math.max(0.5, a).toFixed(2) + ')'; c.lineWidth = on ? 2.2 : 1.6;
+        c.beginPath(); c.moveTo(q[0], q[1] - 6); c.lineTo(q[0] + 6, q[1]); c.lineTo(q[0], q[1] + 6); c.lineTo(q[0] - 6, q[1]); c.closePath(); c.stroke();
+        c.beginPath(); c.moveTo(q[0] + ux * 6, q[1] + uy * 6); c.lineTo(q[0] + ux * 20, q[1] + uy * 20); c.stroke();
+        c.fillStyle = 'rgba(255,190,90,' + Math.max(0.55, a).toFixed(2) + ')'; c.font = (on ? 'bold ' : '') + '10px system-ui'; c.textAlign = 'left';
+        c.fillText(tr.id + ' · ' + tr.qKo + ' · ' + Math.round(tr.age) + '시간 전 · ±' + tr.err + '해리', q[0] + 9, q[1] - 8);
+        c.fillText(String(tr.course).padStart(3, '0') + '° ' + tr.speedKn + '노트 · ' + tr.size + '척', q[0] + 9, q[1] + 4);
+      }
+      /* 고른 선단으로 가는 요격 선 */
+      const pl = window.EP_TRACK_PLAN;
+      if (sel && pl && pl.ok) { const s0 = wpx(sc, C.x, C.y), p1 = wpx(sc, pl.x, pl.y);
+        c.strokeStyle = 'rgba(143,208,255,.9)'; c.lineWidth = 1.6; c.setLineDash([6, 4]); c.beginPath(); c.moveTo(s0[0], s0[1]); c.lineTo(p1[0], p1[1]); c.stroke(); c.setLineDash([]);
+        c.beginPath(); c.arc(p1[0], p1[1], 7, 0, 7); c.stroke(); c.fillStyle = 'rgba(143,208,255,.95)'; c.font = 'bold 10px system-ui'; c.textAlign = 'left';
+        c.fillText((pl.ahead ? '매복점' : '요격점') + ' · 약 ' + pl.hours.toFixed(1) + '시간', p1[0] + 10, p1[1] + 3); }
     }
     /* v6.25.2 — 정확한 패킷 위치가 아니라 오래될수록 퍼지는 정보 흔적만 표시 */
     drawSeaActivityIntelV6252(c,sc,C,W,H);
@@ -35987,6 +36135,46 @@ window.Lang.add('ja', {
     if (p._seaPoint && p._seaPoint.shifted) $('wPortGame').textContent += ' 고정밀 해안선에서 시가지 좌표가 육지에 들어간 경우 거점 표식과 항해 목표는 인접 해상 정박점으로 자동 이동하며, 그 주변 바다에 접근하면 입항으로 인정합니다.';
   }
 
+
+  /* ══════════ v6.40 요격 카드 ══════════
+     보고된 선단을 누르면 뜬다. 보고의 질·나이·오차, 추정 침로·속력, 그리고 지금 속력 모드로 계산한 두 가지 길:
+       · 요격 — 추정 항적과 가장 빨리 만나는 점
+       · 앞으로 돌아 매복 — 추정 항적에서 선단 앞 25해리(엔드 어라운드). 여기서 잠항해 기다리면 「진로 앞 매복」으로 만난다.
+     계산은 추정치로 한다 — 오차 원이 크면 도착해서 못 볼 수 있다. 그때는 오차 원 안을 가로질러 찾거나 새 보고를 기다린다. */
+  function speedLabel(m) { return { ECO: '경제', CRUISE: '순항', FLANK: '전속' }[m] || '순항'; }
+  function openTrackCard(id) {
+    const C = Campaign.state(); if (!C) return;
+    window.EP_TRACK_SEL = id;
+    let card = $('epTrackCard'); if (!card) { card = document.createElement('div'); card.id = 'epTrackCard'; $('world').appendChild(card); }
+    const draw = () => {
+      const tr = (Campaign.tracks() || []).find(t => t.id === id); if (!tr) { closeTrackCard(); return; }
+      const mode = Campaign.speedMode(), kn = Campaign.speedFor(mode);
+      const pI = Campaign.interceptPlan(id, kn, 0), pA = Campaign.interceptPlan(id, kn, 25);
+      window.EP_TRACK_PLAN = pA.ok ? Object.assign({ ahead: true }, pA) : (pI.ok ? pI : null);
+      const line = (p, label) => p.ok ? '<div class="pl"><b>' + label + '</b> — 침로 ' + String(p.course).padStart(3, '0') + '° · ' + p.nm + '해리 · 약 ' + p.hours.toFixed(1) + '시간 · 연료 −' + p.fuel + '%' +
+        '<small>도착할 때 선단 위치 오차 약 ±' + p.errNm + '해리' + (p.land ? ' · 목표점이 육지 — 해안을 돌아감' : '') + '</small></div>' : '<div class="pl bad"><b>' + label + '</b> — ' + p.err + '</div>';
+      card.innerHTML = '<div class="hd"><b>선단 ' + tr.id + '</b> <span>' + tr.qKo + ' 보고 · ' + tr.age.toFixed(1) + '시간 전 · 추정 오차 ±' + tr.err + '해리</span><button type="button" class="x" data-a="close">✕</button></div>' +
+        '<div class="st">추정 침로 <b>' + String(tr.course).padStart(3, '0') + '°</b> · 약 <b>' + tr.speedKn + '노트</b> · ' + tr.size + '척 · 격자 ' + tr.grid + ' · 지금 탐지 거리 약 ' + Math.round(Campaign.detectNm()) + '해리</div>' +
+        '<div class="sp">' + ['ECO', 'CRUISE', 'FLANK'].map(m => '<button type="button" class="mini' + (m === mode ? ' on' : '') + '" data-s="' + m + '">' + speedLabel(m) + ' ' + Campaign.speedFor(m).toFixed(1) + '노트</button>').join('') + '</div>' +
+        line(pI, '요격') + line(pA, '앞으로 돌아 매복(선단 앞 25해리)') +
+        '<div class="ac"><button type="button" class="mini" data-a="int"' + (pI.ok ? '' : ' disabled') + '>요격 항로</button><button type="button" class="mini go" data-a="amb"' + (pA.ok ? '' : ' disabled') + '>매복 항로</button></div>';
+      renderWorld();
+    };
+    card.onclick = e => { const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.s) { Campaign.setSpeedMode(b.dataset.s); draw(); renderWorldPanel(); return; }
+      if (b.dataset.a === 'close') { closeTrackCard(); return; }
+      if (b.dataset.a === 'int' || b.dataset.a === 'amb') {
+        const kn = Campaign.speedFor(Campaign.speedMode()), p = Campaign.interceptPlan(id, kn, b.dataset.a === 'amb' ? 25 : 0); if (!p.ok) return;
+        const wasRunning = !!worldTimer; if (wasRunning) { stopVoyageTimer(); Campaign.stopVoyage('요격 항로로 변경'); }
+        Campaign.clearRoute(); const wp = Campaign.addWaypoint(p.x, p.y);
+        worldTip(wp ? ((b.dataset.a === 'amb' ? '매복점' : '요격점') + ' ' + p.grid + ' — ' + speedLabel(Campaign.speedMode()) + ' 약 ' + p.hours.toFixed(1) + '시간. 「항해 개시」를 누르십시오.') : '그 점으로 가는 길을 찾지 못했습니다.');
+        closeTrackCard(true); renderWorld(); renderWorldPanel();
+        if (wp && wasRunning) startVoyageTimer();
+      } };
+    card.classList.add('on'); draw();
+  }
+  window.EP_V640 = { open: id => openTrackCard(id), screen: id => { const sc = worldScale(), tr = (Campaign.tracks() || []).find(t => t.id === id); return sc && tr ? wpx(sc, tr.x, tr.y) : null; } };
+  function closeTrackCard(keepSel) { const card = $('epTrackCard'); if (card) card.classList.remove('on'); if (!keepSel) { window.EP_TRACK_SEL = null; window.EP_TRACK_PLAN = null; } renderWorld(); }
   function renderWorldPanel() {
     const C = Campaign.state(); if (!C) return;
     syncWorldViewV625({redraw:false});
@@ -36032,6 +36220,7 @@ window.Lang.add('ja', {
     $('wWait').textContent = L(worldTimer && !C.route.length ? '대기 중 — 멈추기' : '그 자리에서 대기');
     $('wWait').classList.toggle('on', !!worldTimer && !C.route.length);
     $('wDive').textContent = C.surfaced ? '잠항 항해' : '부상 항해';
+    { const sp = $('wSpeed'); if (sp) { const m = Campaign.speedMode ? Campaign.speedMode() : 'CRUISE'; sp.textContent = '속력 · ' + speedLabel(m) + ' ' + Campaign.speedFor(m).toFixed(0) + '노트'; sp.classList.toggle('on', m === 'FLANK'); sp.disabled = !C.surfaced; } }
     $('wBat').textContent = Math.round((C.battery == null ? 1 : C.battery) * 100);
     $('wAir').textContent = Math.round((C.air == null ? 1 : C.air) * 100);
     $('wBatBox').className = C.battery < 0.15 ? 'bad' : C.battery < 0.35 ? 'warn' : '';
@@ -36315,6 +36504,9 @@ window.Lang.add('ja', {
       if (!pressed) return; pressed = false;
       if (moved) return;
       const C = Campaign.state(); if (!C) return;
+      { const sc0 = worldScale(); if (sc0 && Campaign.tracks) {                  /* v6.40 — 보고된 선단을 누르면 요격 카드 */
+          let best = null, bd = 22; for (const tr of Campaign.tracks()) { const q = wpx(sc0, tr.x, tr.y), d = Math.hypot(q[0] - sx, q[1] - sy); if (d < bd) { bd = d; best = tr; } }
+          if (best) { openTrackCard(best.id); return; } } }
       const port = hitPort({ x: sx, y: sy });
       if (port) {
         worldPoint.theater = C.theater; worldPoint.portId = port.id;
@@ -36532,6 +36724,8 @@ window.Lang.add('ja', {
     renderWorld(); renderWorldPanel(); Campaign.save();
   });
   $('wStop').addEventListener('click', () => { stopVoyageTimer(); Campaign.stopVoyage('함장 지시'); renderWorldPanel(); });
+  $('wSpeed').addEventListener('click', () => { const order = ['ECO', 'CRUISE', 'FLANK'], m = Campaign.speedMode(); Campaign.setSpeedMode(order[(order.indexOf(m) + 1) % 3]); renderWorldPanel();
+    worldTip('속력 ' + speedLabel(Campaign.speedMode()) + ' — ' + Campaign.speedFor(Campaign.speedMode()).toFixed(1) + '노트' + (Campaign.speedMode() === 'FLANK' ? ' · 연료를 두 배 넘게 먹는다' : Campaign.speedMode() === 'ECO' ? ' · 연료를 아낀다' : '')); if ($('epTrackCard') && $('epTrackCard').classList.contains('on') && window.EP_TRACK_SEL) openTrackCard(window.EP_TRACK_SEL); });
   $('wDive').addEventListener('click', () => {
     const C = Campaign.state(); if (!C) return;
     Campaign.setSurfaced(!C.surfaced); resetBridgeMontageV625(); syncWorldViewV625({redraw:false}); renderWorld(); renderWorldPanel(); Campaign.save();
