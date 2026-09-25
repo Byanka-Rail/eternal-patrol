@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.11 No Pops</title>
-<script id="ep-build">window.EP_BUILD='6.39.11';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.12 Pop Fix</title>
+<script id="ep-build">window.EP_BUILD='6.39.12';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44958,7 +44958,10 @@ body.epMenuScene{ background:#030101; }
   let noiseBuf = null;
   function noise() { if (noiseBuf) return noiseBuf; const n = AC.sampleRate * 2, b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return (noiseBuf = b); }
   function nsrc() { const s = AC.createBufferSource(); s.buffer = noise(); s.loop = true; s.loopStart = Math.random(); return s; }
-  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  /* v6.39.12 — 새 GainNode 는 크기 1 로 태어난다. 소리를 먼저 틀고 봉투를 조금 뒤(t+0.05 등)에 시작하면, 그 사이 수십 ms 동안
+     잡음이 **최대 크기**로 새어 나와 「팟」 하고 터졌다(수상 항주의 물결 소리에서 목표보다 30배 큰 50ms 잡음).
+     이제 봉투를 걸 때 맨 처음부터 거의 0 으로 눌러 둔다. */
+  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, 0); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
 /* 폭뢰·어뢰 명중 합성 — Sealion 실전 녹음(1944)을 재어 맞춘 모양. 게임과 미리듣기가 같은 코드를 쓴다. */
   function EPFX(AC, out, noise, rnd, env) {
     const nsrc = () => { const s = AC.createBufferSource(); s.buffer = noise(); s.loop = true; return s; };
