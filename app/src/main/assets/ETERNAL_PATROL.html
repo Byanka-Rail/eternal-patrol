@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.37.2 Title Sets</title>
-<script id="ep-build">window.EP_BUILD='6.37.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.37.3 Title Crush</title>
+<script id="ep-build">window.EP_BUILD='6.37.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44671,19 +44671,19 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   for (const p of PHOTOS) { p.img = new Image(); p.img.src = p.src; }
   /* 세트 — kb: [시작 중심x, y, 확대, 끝 중심x, y, 확대] (사진 좌표 0~1) */
   const SETS = [
-    { id: 'attack', cap: '폭뢰 공격 — 머리 위에서 호위함이 돈다', photo: 0, kb: [0.35, 0.40, 1.00, 0.62, 0.45, 1.10],
-      light: { col: '#e0705a', base: '#1c0706', R: 0.5, swing: 1, kick: 1.3 }, ev: { dc: [9, 20], creak: [5, 10], ping: [6, 12], drip: [2, 5] }, eng: { kind: 'motor', lvl: 0.7, rpm: 1.0 } },
-    { id: 'silent', cap: '정숙 항주 — 호위함이 머리 위를 지나간다', photo: 1, kb: [0.40, 0.35, 1.05, 0.45, 0.60, 1.14],
-      light: { col: '#b0503f', base: '#120404', R: 0.38, swing: 0.35, kick: 0.6 }, ev: { ping: [4, 8], creak: [8, 15], drip: [3, 7], screws: true }, eng: { kind: 'creep', lvl: 0.35, rpm: 0.45 } },
-    { id: 'deep', cap: '안전심도 아래 — 선체가 운다', photo: 2, kb: [0.55, 0.45, 1.08, 0.38, 0.30, 1.16],
-      light: { col: '#d06a4a', base: '#180605', R: 0.46, swing: 0.6, kick: 0.9, tremor: 0.12 }, ev: { creak: [2, 5], rivet: [3, 7], leak: [12, 22], drip: [1, 3] }, eng: { kind: 'motor', lvl: 0.5, rpm: 0.7 } },
-    { id: 'flood', cap: '침수 — 손상통제반, 후부로!', photo: 0, kb: [0.70, 0.60, 1.12, 0.30, 0.35, 1.05],
-      light: { col: '#e0705a', base: '#1a0606', R: 0.55, swing: 0.9, kick: 1.1, beacon: true }, ev: { leak: [3, 7], alarm: [14, 24], creak: [4, 9], drip: [0.6, 1.6], dc: [18, 30] }, eng: { kind: 'motor', lvl: 0.6, rpm: 0.9 } },
-    { id: 'charge', cap: '밤, 수면 — 디젤로 전지를 채운다', photo: 1, kb: [0.60, 0.50, 1.02, 0.35, 0.45, 1.10],
+    { id: 'attack', cap: '폭뢰 공격 — 머리 위에서 호위함이 돈다', photo: 0, kb: [0.34, 0.40, 1.00, 0.62, 0.30, 1.10],
+      light: { col: '#e0705a', base: '#1c0706', R: 0.5, swing: 1, kick: 1.3 }, ev: { dc: [9, 20], creak: [5, 10], ping: [7, 14], crush: [28, 45], drip: [2, 5] }, eng: { kind: 'motor', lvl: 0.7, rpm: 1.0 } },
+    { id: 'silent', cap: '정숙 항주 — 호위함이 머리 위를 지나간다', photo: 1, kb: [0.30, 0.22, 1.02, 0.42, 0.55, 1.10],
+      light: { col: '#b0503f', base: '#120404', R: 0.42, swing: 0.35, kick: 0.6 }, ev: { ping: [5, 9], creak: [8, 15], drip: [3, 7], screws: true }, eng: { kind: 'creep', lvl: 0.35, rpm: 0.45 } },
+    { id: 'deep', cap: '안전심도 아래 — 선체가 운다', photo: 2, kb: [0.28, 0.14, 1.04, 0.62, 0.38, 1.14],
+      light: { col: '#d06a4a', base: '#180605', R: 0.46, swing: 0.6, kick: 0.9, tremor: 0.12 }, ev: { creak: [3, 6], rivet: [4, 8], crush: [9, 18], leak: [14, 24], drip: [1, 3] }, eng: { kind: 'motor', lvl: 0.5, rpm: 0.7 } },
+    { id: 'flood', cap: '침수 — 손상통제반, 후부로!', photo: 0, kb: [0.78, 0.66, 1.12, 0.22, 0.72, 1.06],
+      light: { col: '#e0705a', base: '#1a0606', R: 0.55, swing: 0.9, kick: 1.1 }, ev: { leak: [3, 7], crush: [20, 34], creak: [4, 9], drip: [0.6, 1.6], dc: [18, 30] }, eng: { kind: 'motor', lvl: 0.6, rpm: 0.9 } },
+    { id: 'charge', cap: '밤, 수면 — 디젤로 전지를 채운다', photo: 2, kb: [0.75, 0.40, 1.02, 0.50, 0.70, 1.08],
       light: { col: '#e6b27a', base: '#1a120b', R: 0.62, swing: 0.25, kick: 0.5, tremor: 0.2 }, ev: { creak: [10, 18], drip: [4, 9] }, eng: { kind: 'diesel', lvl: 0.8, rpm: 1.0 } },
   ];
   let cv, cx, off, ox, grain, W = 0, H = 0, dpr = 1, running = false, raf = 0, last = 0;
-  const S = { lamp: 0.3, lampV: 0, shake: 0, dark: 0, dust: [], steam: [], water: [], drips: [], valves: [],
+  const S = { squash: 0, lamp: 0.3, lampV: 0, shake: 0, dark: 0, dust: [], steam: [], water: [], drips: [], valves: [],
               set: null, prev: null, fade: 1, showT: 0, showDur: 50, timers: {}, beacon: 0 };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const cur = () => S.set, lerpCol = (a, b, t) => { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
@@ -44779,11 +44779,28 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     n.start(t); n.stop(t + dur + 0.1);
     if (!wet) for (const f of [523, 811, 1187]) { const o = AC.createOscillator(), og = AC.createGain(); o.frequency.value = f * rnd(0.98, 1.02); o.connect(og); og.connect(out); env(og, t, 0.003, 0.05, 1.1); o.start(t); o.stop(t + 1.2); }
   }
-  function alarm() {                              /* 경보 — 두 음 사이렌 세 번 */
-    if (!AC) return; const t = AC.currentTime;
-    for (let i = 0; i < 3; i++) { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; const a = t + i * 0.9;
-      o.frequency.setValueAtTime(420, a); o.frequency.linearRampToValueAtTime(720, a + 0.55); const f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1600;
-      o.connect(f); f.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, a); g.gain.exponentialRampToValueAtTime(0.07, a + 0.05); g.gain.setValueAtTime(0.07, a + 0.55); g.gain.exponentialRampToValueAtTime(0.0001, a + 0.75); o.start(a); o.stop(a + 0.8); }
+  /* 압궤 직전 — 강판이 눌려 우그러지는 소리: 낮게 끌리는 신음(멈칫거리며), 쇳소리 긁힘, 그리고 판이 꺾이는 쾅 + 선체 공명 */
+  function crushSnd() {
+    if (!AC) return; const t = AC.currentTime, dur = rnd(2.6, 4.2);
+    /* 끌리는 신음 — 톱니파를 공명 필터 셋에 통과시키고, 멈칫멈칫(스틱-슬립) 떨리게 */
+    const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(rnd(120, 150), t);
+    o.frequency.linearRampToValueAtTime(rnd(95, 110), t + dur * 0.5); o.frequency.linearRampToValueAtTime(rnd(70, 85), t + dur);
+    const slip = AC.createOscillator(); slip.type = 'square'; slip.frequency.value = rnd(9, 15); const sg = AC.createGain(); sg.gain.value = 0.45; slip.connect(sg);
+    const am = AC.createGain(); am.gain.value = 0.55; sg.connect(am.gain); o.connect(am);
+    const g = AC.createGain(); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.5); g.gain.setValueAtTime(0.16, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    for (const [f0, f1, q] of [[260, 180, 7], [470, 330, 9], [820, 600, 11]]) { const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = q;
+      bp.frequency.setValueAtTime(f0, t); bp.frequency.exponentialRampToValueAtTime(f1, t + dur); am.connect(bp); bp.connect(g); }
+    o.start(t); slip.start(t); o.stop(t + dur + 0.1); slip.stop(t + dur + 0.1);
+    /* 긁히는 쇳소리 */
+    const n = nsrc(), nb = AC.createBiquadFilter(); nb.type = 'bandpass'; nb.Q.value = 14; nb.frequency.setValueAtTime(rnd(900, 1300), t); nb.frequency.exponentialRampToValueAtTime(rnd(500, 700), t + dur);
+    const ng = AC.createGain(); n.connect(nb); nb.connect(ng); ng.connect(out); ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(0.05, t + dur * 0.4); ng.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.start(t); n.stop(t + dur + 0.1);
+    /* 판이 꺾인다 — 쾅 + 선체 공명(비조화 배음) */
+    const tb = t + dur * rnd(0.55, 0.8);
+    const k = nsrc(), kl = AC.createBiquadFilter(); kl.type = 'lowpass'; kl.frequency.setValueAtTime(2400, tb); kl.frequency.exponentialRampToValueAtTime(200, tb + 0.6);
+    const kg = AC.createGain(); k.connect(kl); kl.connect(kg); kg.connect(out); env(kg, tb, 0.004, 0.55, 0.9); k.start(tb); k.stop(tb + 1.2);
+    for (const f of [182, 293, 468, 731, 1104]) { const r = AC.createOscillator(), rg = AC.createGain(); r.frequency.value = f * rnd(0.97, 1.03); r.connect(rg); rg.connect(out); env(rg, tb, 0.003, 0.07 * (200 / f + 0.3), rnd(1.4, 2.4)); r.start(tb); r.stop(tb + 2.6); }
+    return (tb - t) * 1000;
   }
   function drip() { if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine';
     o.frequency.setValueAtTime(1500 + Math.random() * 500, t); o.frequency.exponentialRampToValueAtTime(700, t + 0.09); o.connect(g); g.connect(out); env(g, t, 0.002, 0.05, 0.14); o.start(t); o.stop(t + 0.2); }
@@ -44809,7 +44826,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   function place(set, t) { const p = PHOTOS[set.photo], im = p.img; if (!im.complete || !im.naturalWidth) return null;
     const e = t * t * (3 - 2 * t), k = set.kb, cxp = k[0] + (k[3] - k[0]) * e, cyp = k[1] + (k[4] - k[1]) * e, z = k[2] + (k[5] - k[2]) * e;
     const s = Math.max(W / im.naturalWidth, H / im.naturalHeight) * z, w = im.naturalWidth * s, h = im.naturalHeight * s;
-    let x = W / 2 - cxp * w, y = H / 2 - cyp * h; x = Math.min(0, Math.max(W - w, x)); y = Math.min(0, Math.max(H - h, y)); return { x, y, w, h }; }
+    let x = W / 2 - cxp * w, y = H * 0.26 - cyp * h;   /* 메뉴 위로 보이는 띠(화면 위 1/4쯤)에 사진의 볼거리를 둔다 */ x = Math.min(0, Math.max(W - w, x)); y = Math.min(0, Math.max(H - h, y)); return { x, y, w, h }; }
   function drawSet(c, set, t, alpha) { const r = place(set, t); if (!r) return; c.globalAlpha = alpha; c.drawImage(PHOTOS[set.photo].img, r.x, r.y, r.w, r.h); c.globalAlpha = 1; }
   function lampPos() { const L = H * 0.5, a = S.lamp; return { x: W * 0.5 + Math.sin(a) * L * 1.1, y: -H * 0.28 + Math.cos(a) * L }; }
   function light() { const A = S.prev ? S.prev.light : S.set.light, B = S.set.light, f = S.fade;
@@ -44818,6 +44835,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     const c = cx; c.setTransform(dpr, 0, 0, dpr, 0, 0); const L = light();
     const sh = reduce ? 0 : S.shake + L.tremor * 0.15, jx = (Math.random() - 0.5) * sh * 16, jy = (Math.random() - 0.5) * sh * 12;
     c.fillStyle = '#030101'; c.fillRect(0, 0, W, H); c.save(); c.translate(jx, jy);
+    if (S.squash > 0 && !reduce) { const q = S.squash * S.squash; c.translate(W / 2, H * 0.3); c.scale(1 + 0.012 * q, 1 - 0.022 * q); c.rotate((Math.random() - 0.5) * 0.004 * q); c.translate(-W / 2, -H * 0.3); }
     const tB = Math.min(1, S.showT / S.showDur), tA = 1;
     const paint = (ctx) => { if (S.prev && S.fade < 1) { drawSet(ctx, S.prev, tA, 1); drawSet(ctx, S.set, tB, S.fade); } else drawSet(ctx, S.set, tB, 1); };
     paint(c); c.globalCompositeOperation = 'multiply'; c.fillStyle = L.base; c.fillRect(-20, -20, W + 40, H + 40); c.globalCompositeOperation = 'source-over';
@@ -44853,14 +44871,17 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     const sw = set.light.swing;
     S.lampV += (-S.lamp * 2.2) * dt; S.lampV *= Math.pow(0.84, dt); S.lamp += S.lampV * dt;
     if (Math.abs(S.lamp) < 0.1 * sw && Math.abs(S.lampV) < 0.12 * sw) S.lampV += (Math.random() - 0.5) * 0.45 * sw;
-    S.shake = Math.max(0, S.shake - dt * 1.5); S.dark = Math.max(0, S.dark - dt);
+    S.shake = Math.max(0, S.shake - dt * 1.5); S.dark = Math.max(0, S.dark - dt); S.squash = Math.max(0, S.squash - dt * 2.5);
     const T = S.timers, ev = set.ev, due = k => { if (T[k] == null) return false; T[k] -= dt; if (T[k] <= 0) { T[k] = rnd(ev[k][0], ev[k][1]); return true; } return false; };
     if (due('dc')) { const salvo = 1 + Math.floor(Math.random() * 3); for (let i = 0; i < salvo; i++) setTimeout(() => running && S.set === set && dcStrike(), i * rnd(1400, 3000)); }
     if (due('creak')) creak(set.id === 'deep' ? 1.2 : 0.8);
     if (due('rivet')) { rivet(); S.shake = Math.max(S.shake, 0.25); }
+    if (due('crush')) { S.shake = Math.max(S.shake, 0.18); const ms = crushSnd() || 2000;
+      setTimeout(() => { if (!running) return; S.squash = 1; S.shake = Math.min(1.3, S.shake + 1.0); S.lampV += (Math.random() < 0.5 ? -1 : 1) * 1.6; S.dark = 0.45;
+        for (let k = 0; k < 90; k++) S.dust.push({ x: Math.random() * W, y: Math.random() * H * 0.4, vy: 30 + Math.random() * 80, vx: (Math.random() - 0.5) * 14, age: 0, life: 2 + Math.random() * 2.5 });
+        if (Math.random() < 0.7) burst(Math.random() < 0.5); }, ms); }
     if (due('ping')) ping(Math.random() < 0.35);
     if (due('leak')) burst(true);
-    if (due('alarm')) alarm();
     if (due('drip')) S.drips.push({ x: W * (0.15 + Math.random() * 0.7), y: 0, vy: 0 });
     for (const v of S.valves) { v.t += dt; if (v.t > v.dur) continue;
       for (let k = 0; k < (v.wet ? 5 : 9); k++) { const a = v.ang + (Math.random() - 0.5) * 0.45, sp = (v.wet ? 90 : 150) + Math.random() * 140;
@@ -44897,7 +44918,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     setRunning(ov.classList.contains('on')); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
-    window.EP_V637_TITLE = { version: '6.37.2', sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
+    window.EP_V637_TITLE = { version: '6.37.3', photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
