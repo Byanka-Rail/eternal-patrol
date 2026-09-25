@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.36.0 Sea FX</title>
-<script id="ep-build">window.EP_BUILD='6.36.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.37.0 Title Deep</title>
+<script id="ep-build">window.EP_BUILD='6.37.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44638,6 +44638,207 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   }
   requestAnimationFrame(loop);
   window.EP_V636_SEAFX = { version: '6.36.0', stats: () => ({ parts: parts.length, wrecks: wrecks.length, fires: fires.length }) };
+})();
+</script>
+<style id="ep-v637-title-style">
+/* ══════════ V6.37 제목 화면 — 깊은 바다 속 발령실 ══════════ */
+#ovStart{ background:#050303 !important; }
+#ovStart > *:not(#epTitleScene):not(#epTitleSnd){ position:relative; z-index:1; }
+#ovStart #ttl{ margin-top:max(18vh, 90px); }
+#epTitleScene{ position:fixed; inset:0; z-index:0; width:100%; height:100%; display:block; pointer-events:none; }
+#ovStart .box{ background:rgba(20,28,36,.8) !important; box-shadow:0 10px 40px rgba(0,0,0,.6); }
+#ovStart #ttl{ text-shadow:0 0 18px rgba(255,90,60,.35), 0 2px 0 rgba(0,0,0,.8); }
+#epTitleSnd{ position:fixed; top:calc(10px + env(safe-area-inset-top,0px)); right:10px; z-index:2; min-height:34px; padding:0 12px; border-radius:6px;
+  background:rgba(10,16,21,.75); color:var(--dim); border:1px solid var(--steel); font-size:12px; }
+#epTitleSnd.on{ color:var(--amber); border-color:var(--amber); }
+</style>
+<script id="ep-v637-title-script">
+/* 제목 화면 뒤에 깊은 바다 속 잠수함 발령실을 그린다.
+   · 흔들리는 붉은 전투등 하나가 방을 비춘다(늑골·배관·밸브 핸들·계기)
+   · 가끔 폭뢰가 가까이 터진다 — 화면이 흔들리고, 등이 크게 흔들리며 깜빡이고, 천장에서 먼지가 떨어지고,
+     때로 배관 이음매가 터져 증기가 뿜어진다. 천장에서 물이 떨어진다
+   · 소리(WebAudio, 파일 없음): 전동기 웅웅거림, 선체가 비틀리는 으드득, 먼 폭뢰의 둔중한 울림과 선체 공명,
+     밸브가 터지는 쉭 소리와 배관 쨍 소리, 물방울. 게임 소리 설정을 따른다(꺼져 있으면 무음) — 오른쪽 위 단추로 켜고 끈다.
+   · 제목 화면이 닫히면 그림과 소리를 멈춘다. 동작 줄이기 설정이면 흔들림을 뺀다. */
+(function EP_TITLE(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let cv, cx, W = 0, H = 0, dpr = 1, running = false, raf = 0, t0 = performance.now(), last = 0;
+  /* 장면 상태 */
+  const S = { lamp: 0.35, lampV: 0, shake: 0, flick: 0, dust: [], steam: [], drips: [], valveBurst: null, nextDC: 6 + Math.random() * 6, nextCreak: 3, nextDrip: 2, depth: 182 };
+
+  /* ── 소리 ── */
+  let AC = null, out = null, droneOn = false, drone = null;
+  function sndLevel() { try { const lv = window.Snd && Snd.get ? Snd.get() : 'off'; const m = window.Snd && Snd.getMix ? Snd.getMix() : { ambience: .75 };
+    const base = { off: 0, quiet: .38, on: 1, hydro: .9, cinematic: 1 }[lv] || 0; return base * (m && m.ambience != null ? m.ambience : .75); } catch (e) { return 0; } }
+  function ac() {
+    if (AC) return AC; const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null;
+    AC = new Ctx(); out = AC.createGain(); out.gain.value = 0; out.connect(AC.destination); return AC;
+  }
+  let noiseBuf = null;
+  function noise() { if (noiseBuf) return noiseBuf; const n = AC.sampleRate * 2, b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return (noiseBuf = b); }
+  function nsrc() { const s = AC.createBufferSource(); s.buffer = noise(); s.loop = true; return s; }
+  function env(g, t, a, peak, d) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function startDrone() {
+    if (!AC || droneOn) return; droneOn = true;
+    const g = AC.createGain(); g.gain.value = 0.0001; g.connect(out);
+    const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 170; lp.Q.value = 0.7; lp.connect(g);
+    const o1 = AC.createOscillator(), o2 = AC.createOscillator(); o1.type = 'sawtooth'; o2.type = 'sawtooth'; o1.frequency.value = 47; o2.frequency.value = 94.6; o1.connect(lp); o2.connect(lp);
+    const n = nsrc(), nlp = AC.createBiquadFilter(); nlp.type = 'lowpass'; nlp.frequency.value = 320; const ng = AC.createGain(); ng.gain.value = 0.35; n.connect(nlp); nlp.connect(ng); ng.connect(g);
+    const lfo = AC.createOscillator(), lg = AC.createGain(); lfo.frequency.value = 0.23; lg.gain.value = 0.012; lfo.connect(lg); lg.connect(g.gain);
+    o1.start(); o2.start(); n.start(); lfo.start(); g.gain.setTargetAtTime(0.05, AC.currentTime, 1.5);
+    drone = { g, stop() { try { o1.stop(); o2.stop(); n.stop(); lfo.stop(); } catch (e) {} } };
+  }
+  function creak(power) {                         /* 으드득 — 선체가 비틀리는 낮은 신음 + 리벳 딱딱 소리 */
+    if (!AC) return; const t = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain(), bp = AC.createBiquadFilter(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(70 + Math.random() * 30, t); o.frequency.exponentialRampToValueAtTime(42 + Math.random() * 10, t + 1.4);
+    bp.type = 'bandpass'; bp.frequency.setValueAtTime(240, t); bp.frequency.exponentialRampToValueAtTime(110, t + 1.4); bp.Q.value = 9;
+    o.connect(bp); bp.connect(g); g.connect(out); env(g, t, 0.18, 0.09 * power, 1.3); o.start(t); o.stop(t + 1.7);
+    const n = 5 + Math.floor(Math.random() * 8); let tt = t + 0.1;
+    for (let i = 0; i < n; i++) { tt += 0.03 + Math.random() * 0.09;
+      const s = AC.createBufferSource(); s.buffer = noise(); const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700 + Math.random() * 900; f.Q.value = 6;
+      const cg = AC.createGain(); s.connect(f); f.connect(cg); cg.connect(out); env(cg, tt, 0.002, (0.05 + Math.random() * 0.07) * power, 0.05); s.start(tt, Math.random()); s.stop(tt + 0.08); }
+  }
+  function depthCharge(dist) {                    /* 먼 폭뢰 — 둔중한 압력파, 선체 공명 */
+    if (!AC) return; const t = AC.currentTime, near = Math.max(0.25, 1 - dist);
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(58, t); o.frequency.exponentialRampToValueAtTime(28, t + 1.2);
+    o.connect(g); g.connect(out); env(g, t, 0.02, 0.5 * near, 1.8); o.start(t); o.stop(t + 2.2);
+    const n = nsrc(), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900 * near + 150, t); lp.frequency.exponentialRampToValueAtTime(90, t + 2.5);
+    const ng = AC.createGain(); n.connect(lp); lp.connect(ng); ng.connect(out); env(ng, t, 0.01, 0.55 * near, 2.6); n.start(t); n.stop(t + 3);
+    const r = nsrc(), rb = AC.createBiquadFilter(); rb.type = 'bandpass'; rb.frequency.value = 180 + Math.random() * 60; rb.Q.value = 28;
+    const rg = AC.createGain(); r.connect(rb); rb.connect(rg); rg.connect(out); env(rg, t + 0.08, 0.05, 0.45 * near, 2.4); r.start(t + 0.05); r.stop(t + 2.8);
+  }
+  function hiss(dur) {                            /* 밸브가 터진다 — 쉭, 그리고 배관이 쨍 */
+    if (!AC) return; const t = AC.currentTime;
+    const n = nsrc(), hp = AC.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2400; const g = AC.createGain();
+    n.connect(hp); hp.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.04); g.gain.setValueAtTime(0.16, t + dur * 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    n.start(t); n.stop(t + dur + 0.1);
+    for (const f of [523, 811, 1187]) { const o = AC.createOscillator(), og = AC.createGain(); o.frequency.value = f * (0.98 + Math.random() * 0.04); o.connect(og); og.connect(out); env(og, t, 0.003, 0.05, 1.1); o.start(t); o.stop(t + 1.2); }
+  }
+  function drip() {
+    if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(1500 + Math.random() * 500, t); o.frequency.exponentialRampToValueAtTime(700, t + 0.09); o.connect(g); g.connect(out); env(g, t, 0.002, 0.05, 0.14); o.start(t); o.stop(t + 0.2);
+  }
+  function audioVolume() { if (!out || !AC) return; const v = running ? sndLevel() : 0; out.gain.setTargetAtTime(v * 0.9, AC.currentTime, 0.4); if (v > 0) startDrone(); }
+  function unlockAudio() { if (!ac()) return; if (AC.state === 'suspended') AC.resume(); audioVolume(); }
+
+  /* ── 그림 ── */
+  function resize() { dpr = Math.min(1.5, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const VP = () => ({ x: W * 0.5, y: H * 0.36 });
+  function lampPos() { const L = 0.16 * Math.min(W, H) + 60, a = S.lamp; return { x: W * 0.5 + Math.sin(a) * L, y: H * 0.05 + Math.cos(a) * L, a }; }
+  function lit(px, py, lp, base) { const d = Math.hypot(px - lp.x, py - lp.y) / Math.max(W, H); return Math.max(0, (1.1 - d * 2.2)) * base; }
+  function draw(time, dt) {
+    const c = cx; c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const sh = reduce ? 0 : S.shake; const ox = (Math.random() - 0.5) * sh * 14, oy = (Math.random() - 0.5) * sh * 10;
+    c.fillStyle = '#040202'; c.fillRect(0, 0, W, H);
+    c.save(); c.translate(ox, oy);
+    const vp = VP(), lp = lampPos(), flick = S.flick > 0 && Math.random() < 0.55 ? 0.25 : 1, amb = 0.9 * flick;
+    /* 늑골 — 소실점을 향해 줄어드는 압력선체 테 */
+    for (let i = 9; i >= 0; i--) {
+      const k = Math.pow(0.72, i), rx = W * 0.95 * k, ry = H * 0.62 * k, cy = vp.y + (H * 0.2) * k;
+      const b = lit(vp.x, cy - ry * 0.7, lp, amb) * (0.35 + 0.65 * k);
+      c.strokeStyle = 'rgba(' + Math.round(40 + 150 * b) + ',' + Math.round(14 + 30 * b) + ',' + Math.round(12 + 20 * b) + ',' + (0.35 + 0.5 * k).toFixed(2) + ')';
+      c.lineWidth = Math.max(1, 14 * k); c.beginPath(); c.ellipse(vp.x, cy, rx, ry, 0, Math.PI * 1.05, Math.PI * 1.95); c.stroke();
+      c.lineWidth = Math.max(1, 10 * k); c.beginPath(); c.ellipse(vp.x, cy, rx, ry, 0, Math.PI * 0.08, Math.PI * 0.92); c.stroke();
+    }
+    /* 배관 — 양쪽 벽을 따라 소실점으로 */
+    const pipes = [[-0.46, -0.16, 7], [-0.44, -0.08, 4], [0.45, -0.12, 6], [0.47, -0.04, 3.5], [-0.3, -0.34, 5], [0.28, -0.35, 4.5]];
+    for (const [fx, fy, w0] of pipes) {
+      const x0 = vp.x + fx * W * 2.1, y0 = vp.y + fy * H * 2.1, b = lit(x0 * 0.6 + vp.x * 0.4, y0 * 0.6 + vp.y * 0.4, lp, amb);
+      const gr = c.createLinearGradient(x0, y0, vp.x, vp.y); gr.addColorStop(0, 'rgba(' + Math.round(60 + 140 * b) + ',' + Math.round(22 + 30 * b) + ',' + Math.round(18 + 18 * b) + ',.9)'); gr.addColorStop(1, 'rgba(20,8,6,.2)');
+      c.strokeStyle = gr; c.lineWidth = w0; c.lineCap = 'round'; c.beginPath(); c.moveTo(x0, y0); c.lineTo(vp.x + fx * 30, vp.y + fy * 30); c.stroke();
+      for (let j = 1; j <= 3; j++) { const t = j * 0.22, fxp = x0 + (vp.x - x0) * t, fyp = y0 + (vp.y - y0) * t; c.fillStyle = 'rgba(' + Math.round(50 + 120 * b) + ',18,14,.9)'; c.fillRect(fxp - w0 * 0.9 * (1 - t), fyp - w0 * 1.1 * (1 - t), w0 * 1.8 * (1 - t), w0 * 2.2 * (1 - t)); }
+    }
+    /* 밸브 핸들과 계기 — 왼쪽 벽 */
+    const wheels = [[0.12, 0.5, 26], [0.2, 0.62, 18], [0.86, 0.55, 22]];
+    for (const [fx, fy, r] of wheels) { const x = W * fx, y = H * fy, b = lit(x, y, lp, amb), col = 'rgba(' + Math.round(90 + 150 * b) + ',' + Math.round(20 + 30 * b) + ',' + Math.round(16 + 20 * b) + ',.95)';
+      c.strokeStyle = col; c.lineWidth = 3.5; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.stroke();
+      for (let s = 0; s < 5; s++) { const a = s * 1.2566 + fx * 3; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); c.stroke(); } }
+    const gauges = [[0.1, 0.33, 20, 'depth'], [0.22, 0.28, 14, 'x'], [0.9, 0.36, 17, 'x']];
+    for (const [fx, fy, r, kind] of gauges) { const x = W * fx, y = H * fy, b = lit(x, y, lp, amb);
+      c.fillStyle = 'rgba(' + Math.round(14 + 60 * b) + ',8,6,.95)'; c.beginPath(); c.arc(x, y, r + 3, 0, 6.283); c.fill();
+      c.fillStyle = 'rgba(' + Math.round(40 + 170 * b) + ',' + Math.round(30 + 110 * b) + ',' + Math.round(26 + 80 * b) + ',.9)'; c.beginPath(); c.arc(x, y, r, 0, 6.283); c.fill();
+      const val = kind === 'depth' ? S.depth / 250 : 0.4 + 0.05 * Math.sin(time * 0.7 + fx * 9), a = (-135 + 270 * val + (Math.random() - 0.5) * S.shake * 30) * Math.PI / 180;
+      c.strokeStyle = '#1a0605'; c.lineWidth = 1.8; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.sin(a) * r * 0.8, y - Math.cos(a) * r * 0.8); c.stroke(); }
+    /* 붉은 전투등 — 줄에 매달려 흔들린다 */
+    c.strokeStyle = 'rgba(30,10,8,.9)'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(W * 0.5, H * 0.05 - 4); c.lineTo(lp.x, lp.y); c.stroke();
+    const glowR = Math.max(W, H) * 0.75 * flick;
+    c.globalCompositeOperation = 'lighter';
+    const g = c.createRadialGradient(lp.x, lp.y, 4, lp.x, lp.y, glowR);
+    g.addColorStop(0, 'rgba(255,70,40,' + (0.55 * flick).toFixed(2) + ')'); g.addColorStop(0.12, 'rgba(200,40,24,' + (0.28 * flick).toFixed(2) + ')'); g.addColorStop(0.5, 'rgba(90,14,10,' + (0.12 * flick).toFixed(2) + ')'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    c.globalCompositeOperation = 'source-over';
+    c.fillStyle = flick < 1 ? '#5a1810' : '#ff5a38'; c.beginPath(); c.arc(lp.x, lp.y, 6, 0, 6.283); c.fill();
+    c.fillStyle = 'rgba(40,12,8,.95)'; c.beginPath(); c.moveTo(lp.x - 10, lp.y - 3); c.lineTo(lp.x + 10, lp.y - 3); c.lineTo(lp.x + 6, lp.y - 9); c.lineTo(lp.x - 6, lp.y - 9); c.closePath(); c.fill();
+    /* 증기 — 터진 밸브 */
+    for (const p of S.steam) { const a = Math.max(0, 1 - p.age / p.life); c.fillStyle = 'rgba(' + Math.round(200 + 55 * lit(p.x, p.y, lp, 1)) + ',' + Math.round(190 + 20 * lit(p.x, p.y, lp, 1)) + ',' + Math.round(185 + 10 * lit(p.x, p.y, lp, 1)) + ',' + (0.14 * a).toFixed(3) + ')';
+      c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill(); }
+    /* 먼지 · 물방울 */
+    for (const p of S.dust) { const a = Math.max(0, 1 - p.age / p.life); c.fillStyle = 'rgba(200,120,100,' + (0.5 * a).toFixed(3) + ')'; c.fillRect(p.x, p.y, 1.4, 1.4); }
+    for (const p of S.drips) { c.fillStyle = 'rgba(255,120,100,.55)'; c.beginPath(); c.ellipse(p.x, p.y, 1.2, 2.6, 0, 0, 6.283); c.fill(); }
+    c.restore();
+    /* 가장자리 어둠 */
+    const v = c.createRadialGradient(W / 2, H * 0.42, Math.min(W, H) * 0.3, W / 2, H * 0.42, Math.max(W, H) * 0.8);
+    v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.75)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+  }
+  function step(dt, time) {
+    /* 등 — 진자 */
+    S.lampV += (-S.lamp * 2.4) * dt; S.lampV *= Math.pow(0.82, dt); S.lamp += S.lampV * dt;
+    if (Math.abs(S.lamp) < 0.08 && Math.abs(S.lampV) < 0.1) S.lampV += (Math.random() - 0.5) * 0.4;
+    S.shake = Math.max(0, S.shake - dt * 1.6); S.flick = Math.max(0, S.flick - dt);
+    S.depth += (182 - S.depth) * dt * 0.3 + (Math.random() - 0.5) * dt * 2;
+    /* 사건 */
+    S.nextDC -= dt; S.nextCreak -= dt; S.nextDrip -= dt;
+    if (S.nextDC <= 0) {
+      const salvo = 1 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < salvo; i++) setTimeout(() => { if (!running) return; const d = Math.random() * 0.7;
+        S.shake = Math.min(1.2, S.shake + 0.9 * (1 - d)); S.lampV += (Math.random() < 0.5 ? -1 : 1) * (1.2 + 1.6 * (1 - d)); S.flick = 0.6 * (1 - d) + 0.2; S.depth += 6 * (1 - d);
+        for (let k = 0; k < 60 * (1 - d) + 10; k++) S.dust.push({ x: Math.random() * W, y: Math.random() * H * 0.3, vy: 20 + Math.random() * 60, vx: (Math.random() - 0.5) * 10, age: 0, life: 2 + Math.random() * 2 });
+        depthCharge(d); setTimeout(() => running && creak(1.3), 700 + Math.random() * 600);
+        if (d < 0.45 && Math.random() < 0.6) { S.valveBurst = { x: W * (Math.random() < 0.5 ? 0.14 : 0.84), y: H * (0.22 + Math.random() * 0.2), t: 0, dur: 1.4 + Math.random() * 1.6, dir: Math.random() < 0.5 ? -1 : 1 }; hiss(S.valveBurst.dur); }
+      }, i * (1400 + Math.random() * 1600));
+      S.nextDC = 16 + Math.random() * 18;
+    }
+    if (S.nextCreak <= 0) { creak(0.8); S.nextCreak = 5 + Math.random() * 8; }
+    if (S.nextDrip <= 0) { S.drips.push({ x: W * (0.2 + Math.random() * 0.6), y: H * 0.12, vy: 0 }); S.nextDrip = 2 + Math.random() * 5; }
+    if (S.valveBurst) { const v = S.valveBurst; v.t += dt; if (v.t > v.dur) S.valveBurst = null;
+      else for (let k = 0; k < 9; k++) { const sp = (Math.random() - 0.5) * 0.5; S.steam.push({ x: v.x, y: v.y, vx: v.dir * (140 + Math.random() * 120) * Math.cos(sp), vy: (140 + Math.random() * 120) * Math.sin(sp), r: 1.5 + Math.random() * 2.5, age: 0, life: 0.7 + Math.random() * 0.8 }); } }
+    for (const p of S.steam) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt - 12 * dt; p.vx *= Math.pow(0.25, dt); p.vy *= Math.pow(0.25, dt); p.r += 16 * dt; }
+    for (const p of S.dust) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+    for (const p of S.drips) { p.vy += 900 * dt; p.y += p.vy * dt; if (p.y > H * 0.9 && !p.done) { p.done = true; drip(); } }
+    S.steam = S.steam.filter(p => p.age < p.life).slice(-320); S.dust = S.dust.filter(p => p.age < p.life).slice(-300); S.drips = S.drips.filter(p => !p.done);
+  }
+  function frame(now) {
+    if (!running) return; raf = requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+    if (now - (frame.lastDraw || 0) < 30) { step(dt, now / 1000); return; }   /* 약 30fps 로 그림 */
+    frame.lastDraw = now; step(dt, now / 1000); draw(now / 1000, dt);
+  }
+  function setRunning(on) {
+    if (on === running) return; running = on;
+    if (on) { resize(); last = performance.now(); raf = requestAnimationFrame(frame); }
+    else cancelAnimationFrame(raf);
+    audioVolume();
+  }
+  function init() {
+    const ov = $('ovStart'); if (!ov || $('epTitleScene')) return;
+    cv = document.createElement('canvas'); cv.id = 'epTitleScene'; ov.insertBefore(cv, ov.firstChild); cx = cv.getContext('2d');
+    const btn = document.createElement('button'); btn.id = 'epTitleSnd'; btn.type = 'button'; ov.appendChild(btn);
+    const syncBtn = () => { const on = sndLevel() > 0; btn.classList.toggle('on', on); btn.textContent = on ? '소리 켜짐' : '소리 꺼짐'; };
+    btn.addEventListener('click', e => { e.stopPropagation(); try { const on = sndLevel() > 0; if (window.Snd) { Snd.unlock && Snd.unlock(); Snd.set(on ? 'off' : 'on', true); } } catch (err) {}
+      unlockAudio(); syncBtn(); audioVolume(); });
+    window.addEventListener('resize', () => running && resize());
+    const onGesture = () => { unlockAudio(); };
+    document.addEventListener('pointerdown', onGesture, { passive: true });
+    new MutationObserver(() => setRunning(ov.classList.contains('on'))).observe(ov, { attributes: true, attributeFilter: ['class'] });
+    setRunning(ov.classList.contains('on')); syncBtn();
+    setInterval(() => { syncBtn(); audioVolume(); }, 1500);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
+    window.EP_V637_TITLE = { version: '6.37.0', state: () => ({ running, dust: S.dust.length, steam: S.steam.length, vol: sndLevel() }), dc: () => { S.nextDC = 0; } };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
