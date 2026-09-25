@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.9 Warning Ack</title>
-<script id="ep-build">window.EP_BUILD='6.39.9';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.10 Quieter Noise</title>
+<script id="ep-build">window.EP_BUILD='6.39.10';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -45038,13 +45038,16 @@ body.epMenuScene{ background:#030101; }
     const beat = AC.createOscillator(); beat.type = 'sine'; beat.frequency.value = 2.4; const bG = AC.createGain(); bG.gain.value = 0.5; beat.connect(bG); bG.connect(sAM.gain);
     shaft.connect(sF); sF.connect(sAM); sAM.connect(sG); sG.connect(bus);
     /* 환기 팬 */
-    const fan = nsrc(), fF = AC.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 1400; fF.Q.value = 0.8; const fG = AC.createGain(); fG.gain.value = 0.0001;
+    const fan = nsrc(), fF = AC.createBiquadFilter(); fF.type = 'bandpass'; fF.frequency.value = 950; fF.Q.value = 0.9; const fG = AC.createGain(); fG.gain.value = 0.0001;
     fan.connect(fF); fF.connect(fG); fG.connect(bus);
     /* 디젤 — 폭발 박자(8~10Hz)로 두드리는 잡음과 낮은 쿵 */
-    const dz = nsrc(), dF = AC.createBiquadFilter(); dF.type = 'bandpass'; dF.frequency.value = 180; dF.Q.value = 1.6; const dAM = AC.createGain(); dAM.gain.value = 0;
-    const fire = AC.createOscillator(); fire.type = 'square'; fire.frequency.value = 9.2; const fireG = AC.createGain(); fireG.gain.value = 0.5; fire.connect(fireG); fireG.connect(dAM.gain);
+    /* v6.39.10 — 예전엔 사각파로 잡음의 부호만 뒤집어(크기는 그대로) 1.8kHz 위의 쉬익이 쉼 없이 깔렸다 → 찢어지는 소리.
+       이제 폭발마다 부드럽게 부풀었다 가라앉는 맥동(코사인 배음 몇 개로 만든 0~1 파형)으로 누르고, 높은 쉬익은 뺐다. */
+    const pulse = AC.createPeriodicWave(new Float32Array([0, 0.62, 0.3, 0.12, 0.04]), new Float32Array(5));
+    const dz = nsrc(), dF = AC.createBiquadFilter(); dF.type = 'lowpass'; dF.frequency.value = 260; dF.Q.value = 0.9; const dAM = AC.createGain(); dAM.gain.value = 0.5;
+    const fire = AC.createOscillator(); fire.setPeriodicWave(pulse); fire.frequency.value = 9.2; const fireG = AC.createGain(); fireG.gain.value = 0.48; fire.connect(fireG); fireG.connect(dAM.gain);
     const dG = AC.createGain(); dG.gain.value = 0.0001; dz.connect(dF); dF.connect(dAM); dAM.connect(dG); dG.connect(bus);
-    const clat = nsrc(), cF = AC.createBiquadFilter(); cF.type = 'highpass'; cF.frequency.value = 1800; const cAM = AC.createGain(); cAM.gain.value = 0; fireG.connect(cAM.gain);
+    const clat = nsrc(), cF = AC.createBiquadFilter(); cF.type = 'bandpass'; cF.frequency.value = 850; cF.Q.value = 1.4; const cAM = AC.createGain(); cAM.gain.value = 0.5; fireG.connect(cAM.gain);
     const cG = AC.createGain(); cG.gain.value = 0.0001; clat.connect(cF); cF.connect(cAM); cAM.connect(cG); cG.connect(bus);
     /* 함내 전기 계통의 웅 — USS Sealion 실전 녹음(1944)에서 늘 깔려 있던 선들(116·390·735·1462Hz)을 옅게 */
     const room = AC.createGain(); room.gain.value = 0.0001; room.connect(bus); const roomOsc = [];
@@ -45058,7 +45061,7 @@ body.epMenuScene{ background:#030101; }
     const motor = e.kind === 'motor' ? 1 : e.kind === 'creep' ? 0.55 : 0, diesel = e.kind === 'diesel' ? 1 : 0;
     T(eng.bus.gain, 0.9); T(eng.hum.frequency, 70 + 60 * rpm); T(eng.hum2.frequency, 140 + 120 * rpm); T(eng.whine.frequency, 520 + 420 * rpm); T(eng.beat.frequency, 1.2 + 1.8 * rpm);
     T(eng.humG.gain, 0.05 * L * motor); T(eng.h2G.gain, 0.022 * L * motor); T(eng.wG.gain, 0.010 * L * motor); T(eng.sG.gain, 0.06 * L * (motor || 0.4));
-    T(eng.fG.gain, 0.012 * L); T(eng.room.gain, 0.006 + 0.004 * L); T(eng.dG.gain, 0.16 * L * diesel); T(eng.cG.gain, 0.03 * L * diesel); T(eng.fire.frequency, 8.4 + 1.6 * rpm);
+    T(eng.fG.gain, 0.005 * L); T(eng.room.gain, 0.006 + 0.004 * L); T(eng.dG.gain, 0.16 * L * diesel); T(eng.cG.gain, 0.012 * L * diesel); T(eng.fire.frequency, 8.4 + 1.6 * rpm);
   }
   function creak(power) {
     if (!AC) return; const t = AC.currentTime;
@@ -45122,7 +45125,7 @@ body.epMenuScene{ background:#030101; }
   }
   function screws(dur) {                          /* 머리 위를 지나는 스크류 — 쉭쉭 박자가 커졌다 작아진다 */
     if (!AC) return; const t = AC.currentTime, n = nsrc(), f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 1.2;
-    const am = AC.createGain(); am.gain.value = 0; const lfo = AC.createOscillator(); lfo.frequency.value = 5.5; const lg = AC.createGain(); lg.gain.value = 0.5; lfo.connect(lg); lg.connect(am.gain);
+    const am = AC.createGain(); am.gain.value = 0.5; const lfo = AC.createOscillator(); lfo.frequency.value = 5.5; const lg = AC.createGain(); lg.gain.value = 0.5;   /* 0~1 로 쉭쉭(예전엔 부호만 뒤집혀 쉼 없는 쉬익) */ lfo.connect(lg); lg.connect(am.gain);
     const g = AC.createGain(); n.connect(f); f.connect(am); am.connect(g); g.connect(out);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + dur * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     n.start(t); lfo.start(t); n.stop(t + dur + 0.1); lfo.stop(t + dur + 0.1);
@@ -45162,11 +45165,11 @@ body.epMenuScene{ background:#030101; }
   function surfaceAudio(wx) {
     if (!AC) return; const t = AC.currentTime;
     if (!SA) { const wind = nsrc(), wf = AC.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 650; wf.Q.value = 0.6; const wg = AC.createGain(); wg.gain.value = 0.0001;
-      const gust = AC.createOscillator(), gg = AC.createGain(); gust.frequency.value = 0.13; gg.gain.value = 0; gust.connect(gg); gg.connect(wg.gain); wind.connect(wf); wf.connect(wg); wg.connect(out);
-      const rain = nsrc(), rf = AC.createBiquadFilter(); rf.type = 'highpass'; rf.frequency.value = 2600; const rg = AC.createGain(); rg.gain.value = 0.0001; rain.connect(rf); rf.connect(rg); rg.connect(out);
+      const gust = AC.createOscillator(), gg = AC.createGain(); gust.frequency.value = 0.13; gg.gain.value = 0; gust.connect(gg); gg.connect(wg.gain); const wl = AC.createBiquadFilter(); wl.type = 'lowpass'; wl.frequency.value = 1100; wind.connect(wf); wf.connect(wl); wl.connect(wg); wg.connect(out);
+      const rain = nsrc(), rf = AC.createBiquadFilter(); rf.type = 'bandpass'; rf.frequency.value = 3600; rf.Q.value = 0.5; const rg = AC.createGain(); rg.gain.value = 0.0001; rain.connect(rf); rf.connect(rg); rg.connect(out);
       wind.start(t); gust.start(t); rain.start(t); SA = { wg, gg, rg }; }
-    const sea = wx ? wx.sea : 0, w = wx ? 0.008 + 0.009 * sea : 0.0001, r = wx ? (wx.id === 'squall' ? 0.035 : wx.id === 'gale' ? 0.028 : 0.0001) : 0.0001;
-    SA.wg.gain.setTargetAtTime(w, t, 1); SA.gg.gain.setTargetAtTime(wx ? w * 0.6 : 0, t, 1); SA.rg.gain.setTargetAtTime(r, t, 1);
+    const sea = wx ? wx.sea : 0, w = wx ? (0.008 + 0.009 * sea) * 0.7 : 0.0001, r = wx ? (wx.id === 'squall' ? 0.02 : wx.id === 'gale' ? 0.016 : 0.0001) : 0.0001;
+    SA.wg.gain.setTargetAtTime(w, t, 1); SA.gg.gain.setTargetAtTime(wx ? w * 0.45 : 0, t, 1); SA.rg.gain.setTargetAtTime(r, t, 1);
   }
   function waveSlap(p) { if (!AC) return; const t = AC.currentTime;
     const s = nsrc(), f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 380; const g = AC.createGain(); s.connect(f); f.connect(g); g.connect(out); env(g, t, 0.03, 0.12 * p, 0.35); s.start(t, Math.random()); s.stop(t + 0.5);
