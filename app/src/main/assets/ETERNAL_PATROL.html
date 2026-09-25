@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.37.8 Title Clean FX</title>
-<script id="ep-build">window.EP_BUILD='6.37.8';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.38.0 Title Surface</title>
+<script id="ep-build">window.EP_BUILD='6.38.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44651,7 +44651,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   background:rgba(10,16,21,.72); color:var(--dim); border:1px solid var(--steel); font-size:12px; }
 #epTitleSnd.on{ color:var(--amber); border-color:var(--amber); }
 #epTitleCap{ position:fixed; left:10px; top:calc(40px + env(safe-area-inset-top,0px)); z-index:2; font-size:11px; color:rgba(230,190,175,.72); pointer-events:none; transition:opacity 1.2s; letter-spacing:.02em; }
-#epTitleCredit{ position:fixed; left:10px; top:calc(12px + env(safe-area-inset-top,0px)); z-index:2; font-size:9.5px; line-height:1.35; color:rgba(200,170,160,.55); max-width:58%; pointer-events:none; }
+#epTitleCredit{ transition:opacity 1s; position:fixed; left:10px; top:calc(12px + env(safe-area-inset-top,0px)); z-index:2; font-size:9.5px; line-height:1.35; color:rgba(200,170,160,.55); max-width:58%; pointer-events:none; }
 </style>
 <script id="ep-v637-title-script">
 /* 제목 화면 — 깊은 바다 속 발령실. 실제 사진(UB-110, 1918, Tyne & Wear Archives & Museums) 위에 **장면 세트**를 돌린다.
@@ -44681,12 +44681,14 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
       light: { col: '#e0705a', base: '#1a0606', R: 0.55, swing: 0.9, kick: 1.1 }, ev: { leak: [3, 7], crush: [20, 34], creak: [4, 9], drip: [0.6, 1.6], dc: [18, 30] }, eng: { kind: 'motor', lvl: 0.6, rpm: 0.9 } },
     { id: 'strike', cap: '어뢰 발사 — 초시계가 돈다', photo: 2, kb: [0.46, 0.30, 1.00, 0.30, 0.52, 1.10],
       light: { col: '#c85a44', base: '#150505', R: 0.44, swing: 0.4, kick: 0.8 }, ev: { strike: [3, 6], creak: [9, 16], drip: [3, 7] }, eng: { kind: 'creep', lvl: 0.4, rpm: 0.5 } },
+    { id: 'surface', kind: 'surface', cap: '수상 항주', photo: 0, kb: [0.5, 0.5, 1, 0.5, 0.5, 1],
+      light: { col: '#000000', base: '#000000', R: 0.4, swing: 0, kick: 0 }, ev: { spray: [3, 7], slap: [1.5, 4], thunder: [10, 22] }, eng: { kind: 'diesel', lvl: 0.75, rpm: 0.9 } },
     { id: 'charge', cap: '밤, 수면 — 디젤로 전지를 채운다', photo: 2, kb: [0.75, 0.40, 1.02, 0.50, 0.70, 1.08],
       light: { col: '#e6b27a', base: '#1a120b', R: 0.62, swing: 0.25, kick: 0.5, tremor: 0.2 }, ev: { creak: [10, 18], drip: [4, 9] }, eng: { kind: 'diesel', lvl: 0.8, rpm: 1.0 } },
   ];
   let cv, cx, off, ox, grain, W = 0, H = 0, dpr = 1, running = false, raf = 0, last = 0;
   const S = { squash: 0, lamp: 0.3, lampV: 0, shake: 0, dark: 0, dust: [], steam: [], water: [], drips: [], valves: [],
-              set: null, prev: null, fade: 1, showT: 0, showDur: 50, timers: {}, beacon: 0 };
+              set: null, prev: null, fade: 1, showT: 0, showDur: 50, timers: {}, beacon: 0, black: 0, wx: null, fake: null, yaw: 0, spray: [], flash: 0 };
   const rnd = (a, b) => a + Math.random() * (b - a);
   const cur = () => S.set, lerpCol = (a, b, t) => { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
     const r = Math.round(((pa >> 16) & 255) * (1 - t) + ((pb >> 16) & 255) * t), g = Math.round(((pa >> 8) & 255) * (1 - t) + ((pb >> 8) & 255) * t), bl = Math.round((pa & 255) * (1 - t) + (pb & 255) * t);
@@ -44901,6 +44903,23 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     for (const f of [182, 293, 468, 731, 1104]) { const r = AC.createOscillator(), rg = AC.createGain(); r.frequency.value = f * rnd(0.97, 1.03); r.connect(rg); rg.connect(out); env(rg, tb, 0.003, 0.07 * (200 / f + 0.3), rnd(1.4, 2.4)); r.start(tb); r.stop(tb + 2.6); }
     return (tb - t) * 1000;
   }
+  /* 수상 — 바람(돌풍), 비, 뱃머리에 부딪는 물결, 천둥 */
+  let SA = null;
+  function surfaceAudio(wx) {
+    if (!AC) return; const t = AC.currentTime;
+    if (!SA) { const wind = nsrc(), wf = AC.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 650; wf.Q.value = 0.6; const wg = AC.createGain(); wg.gain.value = 0.0001;
+      const gust = AC.createOscillator(), gg = AC.createGain(); gust.frequency.value = 0.13; gg.gain.value = 0; gust.connect(gg); gg.connect(wg.gain); wind.connect(wf); wf.connect(wg); wg.connect(out);
+      const rain = nsrc(), rf = AC.createBiquadFilter(); rf.type = 'highpass'; rf.frequency.value = 2600; const rg = AC.createGain(); rg.gain.value = 0.0001; rain.connect(rf); rf.connect(rg); rg.connect(out);
+      wind.start(t); gust.start(t); rain.start(t); SA = { wg, gg, rg }; }
+    const sea = wx ? wx.sea : 0, w = wx ? 0.008 + 0.009 * sea : 0.0001, r = wx ? (wx.id === 'squall' ? 0.035 : wx.id === 'gale' ? 0.028 : 0.0001) : 0.0001;
+    SA.wg.gain.setTargetAtTime(w, t, 1); SA.gg.gain.setTargetAtTime(wx ? w * 0.6 : 0, t, 1); SA.rg.gain.setTargetAtTime(r, t, 1);
+  }
+  function waveSlap(p) { if (!AC) return; const t = AC.currentTime;
+    const s = nsrc(), f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 380; const g = AC.createGain(); s.connect(f); f.connect(g); g.connect(out); env(g, t, 0.03, 0.12 * p, 0.35); s.start(t, Math.random()); s.stop(t + 0.5);
+    const h2 = nsrc(), f2 = AC.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1100; f2.Q.value = 0.7; const g2 = AC.createGain(); h2.connect(f2); f2.connect(g2); g2.connect(out); env(g2, t + 0.05, 0.08, 0.035 * p, 0.7); h2.start(t, Math.random()); h2.stop(t + 0.9); }
+  function thunder() { if (!AC) return; const t = AC.currentTime, d = rnd(3, 5.5);
+    const s = nsrc(), f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(420, t); f.frequency.exponentialRampToValueAtTime(90, t + d); const g = AC.createGain();
+    s.connect(f); f.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.3, t + 0.25); g.gain.exponentialRampToValueAtTime(0.08, t + d * 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + d); s.start(t, Math.random()); s.stop(t + d + 0.1); }
   function drip() { if (!AC) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine';
     o.frequency.setValueAtTime(1500 + Math.random() * 500, t); o.frequency.exponentialRampToValueAtTime(700, t + 0.09); o.connect(g); g.connect(out); env(g, t, 0.002, 0.05, 0.14); o.start(t); o.stop(t + 0.2); }
   function audioVolume() { if (!out || !AC) return; const v = running ? sndLevel() : 0; out.gain.setTargetAtTime(v * 0.9, AC.currentTime, 0.4);
@@ -44909,10 +44928,30 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
 
   /* ══ 세트 고르기 ══ */
   const LAST_KEY = 'ep.title.set.v637';
-  function pickSet(notId) { const pool = SETS.filter(s => s.id !== notId); return pool[Math.floor(Math.random() * pool.length)]; }
+  function pickSet(notId) {
+    if (notId !== 'surface' && Math.random() < 0.3) return SETS.find(s => s.id === 'surface');
+    const pool = SETS.filter(s => s.id !== notId && s.kind !== 'surface'); return pool[Math.floor(Math.random() * pool.length)]; }
+  /* 수상 장면의 날씨 — 매번 무작위 */
+  const WX = [
+    { id: 'clear', sea: 2, vis: 1, night: [0, 0.18], cap: '수상 항주 — 맑은 낮, 바람 약함' },
+    { id: 'clear', sea: 2.5, vis: 1, night: [0.45, 0.55], cap: '수상 항주 — 해 질 녘' },
+    { id: 'clear', sea: 1.5, vis: 1, night: [0.85, 0.95], cap: '수상 항주 — 달밤, 견시 넷이 수평선을 본다' },
+    { id: 'haze', sea: 3, vis: 0.75, night: [0.1, 0.3], cap: '수상 항주 — 흐리고 바람' },
+    { id: 'fog', sea: 1, vis: 0.35, night: [0.05, 0.2], cap: '수상 항주 — 짙은 안개' },
+    { id: 'gale', sea: 5, vis: 0.55, night: [0.2, 0.6], cap: '수상 항주 — 폭풍, 함교에 물이 넘친다' },
+    { id: 'squall', sea: 4, vis: 0.5, night: [0.1, 0.4], cap: '수상 항주 — 스콜' },
+  ];
   function arm(set) { const T = {}; for (const k of Object.keys(set.ev)) { const v = set.ev[k]; if (Array.isArray(v)) T[k] = rnd(v[0] * 0.3, v[1]); } S.timers = T; }
   function switchTo(set) {
+    const prevKind = S.set && S.set.kind;
     S.prev = S.set; S.set = set; S.fade = S.prev ? 0 : 1; S.showT = 0; S.showDur = rnd(40, 60); arm(set);
+    if (set.kind === 'surface' || prevKind === 'surface') { S.prev = null; S.fade = 1; S.black = 1; }   /* 안 ↔ 밖은 어둠을 거쳐 넘어간다 */
+    if (set.kind === 'surface') { const w = WX[Math.floor(Math.random() * WX.length)];
+      S.wx = { id: w.id, sea: w.sea, vis: w.vis, night: rnd(w.night[0], w.night[1]) }; set.cap = w.cap; S.showDur = rnd(34, 48);
+      S.fake = { time: 0, night: S.wx.night, theater: 'ATLANTIC', weather: { id: w.id, vis: w.vis, sea: w.sea }, boat: { depth: 0, periscopeBearing: 0, heading: 0, elev: 0, x: 0, y: 0 } };
+      set.eng = { kind: 'diesel', lvl: 0.55 + 0.08 * w.sea, rpm: 0.8 + 0.05 * w.sea }; }
+    surfaceAudio(set.kind === 'surface' ? S.wx : null);
+    const cr = $('epTitleCredit'); if (cr) cr.style.opacity = set.kind === 'surface' ? 0 : 1;   /* 사진이 아닐 때는 사진 출처를 숨긴다 */
     try { localStorage.setItem(LAST_KEY, set.id); } catch (e) {}
     const cap = $('epTitleCap'); if (cap) { cap.style.opacity = 0; setTimeout(() => { cap.textContent = set.cap; cap.style.opacity = 1; }, 900); }
     if (set.ev.screws) setTimeout(() => running && S.set === set && screws(9), 2500);
@@ -44930,8 +44969,48 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   function lampPos() { const L = H * 0.5, a = S.lamp; return { x: W * 0.5 + Math.sin(a) * L * 1.1, y: -H * 0.28 + Math.cos(a) * L }; }
   function light() { const A = S.prev ? S.prev.light : S.set.light, B = S.set.light, f = S.fade;
     return { col: lerpCol(A.col, B.col, f), base: lerpCol(A.base, B.base, f), R: A.R + (B.R - A.R) * f, tremor: (A.tremor || 0) * (1 - f) + (B.tremor || 0) * f, beacon: B.beacon && f > 0.5 }; }
+  let sc = null, sx = null;
+  function drawSurface(c) {
+    const OV = window.ObservationVisuals, U = window.UBOAT; if (!OV || !U || !S.fake) return;
+    const q = 0.55, SW = Math.round(W * 1.7 * q), SH = Math.round(H * q);
+    if (!sc) { sc = document.createElement('canvas'); sx = sc.getContext('2d'); }
+    if (sc.width !== SW || sc.height !== SH) { sc.width = SW; sc.height = SH; }
+    const real = U.state; let env = null;
+    S.fake.time = performance.now() / 1000; S.fake.boat.periscopeBearing = S.fake.boat.heading = ((S.yaw % 360) + 360) % 360;
+    U.state = () => S.fake;
+    try { env = OV.paintBase(sx, SW, SH, { visibility: S.wx.vis, seaState: S.wx.sea, time: S.fake.time, phase: 0.37, horizonRatio: 0.24 });
+      OV.paintForeground(sx, SW, SH, env); OV.paintFog(sx, SW, SH, S.wx.vis); } catch (e) {} finally { U.state = real; }
+    c.drawImage(sc, (SW - W * q) / 2, 0, W * q, SH, 0, 0, W, H);
+    /* 번개 */
+    if (S.flash > 0) { c.fillStyle = 'rgba(230,236,255,' + (0.55 * S.flash).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+    /* 함교에서 본 앞갑판 — 배에 붙어 있으므로 화면에 고정, 수평선이 움직인다 */
+    const night = S.wx.night, lit = Math.max(0.15, 1 - night * 0.85), tipY = H * 0.345, tipX = W * 0.5;
+    const deck = 'rgb(' + Math.round(10 + 14 * lit) + ',' + Math.round(13 + 16 * lit) + ',' + Math.round(16 + 18 * lit) + ')';
+    c.fillStyle = deck; c.beginPath(); c.moveTo(tipX - 2, tipY); c.lineTo(tipX + 2, tipY); c.lineTo(W * 1.25, H); c.lineTo(-W * 0.25, H); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(' + Math.round(120 * lit + 20) + ',' + Math.round(135 * lit + 22) + ',' + Math.round(145 * lit + 25) + ',.55)'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(tipX, tipY); c.lineTo(W * 1.25, H); c.moveTo(tipX, tipY); c.lineTo(-W * 0.25, H); c.stroke();
+    /* 망 절단기와 뱃머리 끝 */
+    c.fillStyle = deck; c.fillRect(tipX - 1.2, tipY - 11, 2.4, 11);
+    /* 88mm 갑판포 — 방패와 포신 */
+    const gy = H * 0.47, gw = W * 0.12; c.fillStyle = deck;
+    c.fillRect(tipX - gw * 0.12, gy - gw * 0.25, gw * 0.24, gw * 0.35); c.beginPath(); c.moveTo(tipX - gw * 0.5, gy - gw * 0.18); c.lineTo(tipX + gw * 0.5, gy - gw * 0.18); c.lineTo(tipX + gw * 0.42, gy - gw * 0.55); c.lineTo(tipX - gw * 0.42, gy - gw * 0.55); c.closePath(); c.fill();
+    c.lineWidth = gw * 0.07; c.strokeStyle = deck; c.beginPath(); c.moveTo(tipX, gy - gw * 0.42); c.lineTo(tipX, gy - gw * 1.55); c.stroke();
+    /* 점프 와이어 — 함교에서 뱃머리로 */
+    c.strokeStyle = 'rgba(8,10,12,.85)'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(tipX + 6, -10); c.lineTo(tipX, tipY - 11); c.stroke();
+    /* 함교 테두리 — 맨 아래 */
+    c.fillStyle = 'rgb(6,8,10)'; c.beginPath(); c.moveTo(0, H); c.lineTo(0, H * 0.9); c.quadraticCurveTo(W * 0.5, H * 0.84, W, H * 0.9); c.lineTo(W, H); c.closePath(); c.fill();
+    /* 뱃머리 물보라 */
+    for (const p of S.spray) { const a = Math.max(0, 1 - p.age / p.life); c.fillStyle = 'rgba(' + Math.round(200 * lit + 40) + ',' + Math.round(210 * lit + 40) + ',' + Math.round(215 * lit + 40) + ',' + (0.55 * a).toFixed(3) + ')';
+      c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill(); }
+  }
   function draw() {
-    const c = cx; c.setTransform(dpr, 0, 0, dpr, 0, 0); const L = light();
+    const c = cx; c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (S.set && S.set.kind === 'surface') { c.fillStyle = '#000'; c.fillRect(0, 0, W, H); drawSurface(c);
+      if (grain) { c.globalAlpha = 0.05; const gx = Math.random() * 64, gy = Math.random() * 64; c.fillStyle = c.createPattern(grain, 'repeat'); c.save(); c.translate(-gx, -gy); c.fillRect(0, 0, W + 64, H + 64); c.restore(); c.globalAlpha = 1; }
+      const v = c.createRadialGradient(W / 2, H * 0.4, Math.min(W, H) * 0.3, W / 2, H * 0.4, Math.max(W, H) * 0.8); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.6)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+      if (S.black > 0) { c.fillStyle = 'rgba(0,0,0,' + S.black.toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+      return; }
+    const L = light();
     const sh = reduce ? 0 : S.shake + L.tremor * 0.15, jx = (Math.random() - 0.5) * sh * 16, jy = (Math.random() - 0.5) * sh * 12;
     c.fillStyle = '#030101'; c.fillRect(0, 0, W, H); c.save(); c.translate(jx, jy);
     if (S.squash > 0 && !reduce) { const q = S.squash * S.squash; c.translate(W / 2, H * 0.3); c.scale(1 + 0.012 * q, 1 - 0.022 * q); c.rotate((Math.random() - 0.5) * 0.004 * q); c.translate(-W / 2, -H * 0.3); }
@@ -44955,6 +45034,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     c.restore();
     if (grain) { c.globalAlpha = 0.07; const gx = Math.random() * 64, gy = Math.random() * 64; c.fillStyle = c.createPattern(grain, 'repeat'); c.save(); c.translate(-gx, -gy); c.fillRect(0, 0, W + 64, H + 64); c.restore(); c.globalAlpha = 1; }
     const v = c.createRadialGradient(W / 2, H * 0.45, Math.min(W, H) * 0.25, W / 2, H * 0.45, Math.max(W, H) * 0.78); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); c.fillStyle = v; c.fillRect(0, 0, W, H);
+    if (S.black > 0) { c.fillStyle = 'rgba(0,0,0,' + S.black.toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
   }
   function valveXY() { const set = S.set, r = place(set, Math.min(1, S.showT / S.showDur)), p = PHOTOS[set.photo]; if (!r) return { x: W * 0.3, y: H * 0.3 }; const v = p.valves[Math.floor(Math.random() * p.valves.length)]; return { x: r.x + v[0] * r.w, y: r.y + v[1] * r.h }; }
   function dcStrike() { const set = S.set, d = Math.random() * 0.7, kick = set.light.kick || 1;
@@ -44966,6 +45046,16 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   function step(dt) {
     const set = S.set; if (!set) return;
     S.fade = Math.min(1, S.fade + dt / 3); if (S.fade >= 1) S.prev = null;
+    S.black = Math.max(0, S.black - dt / 1.6); S.flash = Math.max(0, S.flash - dt * 3.5);
+    if (set.kind === 'surface') { S.yaw = Math.sin(S.showT * 0.05) * 6;
+      const T2 = S.timers, wx = S.wx, due2 = (k, v) => { if (T2[k] == null) T2[k] = rnd(v[0], v[1]); T2[k] -= dt; if (T2[k] <= 0) { T2[k] = rnd(v[0], v[1]); return true; } return false; };
+      if (wx.sea >= 3 && due2('spray', [2.5 / (wx.sea - 1.5), 6 / (wx.sea - 1.5)])) { const n = 20 + wx.sea * 8; for (let k = 0; k < n; k++) S.spray.push({ x: W * 0.5 + rnd(-8, 8), y: H * 0.34, vx: rnd(-90, 90), vy: -rnd(60, 160) * (wx.sea / 4), r: rnd(1, 2.6), age: 0, life: rnd(0.8, 1.6) }); waveSlap(1); }
+      if (due2('slap', [4.5 / wx.sea, 9 / wx.sea])) waveSlap(0.5);
+      if ((wx.id === 'gale' || wx.id === 'squall') && due2('thunder', [9, 22])) { S.flash = 1; setTimeout(() => running && S.set === set && thunder(), rnd(400, 2200)); }
+      for (const p of S.spray) { p.age += dt; p.vy += 260 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+      S.spray = S.spray.filter(p => p.age < p.life).slice(-300);
+      if (S.showT > S.showDur) switchTo(pickSet(set.id));
+      return; }
     S.showT += dt; S.beacon += dt;
     const sw = set.light.swing;
     S.lampV += (-S.lamp * 2.2) * dt; S.lampV *= Math.pow(0.84, dt); S.lamp += S.lampV * dt;
@@ -45022,7 +45112,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     setRunning(ov.classList.contains('on')); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
-    window.EP_V637_TITLE = { version: '6.37.8', fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
+    window.EP_V637_TITLE = { version: '6.38.0', surface: (i) => { const s0 = SETS.find(s => s.id === 'surface'); switchTo(s0); if (i != null) { const w = WX[i]; S.wx = { id: w.id, sea: w.sea, vis: w.vis, night: (w.night[0] + w.night[1]) / 2 }; S.fake.night = S.wx.night; S.fake.weather = { id: w.id, vis: w.vis, sea: w.sea }; s0.cap = w.cap; surfaceAudio(S.wx); } }, fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, wx: S.wx && S.set && S.set.kind === 'surface' ? S.wx.id + '/' + S.wx.night.toFixed(2) : null, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
