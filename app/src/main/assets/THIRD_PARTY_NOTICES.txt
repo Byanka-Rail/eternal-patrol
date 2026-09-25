@@ -27,6 +27,9 @@ Official ONNX Runtime ThirdPartyNotices.txt is fetched from the Microsoft
 v1.29.0 source by the Android build workflow and bundled at:
 assets/licenses/ONNXRUNTIME_ThirdPartyNotices.txt
 
-The voice acting profile layer in ETERNAL PATROL changes only local synthesis
-speed, playback gain, and post-speech pause. It does not modify or train the
-Supertonic model weights.
+The voice acting profile layer in ETERNAL PATROL changes only the choice among
+the bundled preset voices (M1-M5), local synthesis speed, playback gain,
+post-speech pause, and pitch (by resampling the synthesized audio after
+inference). It does not modify or train the Supertonic model weights.
+Use of the Supertonic 3 model is subject to the use-based restrictions of the
+BigScience OpenRAIL-M license (Attachment A), which are passed on to users.

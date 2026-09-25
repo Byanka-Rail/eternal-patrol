@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.34.5 Report Fix</title>
-<script id="ep-build">window.EP_BUILD='6.34.5';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.35.0 Helm Dock</title>
+<script id="ep-build">window.EP_BUILD='6.35.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -3155,7 +3155,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 이 기능의 승조원 음성은 기기에서 인공지능 음성합성으로 생성됩니다. 실제 사람의 녹음이 아닙니다.<br/><br/>
 <b style="color:var(--ink)">Supertonic 3</b><br/>
 원 모델: Supertone Inc. · <code>Supertone/supertonic-3</code><br/>
-모델 가중치: BigScience OpenRAIL-M · 엔진/예제 코드: MIT License.<br/><br/>
+모델 가중치: BigScience OpenRAIL-M · 엔진/예제 코드: MIT License.<br/>이 음성 기능을 쓰는 사람은 OpenRAIL-M 의 이용 제한(부속서 A)을 따릅니다 — 예: 동의 없는 사칭, 기계 생성임을 숨기는 사용, 괴롭힘·명예훼손 금지.<br/>게임은 기본 목소리(M1~M5) 중 고르기, 합성 속도·음량·쉼, 합성 뒤 재표본화로 음높이만 바꿉니다. 모델 가중치는 바꾸거나 학습시키지 않습니다.<br/><br/>
 <b style="color:var(--ink)">Android CPU 호환 FP32 음성팩</b><br/>
 런타임 배포: <code>Byanka-Rail/eternal-patrol</code> GitHub Release · <code>voicepack-v3</code>.<br/>
 모델 배포: Supertone 공식 <code>Supertone/supertonic-3</code> 고정 revision의 FP32 ONNX를 ETERNAL PATROL GitHub Actions가 검증한 뒤 그대로 자체 Release에 미러링합니다. 모델 변환은 하지 않으며 원 OpenRAIL-M 조건을 그대로 유지합니다.<br/>
@@ -44231,6 +44231,219 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   };
   function count() { let conv = 0, lines = 0; for (const k of Object.keys(BANK)) { conv += BANK[k].c.length; for (const c of BANK[k].c) lines += c.length; } return { contexts: Object.keys(BANK).length, conversations: conv, lines, sightings: SIGHT.length }; }
   window.EP_V634_VOYAGE = { version: '6.34.0', count, chooseTalk, chooseSight };
+})();
+</script>
+<style id="ep-v635-dock-style">
+/* ══════════ V6.35 조종대 · 공격 띠 — 게임 원래 디자인 그대로 ══════════
+   색·모서리·테두리·「고른 것」 표시는 기존 단추와 카드의 방식을 따른다(새 재질 없음).
+   ① 조종대: 공격 탭을 뺀 모든 탭의 아래(탭 줄 바로 위)에 심도·속력·침로·잠망경.
+   ② 공격 띠: 공격 탭에서는 그 자리에 해법 네 칸 · 발사관 · 발사. */
+#epDock, #epAtk{ flex:0 0 auto; position:relative; z-index:62; background:var(--panel); border-top:1px solid var(--steel); box-shadow:0 -2px 8px var(--shadow); }
+#epDock.off, #epAtk.off{ display:none; }
+#epDock{ display:grid; grid-template-columns:1fr 1fr 1fr .9fr; gap:6px; padding:6px; }
+#epDock button[data-k]{ min-height:56px; padding:5px 8px; text-align:left; display:flex; flex-direction:column; gap:1px; touch-action:pan-y;
+  background:var(--btnBg); color:var(--ink); border:1px solid var(--steel); border-radius:6px; }
+#epDock button.open{ border-color:var(--blue); box-shadow:inset 0 -2px 0 var(--blue); }
+#epDock .l{ font-size:10.5px; color:var(--dim); display:flex; justify-content:space-between; width:100%; }
+#epDock .v{ font-size:19px; font-weight:600; line-height:1.1; color:var(--ink); font-variant-numeric:tabular-nums; }
+#epDock .o{ font-size:11px; color:var(--amber); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%; font-variant-numeric:tabular-nums; }
+#epDock .o.same{ color:var(--dim); }
+#epDock .peri{ align-items:center; justify-content:center; text-align:center; font-size:12.5px; line-height:1.25; }
+#epDock .peri i{ display:none; }
+#epDock .peri.up{ border-color:var(--green); color:var(--green); }
+#epDock .peri.go{ border-color:var(--amber); color:var(--amber); }
+#epPop{ position:absolute; left:6px; right:6px; bottom:calc(100% + 6px); z-index:63; background:var(--el2); border:1px solid var(--steel); border-radius:7px;
+  box-shadow:0 4px 16px var(--shadow), inset 0 1px 0 var(--edge); padding:9px 8px 8px; }
+#epPop .t{ font-size:12px; color:var(--amber); margin-bottom:8px; }
+#epPop .g{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+#epPop .g.four{ grid-template-columns:repeat(4,1fr); }
+#epPop button{ min-height:46px; background:var(--btnBg); color:var(--ink); border:1px solid var(--steel); border-radius:6px; font-size:13px; line-height:1.25; }
+#epPop button small{ display:block; font-size:11px; color:var(--dim); }
+#epPop button.wide{ grid-column:span 2; }
+#epPop button.on{ border-color:var(--green); color:var(--green); }
+#epPop button.emg{ border-color:var(--red); color:var(--red); }
+#epPop button:disabled{ opacity:.45; }
+#epPop .n{ font-size:11px; color:var(--dim); margin-top:7px; }
+#epAtk{ padding:6px; }
+#epAtk .sol{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:6px; }
+#epAtk .sol div{ background:var(--sunk); border:1px solid var(--steel); border-radius:6px; padding:4px 7px; min-width:0; }
+#epAtk .sol small{ display:block; font-size:10.5px; color:var(--dim); }
+#epAtk .sol b{ display:block; font-size:16px; font-weight:600; line-height:1.2; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+#epAtk .sol b.warn{ color:var(--amber); } #epAtk .sol b.bad{ color:var(--red); }
+#epAtk .row{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+#epAtk .tubes{ display:flex; gap:5px; flex:1 1 100%; }
+#epAtk .tb{ flex:1 1 0; min-width:0; height:40px; border-radius:50%; max-width:46px; position:relative; color:var(--ink); font-size:12px; font-weight:600;
+  background:var(--chartBg); border:2px solid var(--steel); }
+#epAtk .tb.aft{ border-style:dashed; }
+#epAtk .tb::after{ content:''; position:absolute; bottom:4px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:var(--steel); }
+#epAtk .tb.ready::after{ background:var(--green); } #epAtk .tb.reload::after{ background:var(--amber); }
+#epAtk .tb.sel{ border-color:var(--green); color:var(--green); }
+#epAtk .tb:disabled{ opacity:.5; }
+#epAtk .fire{ flex:1 1 100%; height:48px; border-radius:6px; border:1px solid var(--red); background:var(--btnBg); color:var(--red); font-size:15px; font-weight:600; letter-spacing:.14em; position:relative; overflow:hidden; }
+#epAtk .fire::before{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--p,0%); background:var(--red); opacity:.28; }
+#epAtk .fire span{ position:relative; display:block; } #epAtk .fire small{ position:relative; display:block; font-size:10px; letter-spacing:0; opacity:.8; }
+#epAtk .fire:disabled{ opacity:.5; }
+body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
+</style>
+<script id="ep-v635-dock-script">
+(function EP_CONSOLE(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const KNOT = U.KNOT || 0.514444;
+  const norm = a => ((a % 360) + 360) % 360;
+  const p3 = v => String(Math.round(norm(v))).padStart(3, '0');
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const paneNow = () => { const p = document.querySelector('#panes > .pane.on'); return p ? p.dataset.pane : ''; };
+  const periDepth = () => ((U.UB && U.UB.periscopeDepth) || 14);
+
+  let dock = null, atk = null, pop = null, openKind = null;
+
+  /* ══ ① 조종대 ══ */
+  function buildDock() {
+    const tabs = $('tabs'); if (!tabs || $('epDock')) return;
+    dock = document.createElement('div'); dock.id = 'epDock';
+    dock.innerHTML =
+      '<button type="button" data-k="depth"><span class="l"><span>심도</span><span>▾</span></span><span class="v" data-v></span><span class="o" data-o></span></button>' +
+      '<button type="button" data-k="speed"><span class="l"><span>속력</span><span>▾</span></span><span class="v" data-v></span><span class="o" data-o></span></button>' +
+      '<button type="button" data-k="course"><span class="l"><span>침로</span><span>◂ ▸</span></span><span class="v" data-v></span><span class="o" data-o></span></button>' +
+      '<button type="button" data-k="peri" class="peri"><i></i><span data-v></span></button>';
+    tabs.parentNode.insertBefore(dock, tabs);
+    /* 침로 칸은 좌우로 끌면 돈다 — 6px 에 1도 */
+    const cb = dock.querySelector('[data-k="course"]'); let drag = null;
+    cb.addEventListener('pointerdown', e => { const g = U.state(); if (!g) return; drag = { x: e.clientX, h0: Math.round(g.orders.heading.value), moved: false }; });
+    cb.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x; if (!drag.moved && Math.abs(dx) < 8) return;
+      if (!drag.moved) { drag.moved = true; try { cb.setPointerCapture(e.pointerId); } catch (err) {} closePop(); }
+      const h = norm(drag.h0 + Math.round(dx / 6)); const g = U.state(); if (g && Math.round(g.orders.heading.value) !== h) { U.issueCourseOrder(h, 'PLAYER'); buzz(3); } });
+    const endDrag = () => { setTimeout(() => { drag = null; }, 0); };
+    cb.addEventListener('pointerup', endDrag); cb.addEventListener('pointercancel', endDrag);
+    dock.addEventListener('click', e => {
+      const b = e.target.closest('button[data-k]'); if (!b) return;
+      if (b.dataset.k === 'course' && drag && drag.moved) return;
+      const k = b.dataset.k;
+      if (k === 'peri') { periAction(); return; }
+      if (openKind === k) { closePop(); return; }
+      openPop(k); buzz(5);
+    });
+    document.addEventListener('pointerdown', e => { if (pop && !e.target.closest('#epPop') && !e.target.closest('#epDock')) closePop(); }, true);
+  }
+  function periAction() {
+    const g = U.state(); if (!g) return; const b = g.boat;
+    const at = b.depth <= periDepth() + 1.5;
+    if (b.periscope || at) { const btn = $('btnPeri'); if (btn && !btn.disabled) { btn.click(); buzz(8); } }
+    else { const p = document.querySelector('#depRow button[data-dp="PERISCOPE"]'); if (p) { p.click(); buzz(8); } }
+  }
+  function closePop() { if (pop) pop.remove(); pop = null; openKind = null; if (dock) dock.querySelectorAll('button.open').forEach(b => b.classList.remove('open')); }
+  function openPop(k) {
+    closePop(); openKind = k; pop = document.createElement('div'); pop.id = 'epPop';
+    const g = U.state(); if (!g) return;
+    let html = '';
+    if (k === 'depth') {
+      const btns = [...document.querySelectorAll('#depRow button[data-dp]')];
+      html = '<div class="t">심도 명령</div><div class="g">' + btns.map(b => {
+        const lab = (b.childNodes[0] && b.childNodes[0].textContent || b.textContent).trim(), sub = (b.querySelector('i') || {}).textContent || '';
+        return '<button type="button" data-dp="' + b.dataset.dp + '"' + (b.disabled ? ' disabled' : '') + (b.classList.contains('on') ? ' class="on"' : '') + '>' + esc(lab) + '<small>' + esc(sub) + '</small></button>';
+      }).join('') + '<button type="button" class="emg" data-x="crash">긴급 잠항</button><button type="button" data-x="blow">긴급 부상</button></div>';
+    } else if (k === 'speed') {
+      const btns = [...document.querySelectorAll('#tgRow button[data-tg]')];
+      html = '<div class="t">기관 명령</div><div class="g">' + btns.map(b => {
+        const lab = (b.querySelector('b') || b).textContent.trim(), sub = (b.querySelector('i') || {}).textContent || '';
+        return '<button type="button" data-tg="' + b.dataset.tg + '"' + (b.disabled ? ' disabled' : '') + (b.classList.contains('on') ? ' class="on"' : '') + '>' + esc(lab) + '<small>' + esc(sub) + '</small></button>';
+      }).join('') + '</div>';
+    } else if (k === 'course') {
+      const c = g.selectedContactId && (g.contacts || []).find(x => x.id === g.selectedContactId);
+      html = '<div class="t">침로 명령</div><div class="g four">' +
+        '<button type="button" data-d="-10">◂ 10°</button><button type="button" data-d="-1">◂ 1°</button><button type="button" data-d="1">1° ▸</button><button type="button" data-d="10">10° ▸</button>' +
+        '<button type="button" class="wide" data-x="toward"' + (c ? '' : ' disabled') + '>선택 접촉 쪽으로<small>' + (c ? esc(c.id) + ' · ' + p3(c.bearing) + '°' : '접촉을 먼저 고르십시오') + '</small></button>' +
+        '<button type="button" class="wide" data-x="away">반대로 돈다<small>' + p3(g.boat.heading + 180) + '°</small></button>' +
+        '<button type="button" class="wide" data-x="hold">침로 유지<small>' + p3(g.boat.heading) + '°</small></button>' +
+        '<button type="button" class="wide" data-x="steady">침로·심도 유지</button></div><div class="n">침로 칸을 좌우로 끌어도 돕니다.</div>';
+    }
+    pop.innerHTML = html; dock.appendChild(pop);
+    const btn = dock.querySelector('button[data-k="' + k + '"]'); if (btn) btn.classList.add('open');
+    pop.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b || b.disabled) return;
+      const g2 = U.state(); if (!g2) return;
+      if (b.dataset.dp) { const o = document.querySelector('#depRow button[data-dp="' + b.dataset.dp + '"]'); if (o) o.click(); }
+      else if (b.dataset.tg) { const o = document.querySelector('#tgRow button[data-tg="' + b.dataset.tg + '"]'); if (o) o.click(); }
+      else if (b.dataset.d) { U.issueCourseOrder(norm(Math.round(g2.orders.heading.value) + (+b.dataset.d)), 'PLAYER'); buzz(4); renderDock(); return; }
+      else if (b.dataset.x === 'crash') { const o = $('btnCrash'); if (o) o.click(); }
+      else if (b.dataset.x === 'blow') { const o = $('btnBlow'); if (o) o.click(); }
+      else if (b.dataset.x === 'toward') { const c = (g2.contacts || []).find(x => x.id === g2.selectedContactId); if (c) U.issueCourseOrder(Math.round(norm(c.bearing)), 'PLAYER'); }
+      else if (b.dataset.x === 'away') { U.issueCourseOrder(Math.round(norm(g2.boat.heading + 180)), 'PLAYER'); }
+      else if (b.dataset.x === 'hold') { const o = $('btnHold'); if (o) o.click(); else U.issueCourseOrder(Math.round(g2.boat.heading), 'PLAYER'); }
+      else if (b.dataset.x === 'steady') { const o = $('btnSteady'); if (o) o.click(); }
+      buzz(8); closePop();
+    });
+  }
+  function renderDock() {
+    if (!dock) return; const g = U.state(); if (!g) return;
+    const b = g.boat, o = g.orders;
+    const set = (k, v, ord, same) => { const el = dock.querySelector('[data-k="' + k + '"]'); if (!el) return;
+      el.querySelector('[data-v]').textContent = v; const oe = el.querySelector('[data-o]'); if (oe) { oe.textContent = ord; oe.classList.toggle('same', !!same); } };
+    const d = Math.round(b.depth), od = Math.round(o.depth.value);
+    set('depth', d + 'm', Math.abs(od - b.depth) < 1 ? '유지' : '→ ' + od + 'm', Math.abs(od - b.depth) < 1);
+    const tg = (U.TELEGRAPH || []).find(t => t.id === o.speed.telegraph);
+    set('speed', (Math.abs(b.speed) / KNOT).toFixed(1) + 'kn', tg ? tg.label : (o.speed.value / KNOT).toFixed(1) + 'kn', true);
+    const dh = Math.abs(((o.heading.value - b.heading + 540) % 360) - 180);
+    set('course', p3(b.heading) + '°', dh < 1 ? '유지' : '→ ' + p3(o.heading.value) + '°', dh < 1);
+    const pe = dock.querySelector('[data-k="peri"]'), at = b.depth <= periDepth() + 1.5;
+    pe.classList.toggle('up', !!b.periscope); pe.classList.toggle('go', !b.periscope && at);
+    pe.querySelector('[data-v]').innerHTML = b.periscope ? '잠망경<br>내림' : at ? '잠망경<br>올림' : '잠망경<br>심도로';
+  }
+
+  /* ══ ② 공격 띠 ══ */
+  function buildAtk() {
+    const tabs = $('tabs'); if (!tabs || $('epAtk')) return;
+    atk = document.createElement('div'); atk.id = 'epAtk'; atk.className = 'off';
+    atk.innerHTML = '<div class="sol"><div><small>표적</small><b data-s="tgt">—</b></div><div><small>거리</small><b data-s="rng">—</b></div><div><small>자이로</small><b data-s="gyro">—</b></div><div><small>해법</small><b data-s="conf">—</b></div></div>' +
+      '<div class="row"><div class="tubes"></div><button type="button" class="fire"><span>발 사</span><small>길게 누름</small></button></div>';
+    tabs.parentNode.insertBefore(atk, tabs);
+    atk.querySelector('.tubes').addEventListener('click', e => { const t = e.target.closest('.tb'); if (!t) return;
+      const o = document.querySelector('#tubes button[data-tube="' + t.dataset.tube + '"]'); if (o && !o.disabled) { o.click(); buzz(6); } });
+    /* 발사 — 길게 눌러야 나간다. 채워지면 원래 발사 단추를 누른다(발사 조건 판정은 원래 규칙) */
+    const fire = atk.querySelector('.fire'); let timer = null, p = 0;
+    const reset = () => { clearInterval(timer); timer = null; p = 0; fire.style.setProperty('--p', '0%'); };
+    fire.addEventListener('pointerdown', e => { const f = $('btnFire'); if (!f || f.disabled || timer) return; try { fire.setPointerCapture(e.pointerId); } catch (err) {}
+      timer = setInterval(() => { p = Math.min(1, p + 0.08); fire.style.setProperty('--p', p * 100 + '%'); if (p >= 1) { reset(); buzz([25, 30, 50]); const f2 = $('btnFire'); if (f2 && !f2.disabled) f2.click(); } }, 40); });
+    fire.addEventListener('pointerup', reset); fire.addEventListener('pointercancel', reset); fire.addEventListener('pointerleave', reset);
+  }
+  let tubeSig = '';
+  function renderAtk() {
+    if (!atk) return; const g = U.state(); if (!g) return;
+    const sel = g.selectedContactId, c = sel && (g.contacts || []).find(x => x.id === sel);
+    let s = null; try { s = sel ? U.solution(sel) : null; } catch (e) {}
+    const aft = !!document.querySelector('#tubes button.on.aft');
+    const put = (k, v, cls) => { const el = atk.querySelector('[data-s="' + k + '"]'); el.textContent = v; el.className = cls || ''; };
+    put('tgt', c ? c.id : '—');
+    put('rng', s && s.ready ? (s.range / 1000).toFixed(1) + 'km' : c && c.rangeEstimate ? '~' + (c.rangeEstimate / 1000).toFixed(1) + 'km' : '—');
+    if (s && s.ready) { const gy = aft && s.gyroAft != null ? s.gyroAft : s.gyroBow; const ag = Math.abs(gy);
+      put('gyro', (gy < 0 ? '좌 ' : gy > 0 ? '우 ' : '') + ag.toFixed(0) + '°', ag > 90 ? 'bad' : ag > 60 ? 'warn' : ''); }
+    else put('gyro', '—');
+    const conf = c ? Math.round((c.solutionConfidence || 0) * 100) : null;
+    put('conf', conf == null ? '—' : conf + '%', conf == null ? '' : conf < 50 ? 'bad' : conf < 75 ? 'warn' : '');
+    /* 발사관 — 원래 단추의 상태를 그대로 비춘다 */
+    const src = [...document.querySelectorAll('#tubes button[data-tube]')];
+    const sig = src.map(b => b.dataset.tube + ':' + (b.dataset.ep || '') + ':' + b.classList.contains('on') + ':' + b.disabled + ':' + b.classList.contains('aft')).join('|');
+    if (sig !== tubeSig) { tubeSig = sig;
+      atk.querySelector('.tubes').innerHTML = src.map(b => { const t = b.textContent.trim(); const m = /(\d+)\s*관/.exec(t); const n = (b.classList.contains('aft') ? '미' : '') + (m ? m[1] : +b.dataset.tube + 1);
+        return '<button type="button" class="tb ' + (b.dataset.ep || '') + (b.classList.contains('on') ? ' sel' : '') + (b.classList.contains('aft') ? ' aft' : '') + '" data-tube="' + b.dataset.tube + '"' + (b.disabled ? ' disabled' : '') + '>' + n + '</button>'; }).join(''); }
+    const f = $('btnFire'), fb = atk.querySelector('.fire');
+    fb.disabled = !f || f.disabled;
+    const txt = f ? f.textContent.replace(/\s+/g, ' ').trim() : '발사';
+    fb.querySelector('span').textContent = /발\s*사/.test(txt) && txt.length <= 5 ? '발 사' : txt.replace('길게 눌러 발사', '').trim() || '발 사';
+  }
+
+  function tick() {
+    const pn = paneNow(), inGame = !!U.state();
+    const showAtk = inGame && pn === 'torp';
+    if (dock) dock.classList.toggle('off', !inGame || showAtk);
+    if (atk) atk.classList.toggle('off', !showAtk);
+    if (showAtk) { closePop(); renderAtk(); } else renderDock();
+  }
+  function init() { buildDock(); buildAtk(); setInterval(tick, 200); window.EP_V635_DOCK = { version: '6.35.0', openPop, closePop }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
