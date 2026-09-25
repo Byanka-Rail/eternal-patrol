@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.37.7 Title Sealion FX</title>
-<script id="ep-build">window.EP_BUILD='6.37.7';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.37.8 Title Clean FX</title>
+<script id="ep-build">window.EP_BUILD='6.37.8';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44708,21 +44708,20 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
        그 뒤 3~5초 쉬익 하는 물의 울림이 남는다. 가까우면 선체가 울고 낮은 쿵이 커진다. */
     function depthCharge(dist, t0) {
       const t = t0 != null ? t0 : AC.currentTime, near = Math.max(0.2, 1 - dist);
-      const crack = nsrc(), cf = AC.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 900; cf.Q.value = 0.6; const cg = AC.createGain();
-      crack.connect(cf); cf.connect(cg); cg.connect(out); env(cg, t, 0.002, 0.35 * near, 0.05); crack.start(t, Math.random()); crack.stop(t + 0.1);
+      const crack = nsrc(), cf = AC.createBiquadFilter(); cf.type = 'lowpass'; cf.frequency.value = 1400; const cg = AC.createGain();
+      crack.connect(cf); cf.connect(cg); cg.connect(out); env(cg, t, 0.002, 0.12 * near, 0.04); crack.start(t, Math.random()); crack.stop(t + 0.1);
       const n = 5 + Math.floor(Math.random() * 5); let tt = t + 0.02, a = 0.5 * near;
       for (let i = 0; i < n; i++) {
-        const th = nsrc(), tf = AC.createBiquadFilter(); tf.type = 'bandpass'; tf.frequency.value = rnd(320, 520); tf.Q.value = 0.8; const tg = AC.createGain();
-        th.connect(tf); tf.connect(tg); tg.connect(out); const dec = rnd(0.12, 0.2); env(tg, tt, 0.006, a, dec); th.start(tt, Math.random()); th.stop(tt + dec + 0.05);
+        const th = nsrc(), tf = AC.createBiquadFilter(); tf.type = 'lowpass'; tf.frequency.value = rnd(420, 560); tf.Q.value = 0.7; const tg = AC.createGain();
+        th.connect(tf); tf.connect(tg); tg.connect(out); const dec = rnd(0.14, 0.24); env(tg, tt, 0.008, a * 0.35, dec); th.start(tt, Math.random()); th.stop(tt + dec + 0.05);
         const o = AC.createOscillator(), og = AC.createGain(), ol = AC.createBiquadFilter(); ol.type = 'lowpass'; ol.frequency.value = 1300; o.type = 'sawtooth'; o.frequency.setValueAtTime(rnd(130, 170), tt); o.frequency.exponentialRampToValueAtTime(90, tt + dec + 0.1);
-        o.connect(ol); ol.connect(og); og.connect(out); env(og, tt, 0.006, a * 0.5 * near + 0.02, dec + 0.1); o.start(tt); o.stop(tt + dec + 0.15);
+        o.connect(ol); ol.connect(og); og.connect(out); env(og, tt, 0.008, a * 0.8 * near + 0.03, dec + 0.12); o.start(tt); o.stop(tt + dec + 0.15);
         tt += rnd(0.25, 0.55); a *= rnd(0.62, 0.82);
       }
-      const hs = nsrc(), hf = AC.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = rnd(1600, 2000); hf.Q.value = 0.8; const hg = AC.createGain(), am = AC.createGain(); am.gain.value = 0.6;
-      const cr = AC.createOscillator(); cr.type = 'square'; cr.frequency.value = rnd(11, 19); const crg = AC.createGain(); crg.gain.value = 0.4; cr.connect(crg); crg.connect(am.gain);
-      hs.connect(hf); hf.connect(am); am.connect(hg); hg.connect(out); const hd = rnd(3, 5), ht = t + 0.35;
-      hg.gain.setValueAtTime(0.0001, ht); hg.gain.exponentialRampToValueAtTime(0.09 * near + 0.02, ht + 0.5); hg.gain.exponentialRampToValueAtTime(0.0001, ht + hd);
-      hs.start(ht, Math.random()); cr.start(ht); hs.stop(ht + hd + 0.1); cr.stop(ht + hd + 0.1);
+      const hs = nsrc(), hf = AC.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = rnd(900, 1200); const hg = AC.createGain();
+      hs.connect(hf); hf.connect(hg); hg.connect(out); const hd = rnd(2, 3), ht = t + 0.35;
+      hg.gain.setValueAtTime(0.0001, ht); hg.gain.exponentialRampToValueAtTime(0.016 * near + 0.004, ht + 0.6); hg.gain.exponentialRampToValueAtTime(0.0001, ht + hd);
+      hs.start(ht, Math.random()); hs.stop(ht + hd + 0.1);
       if (near > 0.6) {                               /* 가까우면 선체가 운다 */
         const r = nsrc(), rb = AC.createBiquadFilter(); rb.type = 'bandpass'; rb.frequency.value = rnd(230, 300); rb.Q.value = 24; const rg = AC.createGain();
         r.connect(rb); rb.connect(rg); rg.connect(out); env(rg, t + 0.03, 0.04, 0.45 * (near - 0.4), 2.2); r.start(t, Math.random()); r.stop(t + 2.6);
@@ -44732,16 +44731,17 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     /* 먼 어뢰 명중 — 물을 건너온 짧은 딱 + 250~600Hz 의 둔한 쿵(0.3~0.5초). 탄약고 유폭이면 이어서 긴 우르릉과 잇단 작은 폭발 */
     function torpedoHit(big, t0) {
       const t = t0 != null ? t0 : AC.currentTime;
-      const c = nsrc(), cf = AC.createBiquadFilter(); cf.type = 'highpass'; cf.frequency.value = 600; const cg = AC.createGain();
-      c.connect(cf); cf.connect(cg); cg.connect(out); env(cg, t, 0.002, 0.18, 0.03); c.start(t, Math.random()); c.stop(t + 0.06);
-      const b = nsrc(), bf = AC.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = rnd(360, 440); bf.Q.value = 1.1; const bg = AC.createGain();
-      b.connect(bf); bf.connect(bg); bg.connect(out); env(bg, t + 0.01, 0.03, 0.55, rnd(0.3, 0.5)); b.start(t, Math.random()); b.stop(t + 0.7);
-      const o = AC.createOscillator(), og = AC.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.6); o.connect(og); og.connect(out); env(og, t + 0.01, 0.02, 0.4, 0.55); o.start(t); o.stop(t + 0.7);
+      const c = nsrc(), cf = AC.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 800; cf.Q.value = 0.8; const cg = AC.createGain();
+      c.connect(cf); cf.connect(cg); cg.connect(out); env(cg, t, 0.002, 0.06, 0.025); c.start(t, Math.random()); c.stop(t + 0.06);
+      const b = nsrc(), bf = AC.createBiquadFilter(); bf.type = 'lowpass'; bf.frequency.value = rnd(480, 600); const bg = AC.createGain();
+      b.connect(bf); bf.connect(bg); bg.connect(out); env(bg, t + 0.01, 0.03, 0.22, rnd(0.3, 0.5));
+      const o2 = AC.createOscillator(), o2g = AC.createGain(); o2.frequency.setValueAtTime(rnd(360, 420), t); o2.frequency.exponentialRampToValueAtTime(240, t + 0.45); o2.connect(o2g); o2g.connect(out); env(o2g, t + 0.01, 0.02, 0.16, 0.4); o2.start(t); o2.stop(t + 0.5); b.start(t, Math.random()); b.stop(t + 0.7);
+      const o = AC.createOscillator(), og = AC.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.6); o.connect(og); og.connect(out); env(og, t + 0.01, 0.02, 0.5, 0.6); o.start(t); o.stop(t + 0.8);
       if (big) {
-        const rm = nsrc(), rf = AC.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.setValueAtTime(700, t + 0.3); rf.frequency.exponentialRampToValueAtTime(180, t + 6); const rg = AC.createGain();
-        rm.connect(rf); rf.connect(rg); rg.connect(out); rg.gain.setValueAtTime(0.0001, t + 0.3); rg.gain.exponentialRampToValueAtTime(0.3, t + 1.2); rg.gain.exponentialRampToValueAtTime(0.0001, t + 7); rm.start(t + 0.3, Math.random()); rm.stop(t + 7.2);
-        for (let i = 0; i < 6; i++) { const tt = t + rnd(0.8, 5.5), s = nsrc(), sf = AC.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = rnd(300, 700); sf.Q.value = 1.4; const sg = AC.createGain();
-          s.connect(sf); sf.connect(sg); sg.connect(out); env(sg, tt, 0.01, rnd(0.08, 0.2), rnd(0.15, 0.35)); s.start(tt, Math.random()); s.stop(tt + 0.5); }
+        const rm = nsrc(), rf = AC.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.setValueAtTime(380, t + 0.3); rf.frequency.exponentialRampToValueAtTime(120, t + 6); const rg = AC.createGain();
+        rm.connect(rf); rf.connect(rg); rg.connect(out); rg.gain.setValueAtTime(0.0001, t + 0.3); rg.gain.exponentialRampToValueAtTime(0.22, t + 1.2); rg.gain.exponentialRampToValueAtTime(0.0001, t + 7); rm.start(t + 0.3, Math.random()); rm.stop(t + 7.2);
+        for (let i = 0; i < 4; i++) { const tt = t + rnd(0.8, 5.5), s = nsrc(), sf = AC.createBiquadFilter(); sf.type = 'lowpass'; sf.frequency.value = rnd(300, 500); const sg = AC.createGain();
+          s.connect(sf); sf.connect(sg); sg.connect(out); env(sg, tt, 0.01, rnd(0.06, 0.14), rnd(0.2, 0.4)); s.start(tt, Math.random()); s.stop(tt + 0.5); }
       }
     }
     /* 부서지는 소리 — 명중 뒤 먼 곳에서 격벽이 무너지고 강재가 찢기는 낮은 신음 */
@@ -44750,15 +44750,15 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
       const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(rnd(90, 120), t); o.frequency.exponentialRampToValueAtTime(rnd(45, 60), t + dur);
       const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(380, t); bp.frequency.exponentialRampToValueAtTime(200, t + dur); bp.Q.value = 6;
       const g = AC.createGain(); o.connect(bp); bp.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.start(t); o.stop(t + dur + 0.1);
-      for (let i = 0; i < 8; i++) { const tt = t + rnd(0.3, dur), s = nsrc(), f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = rnd(500, 1400); f.Q.value = 5; const sg = AC.createGain();
-        s.connect(f); f.connect(sg); sg.connect(out); env(sg, tt, 0.004, rnd(0.02, 0.06), rnd(0.05, 0.2)); s.start(tt, Math.random()); s.stop(tt + 0.3); }
+      for (let i = 0; i < 8; i++) { const tt = t + rnd(0.3, dur), s = nsrc(), f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = rnd(400, 1000); f.Q.value = 14; const sg = AC.createGain();
+        s.connect(f); f.connect(sg); sg.connect(out); env(sg, tt, 0.004, rnd(0.02, 0.05), rnd(0.1, 0.3)); s.start(tt, Math.random()); s.stop(tt + 0.3); }
     }
     /* 발사 — 압축공기가 관을 밀어내는 쿵-쉬익 */
     function launch(t0) {
       const t = t0 != null ? t0 : AC.currentTime;
       const o = AC.createOscillator(), og = AC.createGain(); o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.4); o.connect(og); og.connect(out); env(og, t, 0.01, 0.35, 0.4); o.start(t); o.stop(t + 0.5);
-      const s = nsrc(), f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 0.7; const g = AC.createGain(); s.connect(f); f.connect(g); g.connect(out);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.14, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.4); s.start(t, Math.random()); s.stop(t + 1.5);
+      const s = nsrc(), f = AC.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 800; const g = AC.createGain(); s.connect(f); f.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1); s.start(t, Math.random()); s.stop(t + 1.5);
     }
     return { depthCharge, torpedoHit, breakup, launch };
   }
@@ -45022,7 +45022,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     setRunning(ov.classList.contains('on')); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
-    window.EP_V637_TITLE = { version: '6.37.7', fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
+    window.EP_V637_TITLE = { version: '6.37.8', fx: () => AC && fx(), pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
