@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.1 Band & EW Tidy</title>
-<script id="ep-build">window.EP_BUILD='6.39.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.2 Sky</title>
+<script id="ep-build">window.EP_BUILD='6.39.2';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -34263,6 +34263,7 @@ window.Lang.add('ja', {
     voyageBridgeV625.nextAt=now+7000+lsMixV625(seed,voyageBridgeV625.sceneSeq)*3000;
     voyageBridgeV625.coastKey=''; voyageBridgeV625.coast=null;
   }
+  window.EP_V639_BRIDGE = { living: k => { if (voyageBridgeV625.scene) voyageBridgeV625.scene.livingKind = k; }, weather: (w, hrs) => { const s = voyageBridgeV625.scene; if (s) { if (w) s.weather = w; if (hrs != null) s.hours = hrs; voyageBridgeV625.prev = null; } } };   /* 시험용 */
   function resizeVoyageBridgeV625(){
     if(!cvBridgeV625) return false;
     const r=cvBridgeV625.getBoundingClientRect();
@@ -34352,9 +34353,28 @@ window.Lang.add('ja', {
     c.restore();
   }
   function drawBirdsV625(c,W,H,sc,alpha,migrant){
-    c.save();c.globalAlpha*=alpha;c.strokeStyle=nightV625(sc.hours)>.55?'rgba(214,222,226,.62)':'rgba(24,30,32,.72)';c.lineWidth=1.2;
-    const n=migrant?19:Math.round(8+lsMixV625(sc.seed,910)*12), bx=W*(.18+lsMixV625(sc.seed,911)*.62), by=H*(migrant?.22:(.18+lsMixV625(sc.seed,912)*.26));
-    for(let i=0;i<n;i++){let x,y;if(migrant){const side=i%2?1:-1,rank=Math.ceil(i/2);x=bx+side*rank*7;y=by+rank*3.2;}else{x=bx+(lsMixV625(sc.seed,930+i)-.5)*W*.20;y=by+(lsMixV625(sc.seed,980+i)-.5)*H*.10;}c.beginPath();c.moveTo(x-3,y+1);c.quadraticCurveTo(x-1,y-2,x,y);c.quadraticCurveTo(x+1,y-2,x+3,y+1);c.stroke();}
+    /* v6.39.2 — 「^」 기호 대신 날개를 치는 새의 실루엣. 갈매기는 흩어져 떠돌고, 철새는 V 자로 줄지어 천천히 지나간다.
+       멀수록 작고 옅다. 밤에는 거의 보이지 않는다. */
+    const t=performance.now()/1000, night=nightV625(sc.hours), dark=night>.55;
+    c.save(); c.globalAlpha*=alpha*(dark?.35:1);
+    const col=dark?'rgba(150,160,168,.55)':'rgba(28,32,36,.82)';
+    const bird=(x,y,s,ph,goose)=>{ const f=Math.sin(t*(goose?4.2:6.5)+ph), up=-f*s*0.42, tipY=y+up, midY=y-f*s*0.15-s*0.06;
+      c.beginPath(); c.moveTo(x,y);
+      c.quadraticCurveTo(x-s*0.45,midY-s*0.12,x-s,tipY); c.quadraticCurveTo(x-s*0.5,midY+s*0.1,x,y+s*0.1);
+      c.quadraticCurveTo(x+s*0.5,midY+s*0.1,x+s,tipY); c.quadraticCurveTo(x+s*0.45,midY-s*0.12,x,y); c.fill();
+      c.beginPath(); c.ellipse(x,y+s*0.05,s*(goose?0.34:0.2),s*0.09,0,0,Math.PI*2); c.fill();
+      if(goose){ c.beginPath(); c.moveTo(x-s*0.3,y+s*0.03); c.lineTo(x-s*0.62,y-s*0.02); c.lineWidth=Math.max(0.8,s*0.08); c.strokeStyle=col; c.stroke(); } };
+    c.fillStyle=col;
+    if(migrant){
+      const n=17, dir=lsMixV625(sc.seed,913)>.5?1:-1, sp=W*0.018, x0=((lsMixV625(sc.seed,911)*W+dir*t*sp)%(W*1.6)+W*1.6)%(W*1.6)-W*0.3, y0=H*(.16+lsMixV625(sc.seed,912)*.12);
+      for(let i=0;i<n;i++){ const side=i%2?1:-1, rank=Math.ceil(i/2), s=3.2+lsMixV625(sc.seed,950+i)*0.8;
+        bird(x0-dir*rank*s*2.6+Math.sin(t*0.7+i)*1.2, y0+side*rank*s*1.35+Math.cos(t*0.5+i)*0.8, s, i*0.9, true); }
+    } else {
+      const n=Math.round(6+lsMixV625(sc.seed,910)*8), cx=W*(.18+lsMixV625(sc.seed,911)*.62), cy=H*(.18+lsMixV625(sc.seed,912)*.22);
+      for(let i=0;i<n;i++){ const r=lsMixV625(sc.seed,930+i), q=lsMixV625(sc.seed,980+i), depth=0.45+0.55*q, s=(3+5*depth)*(W/420+0.4);
+        const x=cx+(r-.5)*W*.34+Math.sin(t*0.23+i*1.7)*W*0.05, y=cy+(q-.5)*H*.12+Math.sin(t*0.37+i)*H*0.02;
+        c.globalAlpha=alpha*(dark?.35:1)*(0.45+0.55*depth); bird(x,y,s,i*1.3,false); }
+    }
     c.restore();
   }
   function drawFishingV625(c,W,H,sc,alpha){
@@ -34365,10 +34385,18 @@ window.Lang.add('ja', {
     c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';c.fillStyle='rgba(190,205,208,.58)';c.textAlign='center';c.fillText('배경 · 먼 어선',x,y+16);c.restore();
   }
   function drawAircraftV625(c,W,H,sc,alpha){
-    const x=W*(.20+lsMixV625(sc.seed,1080)*.60), y=H*(.18+lsMixV625(sc.seed,1081)*.22), k=.8+lsMixV625(sc.seed,1082)*.7;
-    c.save();c.globalAlpha*=alpha;c.strokeStyle=nightV625(sc.hours)>.55?'rgba(205,216,220,.62)':'rgba(29,35,37,.68)';c.lineWidth=1.4;
-    c.beginPath();c.moveTo(x-12*k,y);c.lineTo(x+12*k,y);c.moveTo(x,y-3*k);c.lineTo(x,y+4*k);c.moveTo(x-4*k,y+3*k);c.lineTo(x+4*k,y+3*k);c.stroke();
-    c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';c.fillStyle='rgba(190,205,208,.55)';c.textAlign='center';c.fillText('배경 · 먼 항공기',x,y+15);c.restore();
+    /* v6.39.2 — 십자 기호 대신 옆에서 본 쌍발 초계기의 실루엣, 천천히 가로지른다 */
+    const t=performance.now()/1000, dir=lsMixV625(sc.seed,1083)>.5?1:-1, k=.8+lsMixV625(sc.seed,1082)*.7;
+    const x=((W*(.1+lsMixV625(sc.seed,1080)*.8)+dir*t*W*0.012)%(W*1.4)+W*1.4)%(W*1.4)-W*0.2, y=H*(.16+lsMixV625(sc.seed,1081)*.2);
+    c.save();c.globalAlpha*=alpha*.85;c.fillStyle=nightV625(sc.hours)>.55?'rgba(150,160,168,.45)':'rgba(34,38,42,.8)';
+    c.translate(x,y); c.scale(dir*k,k);
+    c.beginPath(); c.moveTo(-14,0); c.quadraticCurveTo(-12,-2.2,-4,-2); c.lineTo(10,-1.4); c.quadraticCurveTo(13,-1,14,0); c.quadraticCurveTo(13,1,10,1.2); c.lineTo(-4,1.6); c.quadraticCurveTo(-12,1.8,-14,0); c.fill();
+    c.beginPath(); c.moveTo(-2,-0.6); c.lineTo(4,-0.6); c.lineTo(3,1); c.lineTo(-3,1); c.fill();
+    c.beginPath(); c.moveTo(-3,0); c.lineTo(3,0); c.lineTo(1.6,1.2); c.lineTo(-1.6,1.2); c.fill();
+    c.beginPath(); c.ellipse(-2.5,0.9,1.6,0.9,0,0,Math.PI*2); c.ellipse(2.5,0.9,1.6,0.9,0,0,Math.PI*2); c.fill();
+    c.beginPath(); c.moveTo(-14,0); c.lineTo(-16.5,-4.5); c.lineTo(-13.4,-4.5); c.lineTo(-11,-1.2); c.fill();
+    c.fillRect(-16,-0.6,5,1.1);
+    c.restore();
   }
   function drawLivingObjectsV625(c,W,H,sc,alpha){
     switch(sc.livingKind){
@@ -34399,21 +34427,20 @@ window.Lang.add('ja', {
     const night=nightV625(sc.hours);
     c.save(); c.globalAlpha=alpha;
     let env=null;
+    /* v6.39.2 — 바다·하늘 셰이더에 이 장면의 날씨와 시각을 알려 준다(전략 지도에는 전투 상태가 없어 늘 맑은 낮으로 그려졌다) */
+    const Uu=window.UBOAT, realState=Uu&&Uu.state, wid=sc.typhoonBand?(sc.typhoonBand==='CORE'?'squall':'gale'):(sc.weather||'clear');
+    if(Uu&&!(realState&&realState())) Uu.state=()=>({ weather:{ id:wid, vis:vis, sea:sc.seaState }, night:night, theater:sc.theater });
+    try{
     if(O&&O.paintBase){ env=O.paintBase(c,W,H,{visibility:vis,seaState:sc.seaState,time:now,phase:.625,horizonRatio:.58}); }
     else { c.fillStyle='#24343d';c.fillRect(0,0,W,H*.58);c.fillStyle='#0d1b21';c.fillRect(0,H*.58,W,H*.42);env={baseY:H*.58}; }
-    /* 몽타주의 낮/밤은 게임시각을 직접 매 프레임 따라가지 않고 장면 스냅샷에 고정한다. */
-    if(night>0){ c.fillStyle='rgba(2,5,10,'+(night*.72).toFixed(3)+')';c.fillRect(0,0,W,H); }
-    if(night>.55 && sc.weather!=='fog'){
-      c.fillStyle='rgba(220,232,238,'+(0.30*night).toFixed(3)+')';
-      for(let i=0;i<18;i++){const x=lsMixV625(sc.seed,200+i)*W,y=lsMixV625(sc.seed,260+i)*H*.42;c.fillRect(x,y,1,1);}
-    }
-    drawCloudsV625(c,W,H,sc,1);
-    drawWeatherWallV625(c,W,H,sc,1);
+    /* 밤·별·구름은 셰이더가 날씨와 시각에 맞춰 그린다(예전의 겹친 타원 구름과 덧칠한 어둠은 뺐다) */
+    /* 비의 장막도 셰이더가 그린다(예전의 네모난 어둠 띠는 뺐다) */
     drawCoastV625(c,W,H,env,sc,1);
     drawDistantBattleV6252(c,W,H,env,sc,1);
     drawLivingObjectsV625(c,W,H,sc,1);
     if(O&&O.paintForeground) O.paintForeground(c,W,H,env);
     if(O&&O.paintFog) O.paintFog(c,W,H,vis);
+    } finally { if(Uu&&realState) Uu.state=realState; }
     /* 함교 난간은 시점 표시일 뿐 전술 기능이 아니다. */
     c.strokeStyle='rgba(10,14,16,.78)';c.lineWidth=4;c.beginPath();c.moveTo(0,H*.89);c.lineTo(W,H*.89);c.stroke();
     c.lineWidth=2;for(let x=W*.12;x<W;x+=W*.19){c.beginPath();c.moveTo(x,H*.89);c.lineTo(x,H);c.stroke();}
@@ -43422,25 +43449,52 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   }
   /* ── 구름 조각 — 날씨마다 한 번 굽는다 ── */
   let sprites = null, spriteKey = '';
+  /* v6.39.2 — 구름을 겹친 원이 아니라 **잡음(fBm)으로 빚고 빛을 들인다**.
+     한 장씩: 모양 틀(위는 둥글고 아래는 평평한 적운 / 넓게 깔린 층운) × 여러 겹의 잡음 → 밀도.
+     밀도가 문턱을 넘는 곳만 구름이고, 가장자리는 부드럽게 흩어진다.
+     빛은 해 쪽(왼쪽 위)으로 한 발 옮긴 곳의 밀도와 비교해 — 앞이 옅으면 밝고, 두꺼운 속과 밑면은 그늘진다. */
+  function vnoise(seed) { const P = new Uint8Array(512), R = rng(seed); const p = []; for (let i = 0; i < 256; i++) p.push(i);
+    for (let i = 255; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const t = p[i]; p[i] = p[j]; p[j] = t; } for (let i = 0; i < 512; i++) P[i] = p[i & 255];
+    const G = new Float32Array(256); for (let i = 0; i < 256; i++) G[i] = R();
+    const sm = t => t * t * (3 - 2 * t);
+    return (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, X = xi & 255, Y = yi & 255;
+      const a = G[P[P[X] + Y]], b = G[P[P[X + 1] + Y]], c = G[P[P[X] + Y + 1]], d = G[P[P[X + 1] + Y + 1]], u = sm(xf), v = sm(yf);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }; }
   function bakeSprites(pal) {
     const key = pal.id + '|' + Math.round(pal.n * 20) + '|' + Math.round(pal.dusk * 10);
     if (key === spriteKey && sprites) return sprites; spriteKey = key; sprites = [];
-    const R = rng(hash(pal.id) + 7);
+    const flat = pal.id === 'haze' || pal.id === 'fog' || pal.id === 'squall' || pal.id === 'gale';
+    const lit = mix(mix(pal.cloud, [255, 250, 242], 0.35 * (1 - pal.n)), [255, 180, 130], 0.35 * pal.dusk);
+    const shade = mix(mix(pal.cloud, pal.top, 0.55), [40, 46, 54], 0.25 + 0.3 * pal.p.dark);
+    const SW = 192, SH = 84;
     for (let k = 0; k < 6; k++) {
-      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 112; const c = cv.getContext('2d');
-      const flat = pal.id === 'haze' || pal.id === 'fog' || pal.id === 'squall' || pal.id === 'gale';
-      const blobs = flat ? 14 : 10;
-      for (let i = 0; i < blobs; i++) {
-        const x = 30 + R() * 196, y = flat ? 60 + R() * 22 : 40 + R() * 40 - (Math.abs(x - 128) < 60 ? 14 : 0), r = (flat ? 26 : 22) + R() * 26;
-        const gr = c.createRadialGradient(x, y - r * 0.25, r * 0.1, x, y, r);
-        const lit = mix(pal.cloud, [255, 255, 255], 0.25 * (1 - pal.n)), shade = mix(pal.cloud, pal.top, 0.55);
-        gr.addColorStop(0, rgb(lit, 0.9)); gr.addColorStop(0.55, rgb(mix(lit, shade, 0.5), 0.55)); gr.addColorStop(1, rgb(shade, 0));
-        c.fillStyle = gr; c.fillRect(x - r, y - r, r * 2, r * 2);
+      const N = vnoise(hash(pal.id) * 31 + k * 977 + 5), cv = document.createElement('canvas'); cv.width = SW; cv.height = SH;
+      const c = cv.getContext('2d'), img = c.createImageData(SW, SH), D = new Float32Array(SW * SH);
+      const fbm = (x, y) => { let s = 0, a = 0.5, f = 1; for (let o = 0; o < 4; o++) { s += a * N(x * f, y * f); f *= 2.03; a *= 0.5; } return s / 0.9375; };
+      const R = rng(hash(pal.id) + k * 13 + 1), lumps = [];
+      const nl = flat ? 0 : 3 + Math.floor(R() * 3); for (let i = 0; i < nl; i++) lumps.push({ x: 0.2 + R() * 0.6, y: 0.35 + R() * 0.25, r: 0.14 + R() * 0.14 });
+      for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+        const u = x / SW, v = y / SH;
+        let m;
+        if (flat) m = Math.max(0, 1 - Math.pow(Math.abs(u - 0.5) * 2.1, 2.2)) * Math.max(0, 1 - Math.pow(Math.abs(v - 0.62) * 2.6, 2));
+        else { m = Math.max(0, 1 - Math.pow(Math.abs(u - 0.5) * 2.2, 2) - Math.pow(Math.max(0, v - 0.78) * 7, 2) - Math.pow(Math.max(0, 0.5 - v) * 1.6, 2));
+          for (const L of lumps) { const dx = (u - L.x) / L.r, dy = (v - L.y) / (L.r * 1.2); m = Math.max(m, 1 - (dx * dx + dy * dy)) * (v > 0.74 ? Math.max(0, 1 - (v - 0.74) * 5) : 1); } }
+        const n = fbm(u * (flat ? 7 : 5) + k * 3.1, v * (flat ? 3.5 : 4.5));
+        D[y * SW + x] = m * 1.25 + (n - 0.5) * (flat ? 1.0 : 1.15) - 0.28;
       }
-      /* 아래는 평평하게 — 적운의 밑면 */
-      const cut = c.createLinearGradient(0, 70, 0, 112); cut.addColorStop(0, 'rgba(0,0,0,0)'); cut.addColorStop(1, 'rgba(0,0,0,1)');
-      c.globalCompositeOperation = 'destination-out'; c.fillStyle = cut; c.fillRect(0, 70, 256, 42);
-      sprites.push(cv);
+      for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+        const d = D[y * SW + x], i4 = (y * SW + x) * 4;
+        const al = d <= 0 ? 0 : d >= 0.3 ? 1 : (d / 0.3) * (d / 0.3) * (3 - 2 * d / 0.3);
+        if (al <= 0) { img.data[i4 + 3] = 0; continue; }
+        const xs = Math.max(0, x - 5), ys = Math.max(0, y - 4), dl = D[ys * SW + xs];
+        let L = clamp(0.62 + (d - dl) * 1.6, 0.05, 1) * (1 - 0.45 * clamp((y / SH - 0.45) * 2.2, 0, 1));
+        L = clamp(L + (1 - al) * 0.25, 0, 1);
+        const col = mix(shade, lit, L);
+        img.data[i4] = col[0]; img.data[i4 + 1] = col[1]; img.data[i4 + 2] = col[2]; img.data[i4 + 3] = Math.round(al * (flat ? 200 : 235));
+      }
+      /* 살짝 흐려 잡음의 거친 알갱이를 덜어낸다 */
+      const tmp = document.createElement('canvas'); tmp.width = SW; tmp.height = SH; tmp.getContext('2d').putImageData(img, 0, 0);
+      c.filter = 'blur(0.7px)'; c.drawImage(tmp, 0, 0); c.filter = 'none'; sprites.push(cv);
     }
     return sprites;
   }
@@ -43450,7 +43504,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     const key = (g && g.theater) + '|' + pal.id;
     if (key === worldKey && world) return world; worldKey = key;
     const R = rng(hash(key));
-    const clouds = [], n = Math.round(10 + pal.p.cover * 34);
+    const clouds = [], n = Math.round(16 + pal.p.cover * 40);
     for (let i = 0; i < n; i++) clouds.push({ brg: R() * 360, elev: 0.6 + Math.pow(R(), 1.3) * (pal.p.cover > 0.7 ? 7 : 11), w: 5 + R() * (pal.p.cover > 0.6 ? 30 : 12), spr: (R() * 6) | 0, a: 0.5 + R() * 0.45 });
     clouds.sort((a, b) => b.elev - a.elev);
     const stars = []; for (let i = 0; i < 260; i++) stars.push({ brg: R() * 360, elev: 0.8 + Math.pow(R(), 0.8) * 45, m: R(), tw: R() * 6.28 });
