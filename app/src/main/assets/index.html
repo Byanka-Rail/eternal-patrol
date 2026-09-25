@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.10 Quieter Noise</title>
-<script id="ep-build">window.EP_BUILD='6.39.10';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.11 No Pops</title>
+<script id="ep-build">window.EP_BUILD='6.39.11';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -34553,8 +34553,7 @@ window.Lang.add('ja', {
       el.innerHTML = '<b>' + L(t.name) + '<i>' + L(t.year) + '</i></b>' +
         '<u>' + L(b.name) + ' · ' + L(b.navy) + ' · ' + L('발사관') + ' ' + b.tubes +
           (b.sternTubes ? '+' + b.sternTubes : '') + L('문(함수+함미)') + ' · ' +
-          L('최대 안전심도') + ' ' + (b.safeDepth || b.testDepth) + 'm</u>' +
-        '<span>' + L(t.tagline) + '</span>';
+          L('최대 안전심도') + ' ' + (b.safeDepth || b.testDepth) + 'm</u>';   /* v6.39.11 — 전구 설명 문장은 뺐다 */
       el.addEventListener('click', () => {
         ui.theater = id;
         document.querySelectorAll('#thList .th').forEach(x => x.classList.toggle('on', x === el));
@@ -44952,7 +44951,10 @@ body.epMenuScene{ background:#030101; }
   let AC = null, out = null, eng = null;
   function sndLevel() { try { const lv = window.Snd && Snd.get ? Snd.get() : 'off'; const m = window.Snd && Snd.getMix ? Snd.getMix() : { ambience: .75 };
     const base = { off: 0, quiet: .38, on: 1, hydro: .9, cinematic: 1 }[lv] || 0; return base * (m && m.ambience != null ? m.ambience : .75); } catch (e) { return 0; } }
-  function ac() { if (AC) return AC; const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null; AC = new Ctx(); out = AC.createGain(); out.gain.value = 0; out.connect(AC.destination); return AC; }
+  /* v6.39.11 — 배경 소리는 반응 속도가 필요 없다. 오디오 버퍼를 넉넉히(「playback」) 잡아, 화면 계산이 무거운 순간(수상 항주의 바다·하늘)에
+     오디오가 제때 못 채워 「팟팟」 끊기는 것을 막는다. */
+  function ac() { if (AC) return AC; const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return null;
+    try { AC = new Ctx({ latencyHint: 'playback' }); } catch (e) { AC = new Ctx(); } out = AC.createGain(); out.gain.value = 0; out.connect(AC.destination); return AC; }
   let noiseBuf = null;
   function noise() { if (noiseBuf) return noiseBuf; const n = AC.sampleRate * 2, b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return (noiseBuf = b); }
   function nsrc() { const s = AC.createBufferSource(); s.buffer = noise(); s.loop = true; s.loopStart = Math.random(); return s; }
@@ -45229,7 +45231,7 @@ body.epMenuScene{ background:#030101; }
   let sc = null, sx = null;
   function drawSurface(c) {
     const OV = window.ObservationVisuals, U = window.UBOAT; if (!OV || !U || !S.fake) return;
-    const q = 0.55, SW = Math.round(W * 1.7 * q), SH = Math.round(H * q);
+    const q = 0.42, SW = Math.round(W * 1.7 * q), SH = Math.round(H * q);   /* v6.39.11 — 가볍게(0.55 → 0.42, 계산량 약 58%) */
     if (!sc) { sc = document.createElement('canvas'); sx = sc.getContext('2d'); }
     if (sc.width !== SW || sc.height !== SH) { sc.width = SW; sc.height = SH; }
     const real = U.state; let env = null;
@@ -45347,7 +45349,8 @@ body.epMenuScene{ background:#030101; }
     if (S.showT > S.showDur) switchTo(pickSet(set.id));
   }
   function frame(now) { if (!running) return; raf = requestAnimationFrame(frame); const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; step(dt);
-    if (now - (frame.lastDraw || 0) < 32) return; frame.lastDraw = now; draw(); }
+    const minGap = S.set && S.set.kind === 'surface' ? 48 : 32;   /* 수상 항주는 초당 20장 — 바다·하늘 계산이 무겁다 */
+    if (now - (frame.lastDraw || 0) < minGap) return; frame.lastDraw = now; draw(); }
   function setRunning(on) { if (on === running) return; running = on; if (cv) cv.classList.toggle('on', on); document.body.classList.toggle('epMenuScene', on);
     if (on) { resize(); if (!S.set) { let lastId = null; try { lastId = localStorage.getItem(LAST_KEY); } catch (e) {} switchTo(pickSet(lastId)); }
       last = performance.now(); raf = requestAnimationFrame(frame); } else cancelAnimationFrame(raf);
@@ -45754,7 +45757,7 @@ body.epMenuScene{ background:#030101; }
   const userOn = () => { try { return localStorage.getItem(KEY) !== '0'; } catch (e) { return true; } };
   function sndLevel() { try { const lv = window.Snd && Snd.get ? Snd.get() : 'off'; return { off: 0, quiet: .38, on: 1, hydro: .9, cinematic: 1 }[lv] || 0; } catch (e) { return 0; } }
   function want() { return userOn() && sndLevel() > 0 && typeof window.EP_MENU_ACTIVE === 'function' && window.EP_MENU_ACTIVE() && !document.hidden; }
-  function ensure() { if (AC) return true; const C = window.AudioContext || window.webkitAudioContext; if (!C) return false; AC = new C(); master = AC.createGain(); master.gain.value = 0.0001; master.connect(AC.destination); return true; }
+  function ensure() { if (AC) return true; const C = window.AudioContext || window.webkitAudioContext; if (!C) return false; try { AC = new C({ latencyHint: 'playback' }); } catch (e) { AC = new C(); } master = AC.createGain(); master.gain.value = 0.0001; master.connect(AC.destination); return true; }
   function tick() {
     const w = want();
     if (w) { if (!ensure()) return; if (AC.state === 'suspended') AC.resume().catch(() => {});
