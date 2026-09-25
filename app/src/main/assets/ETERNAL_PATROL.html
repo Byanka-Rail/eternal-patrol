@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.35.1 Slim Dock</title>
-<script id="ep-build">window.EP_BUILD='6.35.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.36.0 Sea FX</title>
+<script id="ep-build">window.EP_BUILD='6.36.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44480,6 +44480,164 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   setInterval(slim, 500);
   function init() { buildDock(); buildAtk(); setInterval(tick, 200); window.EP_V635_DOCK = { version: '6.35.0', openPop, closePop }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v636-seafx-script">
+/* ══════════ V6.36 바다의 입자 — 잠망경·함교 시야 ══════════
+   화면 장식이 아니라 **바다에서 일어난 일**만 입자로 그린다. 입자는 세계 좌표(미터)에 있고,
+   잠망경의 방위·배율·거리에 맞춰 투영되므로 돌리면 같이 돌고 6× 로 보면 크게 보인다.
+   시간은 게임 시계를 따른다(정지하면 멈추고 배속이면 빨라진다).
+   · 어뢰 명중 — 수십 미터 물기둥이 솟았다 떨어지고, 맞은 배에서 연기가 오르며 밤에는 불꽃이 보인다
+   · 침몰 — 격침된 배가 곧바로 사라지지 않고 기울며 가라앉는다(배 크기에 따라 40~90초), 마지막에 거품과 수증기
+   · 폭뢰 — 수면이 하얗게 부풀고 물기둥이 선다(얕게 터질수록 높다)
+   · 포탄 — 작은 물기둥
+   · 어뢰 항적 — 증기어뢰(항적 있는 어뢰)는 거품 줄을 남긴다. 전기어뢰는 남기지 않는다
+   기존 그림(탄착선·폭발 섬광)은 그대로 두고 그 위에 더한다. 무게: 입자 최대 700개. */
+(function EP_SEAFX(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const d2r = Math.PI / 180, r2d = 180 / Math.PI;
+  const norm = a => ((a % 360) + 360) % 360;
+  const rel = (a, b) => { let d = norm(a - b); if (d > 180) d -= 360; return d; };
+  const brgTo = (x0, y0, x1, y1) => norm(Math.atan2(x1 - x0, y1 - y0) * r2d);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const MAXP = 900;
+  let parts = [], wrecks = [], fires = [], lastT = null;
+  const seenBoom = new WeakSet(), seenSplash = new WeakSet(), aliveMap = new Map();
+
+  function units(g) { return [].concat((g.convoy && g.convoy.ships) || [], g.escorts || []); }
+  function lenOf(u) { return u.len || u.length || u.hullLen || Math.min(210, 60 + (u.tonnage || 4000) / 90); }
+  function nearestUnit(g, x, y, maxD) { let best = null, bd = maxD; for (const u of units(g)) { const d = Math.hypot(u.x - x, u.y - y); if (d < bd) { bd = d; best = u; } } return best; }
+  function wind(g) { const s = (g.weather && g.weather.sea) || 1; return { x: Math.sin(55 * d2r) * (1 + s * 1.3), y: Math.cos(55 * d2r) * (1 + s * 1.3) }; }
+  function push(p) { if (parts.length < MAXP) parts.push(p); }
+
+  /* ── 발생원 ── */
+  function column(x, y, n, vz0, vz1, spread, size) {
+    /* 물기둥 몸통 — 솟았다 무너지는 흰 기둥 하나 + 둘레의 물방울 */
+    push({ k: 'core', x, y, z: 0, vx: 0, vy: 0, vz: 0, v0: (vz0 + vz1) / 2 * 1.05, s: spread * 0.55, age: 0, life: (vz0 + vz1) / 9.8 + 1.5 });
+    for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, s = Math.random() * spread;
+      push({ k: 'spray', x: x + Math.cos(a) * s * 0.3, y: y + Math.sin(a) * s * 0.3, z: rnd(0, 3), vx: Math.cos(a) * rnd(0, spread * 0.25), vy: Math.sin(a) * rnd(0, spread * 0.25), vz: rnd(vz0, vz1), s: size * rnd(0.6, 1.4), age: 0, life: 12 }); }
+  }
+  function smoke(x, y, dur, heavy, unit) { fires.push({ x, y, unit: unit || null, t: 0, dur, heavy, acc: 0 }); }
+  function onBoom(g, bm) {
+    const deep = bm.depth != null && bm.depth > 8;
+    if (deep) {                                   /* 폭뢰 — 수면이 부풀고 물기둥 */
+      const h = Math.max(0.35, 1 - (bm.depth - 8) / 120);
+      push({ k: 'dome', x: bm.x, y: bm.y, z: 0, vx: 0, vy: 0, vz: 0, s: 18 + 14 * h, age: 0, life: 5 });
+      column(bm.x, bm.y, Math.round(26 * h + 8), 10 * h + 6, 22 * h + 10, 22, 1.4);
+      return;
+    }
+    const u = nearestUnit(g, bm.x, bm.y, 90);
+    if (bm.big || u) {                            /* 명중 — 높은 물기둥 + 연기와 불 */
+      column(bm.x, bm.y, 60, 20, 38, 30, 1.8);
+      smoke(bm.x, bm.y, rnd(70, 140), true, u);
+    } else column(bm.x, bm.y, 26, 10, 20, 16, 1.3);   /* 조기폭발 등 */
+  }
+  function onSplash(sp) { column(sp.x, sp.y, 16, 7, 14, 8, 0.9); }
+  function onSunk(g, u) {
+    const L = lenOf(u), big = Math.min(1, L / 180);
+    wrecks.push({ x: u.x, y: u.y, heading: u.heading || 0, mast: u.mast || 20, len: L, spec: { cls: (u.classRef && u.classRef.id) || null, type: u.shipType || null },
+      t: 0, dur: 40 + 50 * big, pitch: (Math.random() < 0.5 ? -1 : 1) * rnd(8, 22), roll: rnd(-6, 6) });
+    smoke(u.x, u.y, 120 + 80 * big, true, null);
+  }
+
+  /* ── 시간 흐름 ── */
+  function step(g, dt) {
+    for (const bm of (g.booms || [])) if (!seenBoom.has(bm)) { seenBoom.add(bm); if (g.time - bm.t < 2) onBoom(g, bm); }
+    for (const sp of (g.splashes || [])) if (!seenSplash.has(sp)) { seenSplash.add(sp); if (g.time - sp.t < 2) onSplash(sp); }
+    for (const u of units(g)) { const was = aliveMap.get(u); if (was === true && !u.alive) onSunk(g, u); aliveMap.set(u, !!u.alive); }
+    const w = wind(g), night = g.night || 0;
+    /* 연기·불 발생원 */
+    fires = fires.filter(f => (f.t += dt) < f.dur);
+    for (const f of fires) {
+      if (f.unit && f.unit.alive) { f.x = f.unit.x; f.y = f.unit.y; }
+      const k = 1 - f.t / f.dur; f.acc += dt * (f.heavy ? 5 : 2.4) * (0.3 + 0.7 * k);
+      while (f.acc > 1) { f.acc -= 1;
+        push({ k: 'smoke', x: f.x + rnd(-8, 8), y: f.y + rnd(-8, 8), z: rnd(6, 14), vx: w.x * rnd(0.8, 1.4), vy: w.y * rnd(0.8, 1.4), vz: rnd(5, 9), s: rnd(3.5, 6), grow: rnd(0.12, 0.28), age: 0, life: rnd(45, 75), dark: f.heavy ? rnd(0.6, 1) : 0.4 });
+        if (night > 0.35 || k > 0.7) push({ k: 'fire', x: f.x + rnd(-12, 12), y: f.y + rnd(-12, 12), z: rnd(0, 6), vx: 0, vy: 0, vz: rnd(3, 8), s: rnd(2, 4), age: 0, life: rnd(0.6, 1.4) });
+      }
+    }
+    /* 침몰 — 끝에서 거품과 수증기 */
+    for (const wr of wrecks) {
+      wr.t += dt; const f = wr.t / wr.dur;
+      if (f > 0.75 && f < 1.15 && Math.random() < dt * 8) push({ k: 'steam', x: wr.x + rnd(-wr.len * 0.3, wr.len * 0.3), y: wr.y + rnd(-8, 8), z: rnd(0, 4), vx: w.x * 0.3, vy: w.y * 0.3, vz: rnd(3, 6), s: rnd(4, 8), grow: 0.5, age: 0, life: rnd(8, 16) });
+      if (f > 0.95 && !wr.ring) { wr.ring = true; push({ k: 'ring', x: wr.x, y: wr.y, z: 0, vx: 0, vy: 0, vz: 0, s: wr.len * 0.35, age: 0, life: 25 }); }
+    }
+    wrecks = wrecks.filter(wr => wr.t < wr.dur * 1.25);
+    /* 어뢰 항적 */
+    for (const t of (g.torpedoes || [])) if (!t.dead && t.wake && Math.random() < dt * 6)
+      push({ k: 'wake', x: t.x + rnd(-2, 2), y: t.y + rnd(-2, 2), z: 0, vx: 0, vy: 0, vz: 0, s: rnd(2, 3.5), age: 0, life: rnd(25, 40) });
+    /* 입자 */
+    parts = parts.filter(p => (p.age += dt) < p.life);
+    for (const p of parts) {
+      if (p.k === 'spray') { p.vz -= 9.8 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; if (p.z < 0) { p.age = p.life; } }
+      else if (p.k === 'smoke' || p.k === 'steam') { p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vz *= Math.pow(0.985, dt * 10); p.s += p.grow * dt * 3; }
+      else if (p.k === 'fire') { p.z += p.vz * dt; }
+    }
+  }
+
+  /* ── 그리기 — ObservationVisuals.paintForeground 앞에 끼운다(배 그림 뒤, 안개 앞) ── */
+  function view(g, W) {
+    const b = g.boat, surfaced = b.depth <= 3, mb = document.getElementById('btnPeriMag');
+    const half = surfaced ? 90 : (mb && /6×|6x/.test(mb.textContent) ? 5 : 20);
+    return { brg: b.periscopeBearing, half, ppd: (W / 2 - 10) / half, bx: b.x, by: b.y };
+  }
+  function draw(c, W, H, env) {
+    const g = U.state(); if (!g || !env) return;
+    const v = view(g, W), vis = (g.weather && g.weather.vis) || 1, night = g.night || 0, baseY = env.baseY;
+    const proj = (x, y, z) => { const r = Math.hypot(x - v.bx, y - v.by); if (r < 30 || r > 9500 * vis) return null;
+      const rb = rel(brgTo(v.bx, v.by, x, y), v.brg); if (Math.abs(rb) > v.half + 3) return null;
+      return { x: W / 2 + rb * v.ppd, y: baseY - Math.atan2(z, r) * r2d * v.ppd, r, k: r2d * v.ppd / r }; };
+    c.save();
+    /* 가라앉는 배 */
+    for (const wr of wrecks) {
+      const q = proj(wr.x, wr.y, 0); if (!q) continue;
+      const f = Math.min(1, wr.t / wr.dur), aspB = rel(wr.heading, brgTo(wr.x, wr.y, v.bx, v.by)), side = Math.abs(Math.sin(aspB * d2r));
+      const w = Math.max(8, wr.len * (0.28 + 0.72 * side) * q.k), h = Math.max(4, wr.mast * q.k);
+      const spec = (wr.spec.cls && window.Sil.classSpec(wr.spec.cls)) || window.Sil.typeSpec(wr.spec.type || 'MERCHANT');
+      const sink = f * f * h * 1.25, tilt = wr.pitch * Math.min(1, f * 1.6) * (aspB > 0 ? 1 : -1);
+      c.save(); c.beginPath(); c.rect(0, 0, W, baseY + 1); c.clip();
+      c.translate(q.x, baseY + sink); c.rotate(tilt * d2r); c.globalAlpha = Math.max(0.16, (0.42 + vis * 0.58) * (1 - f * 0.25));
+      try { window.Sil.canvas(c, spec, { x: 0, waterlineY: 0, width: w, height: h, mirror: aspB > 0, detail: 2, color: '#050809' }); } catch (e) {}
+      c.restore();
+    }
+    /* 입자 — 먼 것부터 */
+    const list = parts.map(p => ({ p, q: proj(p.x, p.y, Math.max(0, p.z)) })).filter(o => o.q).sort((a, b) => b.q.r - a.q.r);
+    for (const { p, q } of list) {
+      const a = Math.min(1, p.age * 4) * (1 - p.age / p.life), sz = Math.max(0.7, p.s * q.k);
+      if (p.k === 'spray') { c.fillStyle = 'rgba(232,240,244,' + (0.5 * a).toFixed(3) + ')'; c.beginPath(); c.arc(q.x, q.y, Math.max(0.6, sz * 0.6), 0, 6.283); c.fill(); }
+      else if (p.k === 'core') { const t = p.age, hz = Math.max(0, p.v0 * t - 4.9 * t * t), fall = t > p.v0 / 9.8 ? (t - p.v0 / 9.8) / (p.life - p.v0 / 9.8) : 0;
+        const top = q.y - Math.atan2(hz, q.r) * r2d * (q.k * q.r / r2d) * 0 - Math.atan2(hz, q.r) * r2d * v.ppd, wpx = Math.max(2, p.s * q.k) * (1 + fall * 0.8);
+        if (hz > 0.5) { const gr = c.createLinearGradient(0, top, 0, q.y); gr.addColorStop(0, 'rgba(236,242,245,0)'); gr.addColorStop(0.18, 'rgba(236,242,245,' + (0.75 * (1 - fall)).toFixed(3) + ')'); gr.addColorStop(1, 'rgba(226,236,240,' + (0.85 * (1 - fall)).toFixed(3) + ')');
+          c.fillStyle = gr; c.beginPath(); c.moveTo(q.x - wpx, q.y); c.quadraticCurveTo(q.x - wpx * 0.55, (top + q.y) / 2, q.x - wpx * 0.35, top + 2); c.quadraticCurveTo(q.x, top - wpx * 0.3, q.x + wpx * 0.35, top + 2); c.quadraticCurveTo(q.x + wpx * 0.55, (top + q.y) / 2, q.x + wpx, q.y); c.closePath(); c.fill(); } }
+      else if (p.k === 'smoke') { const d = p.dark, lit = night > 0.4 && p.age < 6 ? (1 - p.age / 6) : 0;
+        const col = lit > 0 ? [Math.round(60 + 150 * lit), Math.round(48 + 60 * lit), Math.round(40 + 20 * lit)] : [Math.round(70 - 30 * d + 40 * (1 - night)), Math.round(72 - 30 * d + 40 * (1 - night)), Math.round(76 - 30 * d + 40 * (1 - night))];
+        c.fillStyle = 'rgba(' + col.join(',') + ',' + (0.2 * a).toFixed(3) + ')'; c.beginPath(); c.arc(q.x, q.y, sz, 0, 6.283); c.fill(); }
+      else if (p.k === 'steam') { c.fillStyle = 'rgba(225,232,236,' + (0.22 * a).toFixed(3) + ')'; c.beginPath(); c.arc(q.x, q.y, sz, 0, 6.283); c.fill(); }
+      else if (p.k === 'fire') { const fl = 0.6 + 0.4 * Math.sin(p.age * 40 + p.x); c.fillStyle = 'rgba(255,' + Math.round(120 + 90 * fl) + ',40,' + (0.85 * a * (0.4 + 0.6 * night)).toFixed(3) + ')'; c.beginPath(); c.arc(q.x, q.y, sz, 0, 6.283); c.fill(); }
+      else if (p.k === 'dome') { const t = p.age / p.life, ry = Math.max(1.5, p.s * q.k * 0.35 * Math.sin(Math.min(1, t * 2.2) * Math.PI / 2) * (1 - t * 0.6)), rx = Math.max(3, p.s * q.k * (0.8 + t));
+        c.fillStyle = 'rgba(236,242,244,' + (0.8 * (1 - t)).toFixed(3) + ')'; c.beginPath(); c.ellipse(q.x, baseY, rx, ry, 0, Math.PI, 0); c.fill(); }
+      else if (p.k === 'ring' || p.k === 'wake') { const t = p.age / p.life, rx = Math.max(p.k === 'wake' ? 1.2 : 3, (p.k === 'ring' ? p.s * (0.6 + t) : p.s) * q.k);
+        c.strokeStyle = 'rgba(220,232,236,' + ((p.k === 'ring' ? 0.55 : 0.5) * (1 - t)).toFixed(3) + ')'; c.lineWidth = p.k === 'ring' ? 1.2 : 1;
+        c.beginPath(); c.ellipse(q.x, baseY + 1, rx, Math.max(0.6, rx * 0.12), 0, 0, 6.283); c.stroke(); }
+    }
+    c.restore();
+  }
+  function hook() {
+    const OV = window.ObservationVisuals; if (!OV || OV.__seafx) return !!OV;
+    const orig = OV.paintForeground;
+    OV.paintForeground = function (c, W, H, env) { try { draw(c, W, H, env); } catch (e) {} return orig ? orig.apply(this, arguments) : undefined; };
+    OV.__seafx = true; return true;
+  }
+  function loop() {
+    const g = U.state();
+    if (g) { if (lastT == null || g.time < lastT) lastT = g.time; const dt = Math.min(1.5, g.time - lastT); lastT = g.time; if (dt > 0) step(g, dt); }
+    else { parts = []; wrecks = []; fires = []; aliveMap.clear(); lastT = null; }
+    if (!window.ObservationVisuals || !window.ObservationVisuals.__seafx) hook();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  window.EP_V636_SEAFX = { version: '6.36.0', stats: () => ({ parts: parts.length, wrecks: wrecks.length, fires: fires.length }) };
 })();
 </script>
 </body>
