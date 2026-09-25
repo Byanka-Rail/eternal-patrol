@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.37.3 Title Crush</title>
-<script id="ep-build">window.EP_BUILD='6.37.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.37.4 Title Asdic</title>
+<script id="ep-build">window.EP_BUILD='6.37.4';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44672,9 +44672,9 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   /* 세트 — kb: [시작 중심x, y, 확대, 끝 중심x, y, 확대] (사진 좌표 0~1) */
   const SETS = [
     { id: 'attack', cap: '폭뢰 공격 — 머리 위에서 호위함이 돈다', photo: 0, kb: [0.34, 0.40, 1.00, 0.62, 0.30, 1.10],
-      light: { col: '#e0705a', base: '#1c0706', R: 0.5, swing: 1, kick: 1.3 }, ev: { dc: [9, 20], creak: [5, 10], ping: [7, 14], crush: [28, 45], drip: [2, 5] }, eng: { kind: 'motor', lvl: 0.7, rpm: 1.0 } },
+      light: { col: '#e0705a', base: '#1c0706', R: 0.5, swing: 1, kick: 1.3 }, ev: { dc: [22, 34], creak: [5, 10], ping: [8, 16], crush: [28, 45], drip: [2, 5] }, eng: { kind: 'motor', lvl: 0.7, rpm: 1.0 } },
     { id: 'silent', cap: '정숙 항주 — 호위함이 머리 위를 지나간다', photo: 1, kb: [0.30, 0.22, 1.02, 0.42, 0.55, 1.10],
-      light: { col: '#b0503f', base: '#120404', R: 0.42, swing: 0.35, kick: 0.6 }, ev: { ping: [5, 9], creak: [8, 15], drip: [3, 7], screws: true }, eng: { kind: 'creep', lvl: 0.35, rpm: 0.45 } },
+      light: { col: '#b0503f', base: '#120404', R: 0.42, swing: 0.35, kick: 0.6 }, ev: { ping: [6, 12], creak: [8, 15], drip: [3, 7] }, eng: { kind: 'creep', lvl: 0.35, rpm: 0.45 } },
     { id: 'deep', cap: '안전심도 아래 — 선체가 운다', photo: 2, kb: [0.28, 0.14, 1.04, 0.62, 0.38, 1.14],
       light: { col: '#d06a4a', base: '#180605', R: 0.46, swing: 0.6, kick: 0.9, tremor: 0.12 }, ev: { creak: [3, 6], rivet: [4, 8], crush: [9, 18], leak: [14, 24], drip: [1, 3] }, eng: { kind: 'motor', lvl: 0.5, rpm: 0.7 } },
     { id: 'flood', cap: '침수 — 손상통제반, 후부로!', photo: 0, kb: [0.78, 0.66, 1.12, 0.22, 0.72, 1.06],
@@ -44759,11 +44759,33 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     const r = nsrc(), rb = AC.createBiquadFilter(); rb.type = 'bandpass'; rb.frequency.value = 230 + Math.random() * 80; rb.Q.value = 26;
     const rg = AC.createGain(); r.connect(rb); rb.connect(rg); rg.connect(out); env(rg, t + 0.08, 0.05, 0.5 * near, 2.4); r.start(t + 0.05); r.stop(t + 2.8);
   }
-  function ping(near) {                           /* 적 구축함의 능동 탐신 — 선체를 두드리는 높은 핑과 울림 */
-    if (!AC) return; const t = AC.currentTime, f = rnd(1480, 1720), L = near ? 0.16 : 0.06;
-    const o = AC.createOscillator(), g = AC.createGain(); o.frequency.value = f; o.connect(g); g.connect(out);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.02); g.gain.setValueAtTime(L, t + 0.28); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4); o.start(t); o.stop(t + 2.5);
-    const o2 = AC.createOscillator(), g2 = AC.createGain(); o2.frequency.value = f * 1.004; o2.connect(g2); g2.connect(out); env(g2, t + 0.35, 0.05, L * 0.35, 1.8); o2.start(t + 0.3); o2.stop(t + 2.4);
+  /* 적 구축함의 능동 탐신(ASDIC) — 물을 건너온 맑은 「핑」 한 음이 길게 울리며 사라진다.
+     가까워질수록 간격이 짧아지고 커지며, 아주 가까우면 음파가 선체를 때리는 「팅」 쇳소리와 선체 울림이 겹친다. */
+  let verb = null;
+  function reverb() { if (verb || !AC) return verb; const len = Math.round(AC.sampleRate * 3.2), ir = AC.createBuffer(2, len, AC.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) { const t = i / AC.sampleRate; d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2) * Math.exp(-t * 1.1); } }
+    const cv = AC.createConvolver(); cv.buffer = ir; const wet = AC.createGain(); wet.gain.value = 0.9; cv.connect(wet); wet.connect(out); return (verb = cv); }
+  function ping(level, hullHit) {
+    if (!AC) return; const t = AC.currentTime, f = S.pingF || (S.pingF = rnd(1180, 1420)), L = 0.05 + 0.13 * level, rv = reverb();
+    const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.linearRampToValueAtTime(f * 0.995, t + 0.5);
+    const o2 = AC.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2.003; const g2 = AC.createGain(); g2.gain.value = 0.12; o2.connect(g2); g2.connect(g);
+    o.connect(g); g.connect(out); if (rv) g.connect(rv);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.012); g.gain.setValueAtTime(L, t + 0.09); g.gain.exponentialRampToValueAtTime(L * 0.25, t + 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+    o.start(t); o2.start(t); o.stop(t + 2.3); o2.stop(t + 2.3);
+    if (hullHit) {                                 /* 선체를 때리는 팅 + 선체 울림 */
+      const k = AC.createBufferSource(); k.buffer = noise(); const kf = AC.createBiquadFilter(); kf.type = 'bandpass'; kf.frequency.value = 3800; kf.Q.value = 3;
+      const kg = AC.createGain(); k.connect(kf); kf.connect(kg); kg.connect(out); env(kg, t + 0.01, 0.002, 0.18 * level, 0.05); k.start(t, Math.random()); k.stop(t + 0.1);
+      for (const fr of [f * 0.5, f * 0.73, f * 1.31]) { const r = AC.createOscillator(), rg = AC.createGain(); r.frequency.value = fr; r.connect(rg); rg.connect(out); env(rg, t + 0.01, 0.004, 0.035 * level, 1.3); r.start(t); r.stop(t + 1.5); }
+    }
+  }
+  /* 핑 한 차례 — 멀리서 시작해 간격이 줄고 커진다(탐지 → 접근). 폭뢰 장면에서는 끝에 머리 위 스크류와 폭뢰가 따른다 */
+  function pingRun(set) {
+    S.pingF = rnd(1180, 1420); const n = 5 + Math.floor(Math.random() * 5); let tt = 0;
+    for (let i = 0; i < n; i++) { const k = i / (n - 1), gap = 3.8 - 2.4 * k;
+      setTimeout(() => { if (!running || S.set !== set) return; ping(0.25 + 0.75 * k, k > 0.75); }, tt * 1000); tt += gap; }
+    if (set.id === 'attack' || set.id === 'silent') setTimeout(() => { if (!running || S.set !== set) return; screws(8);
+      if (set.id === 'attack') setTimeout(() => { if (!running || S.set !== set) return; const salvo = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < salvo; i++) setTimeout(() => running && S.set === set && dcStrike(), 2600 + i * rnd(1200, 2600)); }, 2200); }, tt * 1000);
+    return tt;
   }
   function screws(dur) {                          /* 머리 위를 지나는 스크류 — 쉭쉭 박자가 커졌다 작아진다 */
     if (!AC) return; const t = AC.currentTime, n = nsrc(), f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 1.2;
@@ -44880,7 +44902,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
       setTimeout(() => { if (!running) return; S.squash = 1; S.shake = Math.min(1.3, S.shake + 1.0); S.lampV += (Math.random() < 0.5 ? -1 : 1) * 1.6; S.dark = 0.45;
         for (let k = 0; k < 90; k++) S.dust.push({ x: Math.random() * W, y: Math.random() * H * 0.4, vy: 30 + Math.random() * 80, vx: (Math.random() - 0.5) * 14, age: 0, life: 2 + Math.random() * 2.5 });
         if (Math.random() < 0.7) burst(Math.random() < 0.5); }, ms); }
-    if (due('ping')) ping(Math.random() < 0.35);
+    if (due('ping')) { const len = pingRun(set); T.ping = Math.max(T.ping, len + rnd(ev.ping[0], ev.ping[1])); if (T.dc != null) T.dc = Math.max(T.dc, len + 14); }
     if (due('leak')) burst(true);
     if (due('drip')) S.drips.push({ x: W * (0.15 + Math.random() * 0.7), y: 0, vy: 0 });
     for (const v of S.valves) { v.t += dt; if (v.t > v.dur) continue;
@@ -44918,7 +44940,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     setRunning(ov.classList.contains('on')); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
-    window.EP_V637_TITLE = { version: '6.37.3', photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
+    window.EP_V637_TITLE = { version: '6.37.4', pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
