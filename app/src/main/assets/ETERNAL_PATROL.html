@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.40.2 Plan Line</title>
-<script id="ep-build">window.EP_BUILD='6.40.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.40.3 No Periscope Brake</title>
+<script id="ep-build">window.EP_BUILD='6.40.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -3121,7 +3121,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 </div>
 <!-- 잠망경 확인 — 배속을 올려 두면 관측 순간이 통째로 지나가 버린다.
          이 게임에서 가장 값진 화면이므로 기본은 「세운다」다. -->
-<div class="startOpt">
+<div class="startOpt" style="display:none">
 <label>잠망경 확인</label>
 <div class="lampRow" id="periBrakeRow">
 <button class="mini on" data-pb="on">시야에 표적이 들면 ×1 로 세운다</button>
@@ -15288,8 +15288,7 @@ window.UBOAT = (function () {
     const fresh = vis.filter(v => !seen[v.contactId]);
     if (!fresh.length) return;
     for (const v of vis) seen[v.contactId] = true;
-    eventBrake({ mode: 'BRAKE', cap: 1, eventId: 'peri:' + fresh[0].contactId,
-                 reason: '잠망경 시야에 표적 — 확인하십시오' });
+    /* v6.40.3 — 잠망경 시야에 표적이 들어와도 시계를 ×1 로 세우지 않는다(함장 요청으로 폐지). 관측원 보고는 그대로 나온다. */
   }
 
   function updateLookout(dt) {
