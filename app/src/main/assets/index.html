@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.40.0 Convoy Intercept</title>
-<script id="ep-build">window.EP_BUILD='6.40.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.40.1 Intercept Fixes</title>
+<script id="ep-build">window.EP_BUILD='6.40.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -21075,14 +21075,16 @@ window.Campaign = (function () {
     return r.trk;
   }
   function trackErrNm(r) { const k = trackOf(r); return k.err0 + 2.6 * Math.max(0, C.hours - r.at); }
-  function detectNm() {
+  /* v6.40.1 — 선단은 크고 시끄럽다. 낮에는 연기와 돛대가 수평선 너머로 보이고, 잠항해 귀를 기울이면 수십 척의 스크류가 멀리서 들린다.
+     (예전 값은 단독선 기준이라, 오차 원 안에 매복해도 선단이 옆을 지나쳐 버리기 일쑤였다.) */
+  function detectNm(size) {
     const h = localClockHour(), day = h >= 6 && h < 19, w = C.weather || 'clear', sea = C.seaState == null ? 1 : C.seaState;
-    if (C.surfaced) {
-      if (day) return { clear: 16, haze: 10, gale: 7, squall: 5, fog: 3 }[w] || 12;
-      return w === 'clear' ? 5 : 3;
-    }
-    if (C.snorkel) return 5;
-    return 10 * clamp(1 - Math.max(0, sea - 1) * 0.1, 0.5, 1);
+    const big = 0.75 + 0.45 * clamp((size == null ? 20 : size) / 30, 0, 1);
+    let R;
+    if (C.surfaced) R = day ? ({ clear: 20, haze: 13, gale: 9, squall: 7, fog: 4 }[w] || 15) : (w === 'clear' ? 8 : 5);
+    else if (C.snorkel) R = 7;
+    else R = 22 * clamp(1 - Math.max(0, sea - 1) * 0.1, 0.5, 1);     /* 잠항 청음 — 가장 멀리 듣는다 */
+    return R * big;
   }
   function relGeoId(k) {
     const brg = gridBearing(k.tx, k.ty, C.x, C.y);
@@ -21122,7 +21124,9 @@ window.Campaign = (function () {
     const cell = T().THEATERS[C.theater].grid.nmPerCell;
     for (const r of C.reports) {
       const hrs = C.hours - r.at, k = trackOf(r);
-      r.strength = k.engaged ? 0 : clamp(1 - hrs / 60, 0, 1);
+      const errNow = k.err0 + 2.6 * Math.max(0, hrs);
+      r.strength = k.engaged ? 0 : clamp(1 - hrs / 72, 0, 1) * clamp((160 - errNow) / 40, 0, 1) || (k.engaged ? 0 : 0.0001);   /* v6.40.1 — 72시간 또는 오차 160해리까지 */
+      if (!k.engaged && r.strength <= 0.05 && !k.dropped) { k.dropped = true; say('무전 보고 ' + r.id + ' — 너무 낡았다. 선단이 어디로 갔는지 더는 알 수 없다(지도에서 지움).', 'radio'); }
       /* 추정 위치 — 보고된 침로·속력으로 밀어 둔다 */
       const nm = r.speedKn * dt;
       r.x += Math.sin(r.course * Math.PI / 180) * nm / cell;
@@ -21147,9 +21151,14 @@ window.Campaign = (function () {
   }
   /* 진짜 선단이 탐지 거리 안에 들어왔는가 */
   function trackDetect(th, events) {
-    const cell = th.grid.nmPerCell, R = detectNm();
+    const cell = th.grid.nmPerCell;
     for (const r of C.reports) { const k = trackOf(r); if (k.engaged || r.strength <= 0) continue;
-      const d = Math.hypot(k.tx - C.x, k.ty - C.y) * cell;
+      const d = Math.hypot(k.tx - C.x, k.ty - C.y) * cell, R = detectNm(r.size);
+      /* 문턱 바깥에서 스치면 — 청음수가 희미한 소리로 방향을 준다(한 선단에 두 시간에 한 번) */
+      if (d > R && d <= R * 1.9 && (!k.hintAt || C.hours - k.hintAt > 2)) { k.hintAt = C.hours;
+        const brg = Math.round(gridBearing(C.x, C.y, k.tx, k.ty) / 5) * 5;
+        say((C.surfaced && localClockHour() >= 6 && localClockHour() < 19 ? '견시 — 수평선 ' : '청음 — 희미한 스크류 소리, ') + '방위 ' + String(brg).padStart(3, '0') + '° 쪽. 선단 ' + r.id + ' 일지 모릅니다.', 'hydro', 'report');
+        events.push({ kind: 'HINT', track: r.id, bearing: brg }); }
       if (d <= R) { say('선단이다 — ' + (C.surfaced ? '수평선에 연기와 돛대.' : '청음기에 여러 스크류.') + ' 선단 ' + r.id + ', 약 ' + Math.round(d) + '해리.', 'hydro', 'encounter');
         startTrackEncounter(th, r, events); return true; } }
     return false;
@@ -21472,6 +21481,7 @@ window.Campaign = (function () {
     /* 가까운 보고가 있으면 그 선단이다 */
     let best = null, bd = 1e9;
     for (const r of C.reports) {
+      if (r.trk) continue;              /* v6.40.1 — 추적 중인 선단은 탐지로만 만난다. 근처의 우연한 조우가 그 보고를 먹어 치우면 선단이 「사라진다」 */
       const d = Math.hypot(r.x - C.x, r.y - C.y);
       if (d < bd) { bd = d; best = r; }
     }
@@ -22775,7 +22785,8 @@ window.Campaign = (function () {
     setSpeedMode: function (m) { if (!C || !{ECO:1,CRUISE:1,FLANK:1}[m]) return false; C.speedMode = m; C.speedKn = cruiseKn(); return true; },
     speedMode: function () { return C ? (C.speedMode || 'CRUISE') : 'CRUISE'; },
     speedFor: function (m) { if (!C) return 10; const o = C.speedMode; C.speedMode = m; const v = cruiseKn(); C.speedMode = o; return v; },
-    detectNm: function () { return C ? detectNm() : 0; },
+    detectNm: function (size) { return C ? detectNm(size) : 0; },
+    detectNmSub: function (size) { if (!C) return 0; const s = C.surfaced, k = C.snorkel; C.surfaced = false; C.snorkel = false; const v = detectNm(size); C.surfaced = s; C.snorkel = k; return v; },
     _trackTruth: function (id) { const r = C && C.reports.find(z => z.id === id); return r ? trackOf(r) : null; },
     beginEncounter: beginEncounter, resolveEncounter: resolveEncounter, abortEncounter: abortEncounter,
     /* 발밑의 바다 — 지도와 항해 패널이 읽는다 */
@@ -36154,7 +36165,7 @@ window.Lang.add('ja', {
       const line = (p, label) => p.ok ? '<div class="pl"><b>' + label + '</b> — 침로 ' + String(p.course).padStart(3, '0') + '° · ' + p.nm + '해리 · 약 ' + p.hours.toFixed(1) + '시간 · 연료 −' + p.fuel + '%' +
         '<small>도착할 때 선단 위치 오차 약 ±' + p.errNm + '해리' + (p.land ? ' · 목표점이 육지 — 해안을 돌아감' : '') + '</small></div>' : '<div class="pl bad"><b>' + label + '</b> — ' + p.err + '</div>';
       card.innerHTML = '<div class="hd"><b>선단 ' + tr.id + '</b> <span>' + tr.qKo + ' 보고 · ' + tr.age.toFixed(1) + '시간 전 · 추정 오차 ±' + tr.err + '해리</span><button type="button" class="x" data-a="close">✕</button></div>' +
-        '<div class="st">추정 침로 <b>' + String(tr.course).padStart(3, '0') + '°</b> · 약 <b>' + tr.speedKn + '노트</b> · ' + tr.size + '척 · 격자 ' + tr.grid + ' · 지금 탐지 거리 약 ' + Math.round(Campaign.detectNm()) + '해리</div>' +
+        '<div class="st">추정 침로 <b>' + String(tr.course).padStart(3, '0') + '°</b> · 약 <b>' + tr.speedKn + '노트</b> · ' + tr.size + '척 · 격자 ' + tr.grid + ' · 이 선단을 알아볼 거리 약 ' + Math.round(Campaign.detectNm(tr.size)) + '해리' + (Campaign.state().surfaced ? ' (잠항해 청음하면 약 ' + Math.round(Campaign.detectNmSub(tr.size)) + '해리)' : '') + '</div>' +
         '<div class="sp">' + ['ECO', 'CRUISE', 'FLANK'].map(m => '<button type="button" class="mini' + (m === mode ? ' on' : '') + '" data-s="' + m + '">' + speedLabel(m) + ' ' + Campaign.speedFor(m).toFixed(1) + '노트</button>').join('') + '</div>' +
         line(pI, '요격') + line(pA, '앞으로 돌아 매복(선단 앞 25해리)') +
         '<div class="ac"><button type="button" class="mini" data-a="int"' + (pI.ok ? '' : ' disabled') + '>요격 항로</button><button type="button" class="mini go" data-a="amb"' + (pA.ok ? '' : ' disabled') + '>매복 항로</button></div>';
@@ -36441,6 +36452,9 @@ window.Lang.add('ja', {
     } else if (e.kind === 'REPORT') {
       if(window.Snd&&Snd.event) Snd.event('radio',{urgent:true});
       worldTip('무전 수신 — ' + e.report.grid + ' 에 선단.');
+    } else if (e.kind === 'HINT') {                    /* v6.40.1 — 탐지 문턱 바깥을 스친 선단의 방향 */
+      if(window.Snd&&Snd.event) Snd.event('radio',{urgent:false});
+      worldTip((Campaign.state().surfaced ? '견시 — 수평선 ' : '청음 — 희미한 스크류 소리 ') + String(e.bearing).padStart(3, '0') + '° 쪽 · 선단 ' + e.track + ' 일지 모릅니다.');
     } else if (e.kind === 'FUEL') {
       if(window.Snd&&Snd.event) Snd.event('watchbell',{});
       worldTip('연료가 얼마 남지 않았습니다. 귀항을 준비하십시오.');
