@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.2 Sky</title>
-<script id="ep-build">window.EP_BUILD='6.39.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.3 Sky Shader</title>
+<script id="ep-build">window.EP_BUILD='6.39.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -43629,6 +43629,92 @@ body.epTutOn .lrn-hl{ outline:none !important; }
   /* ── 잠망경 물 뒤집어쓰기 ── */
   let wash = { until: -1, start: -1, drops: [] }, nextWash = 0;
 
+
+  /* ══════════ v6.39.3 하늘 셰이더 — 구름층·권운·비의 장막 ══════════
+     바다처럼 화소마다 시선을 쏜다. 시선이 구름층(적운 1.4km · 층운 0.7km · 권운 9km)에 닿는 자리에서
+     잡음(fBm, 한 번 비튼 좌표)으로 구름 밀도를 읽고, 해 쪽으로 한 발 옮긴 밀도와 비교해 빛을 들인다.
+     멀수록 대기 속으로 옅어져 수평선 하늘빛에 녹는다(대기 원근) — 그래서 구름이 수평선 쪽으로 납작해지며 흐려지고,
+     가장자리에 선이 생기지 않는다. 폭풍·스콜은 짙은 구름 밑에서 비의 장막이 흐릿하게 수평선까지 드리운다.
+     작은 화면(가로 약 0.28배)에 그린 뒤 부드럽게 키우고, 0.15초마다 또는 시야가 움직일 때만 다시 그린다. */
+  const SKY = { cv: null, x: null, img: null, t: -1, key: '' };
+  const NP = (() => { const R = rng(90217), p = new Uint8Array(512), G = new Float32Array(256); const a = []; for (let i = 0; i < 256; i++) a.push(i);
+    for (let i = 255; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } for (let i = 0; i < 512; i++) p[i] = a[i & 255]; for (let i = 0; i < 256; i++) G[i] = R(); return { p, G }; })();
+  function vn(x, y) { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, X = xi & 255, Y = yi & 255, P = NP.p, G = NP.G;
+    const a = G[P[P[X] + Y]], b = G[P[P[X + 1] + Y]], c = G[P[P[X] + Y + 1]], d = G[P[P[X + 1] + Y + 1]], u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
+  function fbm(x, y, o) { let s = 0, a = 0.5, n = 0; for (let k = 0; k < o; k++) { s += a * vn(x, y); n += a; x = x * 2.02 + 17.1; y = y * 2.02 + 9.3; a *= 0.5; } return s / n; }
+  const CL = {
+    clear:  { alt: 1400, sc: 3300, cover: 0.42, dark: 0.0, ci: 0.32, veil: 0 },
+    haze:   { alt: 1300, sc: 3600, cover: 0.52, dark: 0.12, ci: 0.2, veil: 0.18 },
+    fog:    { alt: 600,  sc: 4000, cover: 0.62, dark: 0.1, ci: 0, veil: 0.35 },
+    gale:   { alt: 750,  sc: 4800, cover: 0.9,  dark: 0.55, ci: 0, veil: 0.2, rain: 0.55 },
+    squall: { alt: 900,  sc: 3800, cover: 0.8,  dark: 0.6,  ci: 0, veil: 0.12, rain: 0.8 },
+  };
+  function paintSkyFX(ctx, W, H, baseY, vw, pal, wd, time, tilt) {
+    const P = CL[pal.id] || CL.clear, s = 0.28, bw = Math.max(24, Math.round(W * s)), bh = Math.max(16, Math.round((baseY + 6) * s));
+    if (!SKY.cv) { SKY.cv = document.createElement('canvas'); SKY.x = SKY.cv.getContext('2d'); }
+    if (SKY.cv.width !== bw || SKY.cv.height !== bh) { SKY.cv.width = bw; SKY.cv.height = bh; SKY.img = SKY.x.createImageData(bw, bh); SKY.key = ''; }
+    const key = pal.id + '|' + Math.round(pal.n * 30) + '|' + Math.round(pal.dusk * 20) + '|' + vw.brg.toFixed(2) + '|' + vw.half + '|' + W + '|' + Math.round(baseY) + '|' + tilt.toFixed(3);
+    const nowMs = performance.now();
+    if ((key !== SKY.key && nowMs - (SKY.at || 0) > 60) || time - SKY.t > 0.15 || time < SKY.t) {   /* 시야가 움직여도 초당 16번 이하로만 다시 그린다 */
+      SKY.at = nowMs;
+      SKY.key = key; SKY.t = time; const tMs = performance.now();
+      const D = SKY.img.data, ppd = vw.ppd, cx = W / 2, vis = pal.vis;
+      const night = pal.n, lit = mix(mix(pal.cloud, [255, 252, 246], 0.4 * (1 - night)), [255, 176, 120], 0.45 * pal.dusk);
+      const shade = mix(mix(pal.cloud, pal.top, 0.5), [34, 40, 48], 0.25 + 0.45 * P.dark);
+      const core = mix(shade, [20, 24, 30], 0.35 * P.dark);
+      const hor = pal.hor, sun = sunPos(pal, wd), sb = sun.brg * d2r, lx = Math.sin(sb) * 0.09, ly = Math.cos(sb) * 0.09;
+      const windX = time * 4.0, windY = time * 2.2, L = 26000 * (0.35 + 0.65 * vis);
+      const rainCol = mix(mix(pal.cloud, pal.hor, 0.3), [70, 80, 88], 0.4);
+      for (let yy = 0; yy < bh; yy++) {
+        const ypx = (yy + 0.5) / s;
+        for (let xx = 0; xx < bw; xx++) {
+          const xpx = (xx + 0.5) / s, o = (yy * bw + xx) * 4;
+          const e = (baseY - ypx + (xpx - cx) * tilt) / ppd;               /* 올려본각(도) */
+          if (e <= 0.02) { D[o + 3] = 0; continue; }
+          const br = (vw.brg + (xpx - cx) / ppd) * d2r, sB = Math.sin(br), cB = Math.cos(br), te = Math.tan(Math.max(0.12, e) * d2r);
+          let r = 0, gC = 0, bC = 0, A = 0;
+          /* 적운·층운 */
+          const d = Math.min(70000, P.alt / te), u0 = (sB * d + windX) / P.sc, v0 = (cB * d + windY) / P.sc;
+          const w = vn(u0 * 0.45 + 3.7, v0 * 0.45 + 1.3), u = u0 + w * 0.7, v = v0 + w * 0.7;
+          const dens = fbm(u, v, 5), T = 0.66 - P.cover * 0.36, c0 = (dens - T) / 0.2;
+          if (c0 > 0) {
+            const c = c0 >= 1 ? 1 : c0 * c0 * (3 - 2 * c0);
+            const dl = fbm(u + lx, v + ly, 3), light = Math.max(0.12, Math.min(1, 0.6 + (dens - dl) * 3.2));
+            const thick = Math.min(1, c0 * 0.6);
+            let cr = shade[0] + (lit[0] - shade[0]) * light, cg = shade[1] + (lit[1] - shade[1]) * light, cb = shade[2] + (lit[2] - shade[2]) * light;
+            cr += (core[0] - cr) * thick * P.dark; cg += (core[1] - cg) * thick * P.dark; cb += (core[2] - cb) * thick * P.dark;
+            const f = 1 - Math.exp(-d / L), fe = e < 1.5 ? (1.5 - e) / 1.5 : 0, ff = Math.min(1, f + fe * 0.5);
+            cr += (hor[0] - cr) * ff; cg += (hor[1] - cg) * ff; cb += (hor[2] - cb) * ff;
+            const a = c * (1 - 0.88 * ff) * (0.55 + 0.45 * vis);
+            r = cr * a; gC = cg * a; bC = cb * a; A = a;
+          }
+          /* 권운 — 높고 가늘게 결을 따라 */
+          if (P.ci > 0 && A < 0.95 && e > 3) {
+            const d2 = Math.min(90000, 9000 / te), u2 = (sB * d2 + windX * 2) / 9000, v2 = (cB * d2 + windY * 2) / 9000;
+            const cd = fbm(u2 * 0.35, v2 * 2.4, 4), c2 = Math.max(0, (cd - 0.56) / 0.18);
+            if (c2 > 0) { const a2 = Math.min(1, c2) * P.ci * (1 - Math.exp(-e / 12)) * (1 - A), f2 = 1 - Math.exp(-d2 / (L * 2.2));
+              const k2 = lit; r += (k2[0] + (hor[0] - k2[0]) * f2) * a2; gC += (k2[1] + (hor[1] - k2[1]) * f2) * a2; bC += (k2[2] + (hor[2] - k2[2]) * f2) * a2; A += a2; }
+          }
+          /* 비의 장막 — 짙은 구름 밑에서 수평선까지 흐릿한 기둥 */
+          if (P.rain && e < 7.5) {
+            const col = fbm(br * 3.2 + time * 0.004, 7.7, 3), rc = Math.max(0, (col - 0.5) / 0.22);
+            if (rc > 0) { const streak = 0.75 + 0.25 * vn(xx * 0.9, yy * 0.08 + time * 1.5), ra = Math.min(1, rc) * P.rain * (1 - e / 7.5) * streak * 0.6 * (1 - A);
+              r += rainCol[0] * ra; gC += rainCol[1] * ra; bC += rainCol[2] * ra; A += ra; }
+          }
+          /* 엷은 막(연무·흐림) */
+          if (P.veil > 0 && A < 1) { const va = P.veil * (1 - A) * (0.5 + 0.5 * Math.min(1, 6 / (e + 1))); const vc = mix(pal.cloud, hor, 0.55);
+            r += vc[0] * va; gC += vc[1] * va; bC += vc[2] * va; A += va; }
+          if (A <= 0.003) { D[o + 3] = 0; continue; }
+          D[o] = r / A; D[o + 1] = gC / A; D[o + 2] = bC / A; D[o + 3] = Math.min(255, A * 255);
+        }
+      }
+      SKY.x.putImageData(SKY.img, 0, 0); SKY.ms = performance.now() - tMs;
+    }
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.beginPath(); ctx.rect(0, 0, W, baseY + 2); ctx.clip();
+    ctx.drawImage(SKY.cv, 0, 0, bw, bh, 0, 0, bw / s, bh / s); ctx.restore();
+  }
   function paintBase(ctx, W, H, opt) {
     if (!enabled) return ORIG.paintBase(ctx, W, H, opt);
     opt = opt || {};
@@ -43667,24 +43753,9 @@ body.epTutOn .lrn-hl{ outline:none !important; }
         const a = sa * (0.25 + s.m * 0.6) * (0.75 + 0.25 * Math.sin(time * 3 + s.tw)) * clamp((baseY - y) / 40, 0.2, 1);
         ctx.fillStyle = 'rgba(220,228,240,' + a.toFixed(2) + ')'; ctx.fillRect(cx + dx * ppd, y, s.m > 0.9 ? 1.6 : 1, s.m > 0.9 ? 1.6 : 1); }
     }
-    /* 구름 — 바람에 천천히 흐른다 */
-    const drift = time * 0.012;
-    for (const cl of wd.clouds) {
-      const b = cl.brg + drift, dx = rel(b, vw.brg); const wpx = cl.w * ppd;
-      if (Math.abs(dx) * ppd > W / 2 + wpx) continue;
-      const hpx = wpx * 0.44 * (pal.p.cover > 0.7 ? 0.7 : 1), x = cx + dx * ppd - wpx / 2, y = baseY - cl.elev * ppd - hpx * 0.8;
-      if (y > baseY) continue;
-      ctx.globalAlpha = cl.a * (0.6 + 0.4 * pal.vis) * clamp((baseY - (y + hpx)) / 30 + 0.55, 0.35, 1);
-      ctx.drawImage(sp[cl.spr], x, y, wpx, hpx);
-    }
-    ctx.globalAlpha = 1;
-    /* 비의 장막 — 먼 스콜이 수평선까지 드리운다 */
-    if (pal.id === 'squall' || pal.id === 'gale') {
-      for (const s of wd.shafts) { const dx = rel(s.brg + drift, vw.brg); if (Math.abs(dx) > vw.half + s.w) continue;
-        const x = cx + dx * ppd, w = s.w * ppd, top = baseY - 9 * ppd;
-        const gr = ctx.createLinearGradient(0, top, 0, baseY); gr.addColorStop(0, rgb(pal.cloud, 0)); gr.addColorStop(0.35, rgb(mix(pal.cloud, pal.hor, 0.4), s.a * 0.7)); gr.addColorStop(1, rgb(pal.hor, s.a));
-        ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(x - w * 0.35, top); ctx.lineTo(x + w * 0.45, top); ctx.lineTo(x + w * 0.55, baseY + 1); ctx.lineTo(x - w * 0.55, baseY + 1); ctx.closePath(); ctx.fill(); }
-    }
+    /* 구름·비의 장막 — v6.39.3: 종이 오리개 대신 **하늘도 화소마다 계산한다** (paintSkyFX 참고) */
+    paintSkyFX(ctx, W, H, baseY, vw, pal, wd, time, tilt);
+
     /* 바다 — 선으로 그리지 않고 **화소마다 빛을 계산**한다(작은 화면에 그린 뒤 부드럽게 키운다).
        화소 하나 = 눈에서 내려다본 한 줄기 시선 → 바다 위 한 점(거리 = 눈높이/tan 내려본각).
        그 점의 물결 기울기로 면의 방향을 구하고, 그 면이 비추는 하늘빛(프레넬)과 해의 반사,
@@ -43729,9 +43800,11 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     /* 비 */
     if (pal.id === 'squall' || pal.id === 'gale') {
       const n = pal.id === 'squall' ? 140 : 90, R = rng(Math.floor(time * 24) + 11), slant = pal.id === 'gale' ? 0.42 : 0.2;
-      ctx.strokeStyle = 'rgba(200,212,220,' + (pal.id === 'squall' ? 0.28 : 0.22) + ')'; ctx.lineWidth = 1; ctx.beginPath();
-      for (let i = 0; i < n; i++) { const x = R() * (W + 60) - 30, y = R() * H, l = 10 + R() * 16; ctx.moveTo(x, y); ctx.lineTo(x - l * slant, y + l); }
-      ctx.stroke();
+      /* v6.39.3 — 빗줄기는 옅고 길게, 두 번 겹쳐 움직임에 번진 것처럼(선이 또렷하면 종이에 그은 금처럼 보인다) */
+      const drops = []; for (let i = 0; i < n; i++) drops.push([R() * (W + 60) - 30, R() * H, 16 + R() * 26]);
+      for (const [lw, al] of [[2.2, pal.id === 'squall' ? 0.05 : 0.04], [1, pal.id === 'squall' ? 0.11 : 0.09]]) {
+        ctx.strokeStyle = 'rgba(205,216,224,' + al + ')'; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.beginPath();
+        for (const [x, y, l] of drops) { ctx.moveTo(x, y); ctx.lineTo(x - l * slant, y + l); } ctx.stroke(); }
     }
     /* 물 뒤집어쓰기 — 거친 바다에서 잠망경 머리가 파도에 잠긴다 */
     if (!vw.surfaced && sea >= 3) {
