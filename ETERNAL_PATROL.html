@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.8 Dive Alarm</title>
-<script id="ep-build">window.EP_BUILD='6.39.8';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.9 Warning Ack</title>
+<script id="ep-build">window.EP_BUILD='6.39.9';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -32286,8 +32286,10 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     } else if (id === 'hold') {
       U.denyAttack('함장 보류'); renderAutocrew();
     } else if (id === 'crash') {
+      briefAck.at = performance.now();
       emergency('CRASH');
     } else if (id === 'silent') {
+      briefAck.at = performance.now();
       if (!g.boat.silent) U.issueSilentOrder(true, 'PLAYER');
       renderOrders();
       flash(LL('정숙 항해 명령', 'Silent-running order', '静粛航行を命令'), 'good');
@@ -32305,7 +32307,13 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
   }
   function setBriefActions(actions, route) {
     const box = $('briefActions');
-    const list = (actions || []).slice(0, 2);
+    /* v6.39.9 — 이미 하고 있는 조치는 어느 경고에서든 단추로 다시 내밀지 않는다 */
+    const gq = U.state(), done = a => { if (!gq) return false; const b = gq.boat;
+      if (a.id === 'silent') return !!b.silent;
+      if (a.id === 'crash') return !!(gq.emergency && gq.emergency.kind === 'CRASH_DIVE') || b.depth >= 25;
+      if (a.id === 'dive') return b.depth >= 25 || (gq.orders && gq.orders.depth && gq.orders.depth.value >= 25);
+      return false; };
+    const list = (actions || []).filter(a => !done(a)).slice(0, 2);
     const key = window.Lang.get() + '|' + list.map(a => a.id + ':' + a.label).join('|');
     if (box.dataset.key !== key) {
       box.dataset.key = key;
@@ -32473,14 +32481,35 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
                          : kind === 'good' ? 'good'
                          : kind === 'info' ? '' : 'warn';
     const danger = kind === 'ping' || /폭뢰|발각|탐지|침수|수색/.test(String(msg || ''));
-    setBriefActions(danger ? [
-      { id: 'crash', label: LL('긴급 잠항', 'Crash dive', '急速潜航'), kind: 'primary' },
-      { id: 'silent', label: LL('정숙 항해', 'Silent', '静粛航行'), kind: 'safe' }
-    ] : [], routeForSituation(msg));
+    /* v6.39.9 — 이미 하고 있는 조치는 단추로 다시 내밀지 않는다(정숙 중이면 「정숙 항해」, 긴급 잠항 중이거나 이미 깊으면 「긴급 잠항」을 뺀다) */
+    const gs = U.state(), acts = [];
+    if (danger && gs) {
+      const crashing = gs.emergency && gs.emergency.kind === 'CRASH_DIVE', deep = gs.boat.depth >= 25;
+      if (!crashing && !deep) acts.push({ id: 'crash', label: LL('긴급 잠항', 'Crash dive', '急速潜航'), kind: 'primary' });
+      if (!gs.boat.silent) acts.push({ id: 'silent', label: LL('정숙 항해', 'Silent', '静粛航行'), kind: 'safe' });
+    }
+    setBriefActions(acts, routeForSituation(msg));
     flashUntil = performance.now() + (kind === 'info' ? 3000 : 4800);
   }
+  /* v6.39.9 — 경고는 한 번 조치하면 가라앉는다.
+     적은 수색하는 동안 몇 초마다 핑을 치므로, 예전에는 핑마다 같은 경고와 단추가 다시 떠서 조치를 해도 사라지지 않았다.
+     이제 함장이 조치했거나(정숙 + 긴급 잠항 중이거나 25m 아래) 경고 단추를 누른 뒤 60초 안이면, 먼 핑은 20초에 한 번
+     조용한 알림(단추 없음)으로만 알린다. 상황이 나빠질 때(핑이 바로 위, 새 반향, 폭뢰, 발각)는 다시 크게 알린다. */
+  const briefAck = { at: -1e9, quietAt: -1e9, loudAt: -1e9 };
+  function situationHandled(gs) { if (!gs) return false; const crashing = gs.emergency && gs.emergency.kind === 'CRASH_DIVE';
+    return crashing || (gs.boat.silent && gs.boat.depth >= 25); }
   U.on((kind, d) => {
-    if (kind === 'ping') flash(d.range < 1200 ? '능동 핑 — 바로 위다!' : '능동 핑 감지 — 수색 중이다.', 'ping');
+    if (kind === 'ping') {
+      const gs = U.state(), close = d.range < 1200, now = performance.now();
+      /* 조치했거나, 같은 경고를 25초 안에 이미 크게 띄웠으면 — 조용히만 */
+      if (!close && (situationHandled(gs) || now - briefAck.at < 60000 || now - briefAck.loudAt < 25000)) {
+        if (now - briefAck.quietAt > 20000 && now > flashUntil) { briefAck.quietAt = now;
+          flash(LL('능동 핑 계속 — 조치 유지 중', 'Active pinging continues — holding our measures', 'アクティブ探信継続 — 対処を維持'), 'info'); }
+        return;
+      }
+      briefAck.loudAt = now;
+      flash(close ? '능동 핑 — 바로 위다!' : '능동 핑 감지 — 수색 중이다.', 'ping');
+    }
     else if (kind === 'spotted') flash('잠망경이 발각됐다!');
     /* ── 세우지 않고 알리기만 하는 사건 ──
        유효 접촉은 처음 한 번만 시계를 세운다. 그 뒤로는 배속을 빼앗지 않고
