@@ -66,7 +66,12 @@ public final class EternalVoiceBridge implements Closeable {
         if (closed || packManager.isReady()) { notifyHtml(); return; }
         activity.runOnUiThread(() -> new AlertDialog.Builder(activity)
                 .setTitle("고품질 승조원 음성팩")
-                .setMessage("Supertonic 3 FP32 음성팩을 설치합니다. 약 400MB를 ETERNAL PATROL GitHub Release에서 내려받고, 설치 전 SHA-256을 검증합니다. 기존 FP16 팩을 안전하게 유지한 채 새 팩을 검증하므로 설치 시작 시 약 900MB 이상의 여유 공간이 필요합니다. 새 팩 설치가 끝나면 기존 FP16 팩은 자동 정리됩니다. 설치 후 합성은 기기 안에서 오프라인으로 동작합니다.\n\nWi-Fi 사용을 권장합니다.")
+                .setMessage("승조원 목소리(Supertonic 3)를 내려받습니다.\n\n"
+                        + "· 내려받기 약 380MB — Wi-Fi 를 권합니다\n"
+                        + "· 설치 뒤 차지하는 공간 약 400MB\n"
+                        + "· 설치하는 동안에만 받은 압축 파일과 풀린 파일이 함께 있어, 잠깐 약 900MB 의 여유 공간이 필요합니다(끝나면 압축 파일은 지웁니다)\n\n"
+                        + "받은 파일은 SHA-256 으로 확인하고, 목소리는 기기 안에서 인터넷 없이 만들어집니다."
+                        + (packManager.hasLegacyPack() ? "\n예전 음성팩은 설치가 끝나면 지웁니다." : ""))
                 .setNegativeButton("취소", null)
                 .setPositiveButton("다운로드", (d, w) -> {
                     runtimeError = null;

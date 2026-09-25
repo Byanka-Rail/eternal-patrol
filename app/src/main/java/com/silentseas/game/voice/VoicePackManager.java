@@ -347,6 +347,9 @@ public final class VoicePackManager {
         }
     }
 
+    /** 예전(FP16) 음성팩이 기기에 남아 있는지 — 설치 안내 문구에만 쓴다. */
+    public boolean hasLegacyPack() { return new File(context.getFilesDir(), LEGACY_STORAGE_NAME).exists(); }
+
     private static String sha256(File f) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
         try (BufferedInputStream in = new BufferedInputStream(new FileInputStream(f), 128 * 1024)) {
