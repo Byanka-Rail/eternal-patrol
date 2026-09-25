@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.3 Sky Shader</title>
-<script id="ep-build">window.EP_BUILD='6.39.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.4 Moving Sky</title>
+<script id="ep-build">window.EP_BUILD='6.39.4';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -43644,11 +43644,11 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v; }
   function fbm(x, y, o) { let s = 0, a = 0.5, n = 0; for (let k = 0; k < o; k++) { s += a * vn(x, y); n += a; x = x * 2.02 + 17.1; y = y * 2.02 + 9.3; a *= 0.5; } return s / n; }
   const CL = {
-    clear:  { alt: 1400, sc: 3300, cover: 0.42, dark: 0.0, ci: 0.32, veil: 0 },
-    haze:   { alt: 1300, sc: 3600, cover: 0.52, dark: 0.12, ci: 0.2, veil: 0.18 },
-    fog:    { alt: 600,  sc: 4000, cover: 0.62, dark: 0.1, ci: 0, veil: 0.35 },
-    gale:   { alt: 750,  sc: 4800, cover: 0.9,  dark: 0.55, ci: 0, veil: 0.2, rain: 0.55 },
-    squall: { alt: 900,  sc: 3800, cover: 0.8,  dark: 0.6,  ci: 0, veil: 0.12, rain: 0.8 },
+    clear:  { alt: 1400, sc: 3300, cover: 0.42, dark: 0.0, ci: 0.32, veil: 0, wind: 22 },
+    haze:   { alt: 1300, sc: 3600, cover: 0.52, dark: 0.12, ci: 0.2, veil: 0.18, wind: 18 },
+    fog:    { alt: 600,  sc: 4000, cover: 0.62, dark: 0.1, ci: 0, veil: 0.35, wind: 8 },
+    gale:   { alt: 750,  sc: 4800, cover: 0.9,  dark: 0.55, ci: 0, veil: 0.2, rain: 0.55, wind: 55 },
+    squall: { alt: 900,  sc: 3800, cover: 0.8,  dark: 0.6,  ci: 0, veil: 0.12, rain: 0.8, wind: 40 },
   };
   function paintSkyFX(ctx, W, H, baseY, vw, pal, wd, time, tilt) {
     const P = CL[pal.id] || CL.clear, s = 0.28, bw = Math.max(24, Math.round(W * s)), bh = Math.max(16, Math.round((baseY + 6) * s));
@@ -43656,7 +43656,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     if (SKY.cv.width !== bw || SKY.cv.height !== bh) { SKY.cv.width = bw; SKY.cv.height = bh; SKY.img = SKY.x.createImageData(bw, bh); SKY.key = ''; }
     const key = pal.id + '|' + Math.round(pal.n * 30) + '|' + Math.round(pal.dusk * 20) + '|' + vw.brg.toFixed(2) + '|' + vw.half + '|' + W + '|' + Math.round(baseY) + '|' + tilt.toFixed(3);
     const nowMs = performance.now();
-    if ((key !== SKY.key && nowMs - (SKY.at || 0) > 60) || time - SKY.t > 0.15 || time < SKY.t) {   /* 시야가 움직여도 초당 16번 이하로만 다시 그린다 */
+    if ((key !== SKY.key && nowMs - (SKY.at || 0) > 60) || time - SKY.t > 0.09 || time < SKY.t) {   /* 시야가 움직여도 초당 16번 이하로만 다시 그린다 */
       SKY.at = nowMs;
       SKY.key = key; SKY.t = time; const tMs = performance.now();
       const D = SKY.img.data, ppd = vw.ppd, cx = W / 2, vis = pal.vis;
@@ -43664,7 +43664,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
       const shade = mix(mix(pal.cloud, pal.top, 0.5), [34, 40, 48], 0.25 + 0.45 * P.dark);
       const core = mix(shade, [20, 24, 30], 0.35 * P.dark);
       const hor = pal.hor, sun = sunPos(pal, wd), sb = sun.brg * d2r, lx = Math.sin(sb) * 0.09, ly = Math.cos(sb) * 0.09;
-      const windX = time * 4.0, windY = time * 2.2, L = 26000 * (0.35 + 0.65 * vis);
+      /* 바람 — 눈에 보일 만큼(실제보다 서너 배) 흐르게. 방향은 바다마다 고정(세계 방위 70°) */
+      const wv = P.wind || 20, windX = time * wv * 0.94, windY = time * wv * 0.34, L = 26000 * (0.35 + 0.65 * vis), ev = time * 0.018;
       const rainCol = mix(mix(pal.cloud, pal.hor, 0.3), [70, 80, 88], 0.4);
       for (let yy = 0; yy < bh; yy++) {
         const ypx = (yy + 0.5) / s;
@@ -43676,7 +43677,8 @@ body.epTutOn .lrn-hl{ outline:none !important; }
           let r = 0, gC = 0, bC = 0, A = 0;
           /* 적운·층운 */
           const d = Math.min(70000, P.alt / te), u0 = (sB * d + windX) / P.sc, v0 = (cB * d + windY) / P.sc;
-          const w = vn(u0 * 0.45 + 3.7, v0 * 0.45 + 1.3), u = u0 + w * 0.7, v = v0 + w * 0.7;
+          /* 비트는 좌표도 시간에 따라 흘러 — 구름이 떠가면서 모양이 피어오르고 풀린다 */
+          const w = vn(u0 * 0.45 + 3.7 + ev, v0 * 0.45 + 1.3 - ev * 0.7), u = u0 + w * 0.8, v = v0 + w * 0.8;
           const dens = fbm(u, v, 5), T = 0.66 - P.cover * 0.36, c0 = (dens - T) / 0.2;
           if (c0 > 0) {
             const c = c0 >= 1 ? 1 : c0 * c0 * (3 - 2 * c0);
@@ -43691,14 +43693,14 @@ body.epTutOn .lrn-hl{ outline:none !important; }
           }
           /* 권운 — 높고 가늘게 결을 따라 */
           if (P.ci > 0 && A < 0.95 && e > 3) {
-            const d2 = Math.min(90000, 9000 / te), u2 = (sB * d2 + windX * 2) / 9000, v2 = (cB * d2 + windY * 2) / 9000;
+            const d2 = Math.min(90000, 9000 / te), u2 = (sB * d2 + windX * 2.6 - windY) / 9000, v2 = (cB * d2 + windY * 2.6 + windX * 0.5) / 9000;
             const cd = fbm(u2 * 0.35, v2 * 2.4, 4), c2 = Math.max(0, (cd - 0.56) / 0.18);
             if (c2 > 0) { const a2 = Math.min(1, c2) * P.ci * (1 - Math.exp(-e / 12)) * (1 - A), f2 = 1 - Math.exp(-d2 / (L * 2.2));
               const k2 = lit; r += (k2[0] + (hor[0] - k2[0]) * f2) * a2; gC += (k2[1] + (hor[1] - k2[1]) * f2) * a2; bC += (k2[2] + (hor[2] - k2[2]) * f2) * a2; A += a2; }
           }
           /* 비의 장막 — 짙은 구름 밑에서 수평선까지 흐릿한 기둥 */
           if (P.rain && e < 7.5) {
-            const col = fbm(br * 3.2 + time * 0.004, 7.7, 3), rc = Math.max(0, (col - 0.5) / 0.22);
+            const col = fbm(br * 3.2 + time * 0.03, 7.7 + time * 0.02, 3), rc = Math.max(0, (col - 0.5) / 0.22);
             if (rc > 0) { const streak = 0.75 + 0.25 * vn(xx * 0.9, yy * 0.08 + time * 1.5), ra = Math.min(1, rc) * P.rain * (1 - e / 7.5) * streak * 0.6 * (1 - A);
               r += rainCol[0] * ra; gC += rainCol[1] * ra; bC += rainCol[2] * ra; A += ra; }
           }
@@ -43840,7 +43842,7 @@ body.epTutOn .lrn-hl{ outline:none !important; }
     /* 흐르는 안개 둑 — 세계 방위에 붙어 천천히 옆으로 */
     if (pal.id === 'fog' || fog > 0.4) {
       const R = rng(hash('fogbank' + (g && g.theater))), n = 9;
-      for (let i = 0; i < n; i++) { const b = R() * 360 + time * 0.05, dx = rel(b, vw.brg), w = (14 + R() * 26) * vw.ppd;
+      for (let i = 0; i < n; i++) { const b = R() * 360 + time * (0.25 + 0.2 * (i % 3)), dx = rel(b, vw.brg), w = (14 + R() * 26) * vw.ppd;   /* 안개 둑도 눈에 보이게 흐른다 */
         const x = W / 2 + dx * vw.ppd, y = base - 4 + R() * 18, h = 14 + R() * 26; if (Math.abs(x - W / 2) > W / 2 + w) continue;
         const gr = ctx.createRadialGradient(x, y, 2, x, y, w * 0.5);
         gr.addColorStop(0, rgb(col, fog * 0.5)); gr.addColorStop(1, rgb(col, 0));
