@@ -47,7 +47,8 @@ public class MainActivity extends Activity {
     private static final String ALLOWED_UPDATE_PREFIX = "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/";
     private static final String BUNDLED_GAME_VERSION = "6.25.5";
     private static final int FALLBACK_VERSION_CODE = 62505;
-    private static final long UPDATE_INTERVAL_MS = 6L * 60L * 60L * 1000L;
+    /* 켤 때마다·다시 앞으로 올 때마다 확인한다. 30분 안에 거듭 켠 경우만 건너뛴다(예전 6시간). */
+    private static final long UPDATE_INTERVAL_MS = 30L * 60L * 1000L;
     private static final int REQ_BACKUP = 401;
     private static final int REQ_RESTORE = 402;
 
@@ -94,6 +95,8 @@ public class MainActivity extends Activity {
         // Optional on-device crew voice. The page still works unchanged when no voice pack is installed.
         voiceBridge = new EternalVoiceBridge(this, webView);
         webView.addJavascriptInterface(voiceBridge, "EternalVoice");
+        /* 게임 화면의 「업데이트 확인」 단추가 부르는 통로 */
+        webView.addJavascriptInterface(new AppBridge(), "EternalApp");
 
         webView.setWebViewClient(new WebViewClient() {
             @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -359,6 +362,12 @@ public class MainActivity extends Activity {
 
     @Override public void onBackPressed() { showAppMenu(); }
 
+    /** 게임(HTML)에서 부르는 앱 기능 — 업데이트 확인과 버전 조회만 연다. */
+    public class AppBridge {
+        @android.webkit.JavascriptInterface public void checkUpdate() { main.post(() -> checkForUpdates(true)); }
+        @android.webkit.JavascriptInterface public String gameVersion() { return currentGameVersion(); }
+    }
+
     @Override protected void onPause() {
         saveGameNow();
         if (voiceBridge != null) voiceBridge.stop();
@@ -370,6 +379,7 @@ public class MainActivity extends Activity {
         super.onResume();
         enterImmersive();
         if (webView != null) { webView.onResume(); webView.resumeTimers(); }
+        main.postDelayed(() -> checkForUpdates(false), 1500);   /* 다시 앞으로 올 때도 확인(30분 간격) */
     }
 
     @Override protected void onSaveInstanceState(Bundle outState) {

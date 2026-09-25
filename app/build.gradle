@@ -19,6 +19,20 @@ android {
         }
     }
 
+    /* 빌드마다 새 디버그 키가 만들어지면 새 APK 를 옛 앱 위에 설치할 수 없다(서명 불일치).
+       저장소에 고정 디버그 키를 두고 늘 그것으로 서명한다 — 이 키로 만든 APK 부터는 덮어 설치된다. */
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.debug }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17

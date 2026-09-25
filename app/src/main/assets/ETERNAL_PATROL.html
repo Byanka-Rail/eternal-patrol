@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.4 Moving Sky</title>
-<script id="ep-build">window.EP_BUILD='6.39.4';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.5 Update Button</title>
+<script id="ep-build">window.EP_BUILD='6.39.5';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -45550,6 +45550,56 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   function init() { cv = document.createElement('canvas'); cv.id = 'epCombatFx'; document.body.appendChild(cv); cx = cv.getContext('2d'); size(); addEventListener('resize', size);
     requestAnimationFrame(frame); window.EP_V639_COMBATFX = { version: '6.39.0', count: () => P.length, test: { dc: (d) => { const g = U.state(); g.booms.push({ x: g.boat.x + d, y: g.boat.y, t: g.time, depth: g.boat.depth + 10 }); } } }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v6395-update-style">
+#epUpdBtn{ width:100%; margin-top:7px; min-height:44px; display:flex; align-items:center; justify-content:center; gap:8px; }
+#epUpdBtn small{ color:var(--dim); font-size:11px; }
+#epUpdToast{ position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); z-index:900; max-width:min(92vw,420px);
+  background:var(--el2); color:var(--ink); border:1px solid var(--steel); border-radius:8px; padding:10px 14px; font-size:13px; line-height:1.45;
+  box-shadow:0 6px 24px var(--shadow); opacity:0; pointer-events:none; transition:opacity .25s; }
+#epUpdToast.on{ opacity:1; pointer-events:auto; }
+#epUpdToast button{ margin-top:8px; width:100%; min-height:40px; }
+</style>
+<script id="ep-v6395-update-script">
+/* ══════ V6.39.5 — 제목 화면 「업데이트 확인」 ══════
+   · 새 앱(이 버전과 함께 빌드된 APK)이면 앱의 업데이트 확인을 바로 부른다(내려받기 창이 뜬다).
+   · 예전 앱이나 브라우저면 update.json 을 직접 읽어 지금 버전과 비교해 알려 준다.
+     예전 앱: 「뒤로 가기 → 업데이트 확인」으로 받으라고 안내. 브라우저: 새로 불러오기 단추.
+   · 앱은 이제 켤 때마다(30분 안에 다시 켠 경우는 빼고) 그리고 다시 앞으로 돌아올 때 스스로 확인한다(예전 6시간). */
+(function EP_UPDATE(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const MANIFEST = 'https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/update.json';
+  const cur = () => String(window.EP_BUILD || '').trim() || '?';
+  function cmp(a, b) { const A = String(a).split(/[^0-9]+/).filter(Boolean).map(Number), B = String(b).split(/[^0-9]+/).filter(Boolean).map(Number);
+    for (let i = 0; i < Math.max(A.length, B.length); i++) { const x = A[i] || 0, y = B[i] || 0; if (x !== y) return x < y ? -1 : 1; } return 0; }
+  let hideT = 0;
+  function toast(html, keep) { let t = $('epUpdToast'); if (!t) { t = document.createElement('div'); t.id = 'epUpdToast'; document.body.appendChild(t); }
+    t.innerHTML = html; t.classList.add('on'); clearTimeout(hideT); if (!keep) hideT = setTimeout(() => t.classList.remove('on'), 4200);
+    t.onclick = e => { if (e.target.tagName !== 'BUTTON') t.classList.remove('on'); }; return t; }
+  const inApp = () => !!(window.EternalApp || window.EternalVoice || /; wv\)/.test(navigator.userAgent));
+  async function check() {
+    if (window.EternalApp && typeof EternalApp.checkUpdate === 'function') { try { EternalApp.checkUpdate(); toast('업데이트를 확인하는 중…'); return; } catch (e) {} }
+    toast('업데이트를 확인하는 중…', true);
+    try {
+      const r = await fetch(MANIFEST + '?t=' + Date.now(), { cache: 'no-store' }); if (!r.ok) throw new Error(r.status);
+      const m = await r.json(), remote = String(m.gameVersion || '').trim();
+      if (!remote) throw new Error('no version');
+      if (cmp(remote, cur()) <= 0) { toast('지금이 최신입니다 — v' + cur()); return; }
+      if (inApp()) toast('새 버전 <b>v' + remote + '</b>이 있습니다 (지금 v' + cur() + ').<br>화면의 <b>뒤로 가기</b> → <b>업데이트 확인</b>을 누르면 받습니다.', true);
+      else { const t = toast('새 버전 <b>v' + remote + '</b>이 있습니다 (지금 v' + cur() + ').<button type="button" id="epUpdReload">새로 불러오기</button>', true);
+        const b = t.querySelector('#epUpdReload'); if (b) b.onclick = () => { const u = new URL(location.href); u.searchParams.set('v', remote); location.replace(u.toString()); }; }
+    } catch (e) { toast('확인하지 못했습니다 — 인터넷 연결을 확인해 주세요.'); }
+  }
+  function build() {
+    if ($('epUpdBtn')) return; const opt = $('btnOptions'); if (!opt) return;
+    const b = document.createElement('button'); b.id = 'epUpdBtn'; b.type = 'button';
+    b.innerHTML = '업데이트 확인 <small>v' + cur() + '</small>'; b.addEventListener('click', check);
+    opt.insertAdjacentElement('afterend', b);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
+  window.EP_V6395_UPDATE = { version: '6.39.5', check };
 })();
 </script>
 </body>
