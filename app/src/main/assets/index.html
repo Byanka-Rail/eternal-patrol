@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.39.7 Quiet Music</title>
-<script id="ep-build">window.EP_BUILD='6.39.7';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.39.8 Dive Alarm</title>
+<script id="ep-build">window.EP_BUILD='6.39.8';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -45744,6 +45744,79 @@ body.epMenuScene{ background:#030101; }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
   window.EP_V6396_MUSIC = { version: '6.39.6', state: () => ({ playing, bar: barI, pass, want: want() }) };
+})();
+</script>
+<script id="ep-v6398-divealarm-script">
+/* ══════════ V6.39.8 긴급 잠항 경보 ══════════
+   긴급 잠항이 걸리는 순간(단추·위기 카드·자동 어느 쪽이든) 배 안에 경보가 울리고, 이어서 부력 탱크 환기 밸브가 열려 공기가 쏟아져 나간다.
+   · 독일 유보트(대서양·지중해): 전기 경보 벨이 약 2.5초 따르릉 — 망치가 초당 20여 번 종을 친다(비조화 배음).
+   · 미 잠수함(서태평양): 잠항 경적 「아우가」 두 번 — 거친 톱니파가 올라가며 입을 벌리는 모음 꼴.
+   · 일본 잠수함(동태평양): 전기 버저 약 2초.
+   · 이어서 「쏴아—」 환기(0.7초 뒤, 3초 남짓).
+   게임 소리 설정과 효과음 크기를 따른다(꺼짐이면 무음). 파일 없이 합성. */
+(function EP_DIVE_ALARM(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  let AC = null, lastEm = null, nb = null;
+  function vol() { try { const lv = window.Snd && Snd.get ? Snd.get() : 'off'; const m = Snd.getMix ? Snd.getMix() : { effects: 1 };
+    return ({ off: 0, quiet: .38, on: 1, hydro: .8, cinematic: 1 }[lv] || 0) * (m.effects != null ? m.effects : 1); } catch (e) { return 0; } }
+  function ctx() { if (AC) return AC; const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; AC = new C(); return AC; }
+  function noise(ac) { if (nb && nb.sampleRate === ac.sampleRate) return nb; const n = ac.sampleRate * 2; nb = ac.createBuffer(1, n, ac.sampleRate); const d = nb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1; return nb; }
+  /* 소리 만들기 — ac·출력·시작 시각을 받아 그린다(미리듣기 렌더와 같은 코드) */
+  function bell(ac, out, t, dur) {
+    const f0 = 1180, parts = [[1, 1], [2.76, 0.55], [5.4, 0.3], [8.93, 0.16]], rate = 21, bus = ac.createGain(); bus.gain.value = 1; bus.connect(out);
+    const room = ac.createBiquadFilter(); room.type = 'bandpass'; room.frequency.value = 2200; room.Q.value = 0.5;   /* 좁은 함 안의 쇳소리 */
+    const pre = ac.createGain(); pre.connect(room); room.connect(bus); pre.connect(bus);
+    for (const [k, a] of parts) {
+      const o = ac.createOscillator(); o.frequency.value = f0 * k; const g = ac.createGain(); g.gain.value = 0; o.connect(g); g.connect(pre);
+      for (let s = t; s < t + dur; s += 1 / rate) { g.gain.setValueAtTime(0.085 * a, s); g.gain.setTargetAtTime(0.016 * a, s + 0.002, 0.012 / Math.sqrt(k)); }
+      g.gain.setTargetAtTime(0, t + dur, 0.12 / Math.sqrt(k)); o.start(t); o.stop(t + dur + 0.9);
+    }
+    const n = ac.createBufferSource(); n.buffer = noise(ac); n.loop = true; const nf = ac.createBiquadFilter(); nf.type = 'highpass'; nf.frequency.value = 3000; const ng = ac.createGain(); ng.gain.value = 0;
+    n.connect(nf); nf.connect(ng); ng.connect(bus); for (let s = t; s < t + dur; s += 1 / rate) { ng.gain.setValueAtTime(0.03, s); ng.gain.setTargetAtTime(0, s + 0.003, 0.004); } n.start(t); n.stop(t + dur + 0.1);
+  }
+  function klaxon(ac, out, t) {
+    for (let i = 0; i < 2; i++) { const s = t + i * 1.25, d = 0.95;
+      const o = ac.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(150, s); o.frequency.exponentialRampToValueAtTime(265, s + 0.28); o.frequency.setValueAtTime(265, s + d);
+      const o2 = ac.createOscillator(); o2.type = 'square'; o2.frequency.setValueAtTime(152, s); o2.frequency.exponentialRampToValueAtTime(268, s + 0.28);
+      const sh = ac.createWaveShaper(); const c = new Float32Array(512); for (let k = 0; k < 512; k++) { const x = k / 255.5 - 1; c[k] = Math.tanh(3 * x); } sh.curve = c;
+      const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2.2; f.frequency.setValueAtTime(420, s); f.frequency.exponentialRampToValueAtTime(1300, s + 0.35);   /* 「아우→가」 입이 벌어진다 */
+      const g = ac.createGain(); o.connect(sh); o2.connect(sh); sh.connect(f); f.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.22, s + 0.05); g.gain.setValueAtTime(0.22, s + d - 0.08); g.gain.exponentialRampToValueAtTime(0.0001, s + d);
+      o.start(s); o2.start(s); o.stop(s + d + 0.05); o2.stop(s + d + 0.05); }
+  }
+  function buzzer(ac, out, t, dur) {
+    const o = ac.createOscillator(); o.type = 'square'; o.frequency.value = 390; const am = ac.createGain(); am.gain.value = 0.6;
+    const l = ac.createOscillator(); l.frequency.value = 50; const lg = ac.createGain(); lg.gain.value = 0.4; l.connect(lg); lg.connect(am.gain);
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.8; const g = ac.createGain();
+    o.connect(am); am.connect(f); f.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.16, t + 0.02); g.gain.setValueAtTime(0.16, t + dur); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.05);
+    o.start(t); l.start(t); o.stop(t + dur + 0.1); l.stop(t + dur + 0.1);
+  }
+  function vents(ac, out, t) {                   /* 부력 탱크 환기 — 공기가 쏟아져 나가는 쏴아 */
+    const n = ac.createBufferSource(); n.buffer = noise(ac); n.loop = true; const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.frequency.setValueAtTime(1500, t); f.frequency.exponentialRampToValueAtTime(700, t + 3.2); f.Q.value = 0.6;
+    const lo = ac.createBiquadFilter(); lo.type = 'lowpass'; lo.frequency.value = 3500; const g = ac.createGain();
+    n.connect(f); f.connect(lo); lo.connect(g); g.connect(out); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.35); g.gain.setValueAtTime(0.22, t + 1.2); g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+    n.start(t, Math.random()); n.stop(t + 3.7);
+    const r = ac.createBufferSource(); r.buffer = noise(ac); r.loop = true; const rf = ac.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 260; const rg = ac.createGain();
+    r.connect(rf); rf.connect(rg); rg.connect(out); rg.gain.setValueAtTime(0.0001, t); rg.gain.exponentialRampToValueAtTime(0.17, t + 0.4); rg.gain.exponentialRampToValueAtTime(0.0001, t + 3.2); r.start(t, Math.random()); r.stop(t + 3.3);
+  }
+  function play(ac, out, t, nation) {
+    if (nation === 'US') { klaxon(ac, out, t); vents(ac, out, t + 2.3); }
+    else if (nation === 'JP') { buzzer(ac, out, t, 2.0); vents(ac, out, t + 0.9); }
+    else { bell(ac, out, t, 2.5); vents(ac, out, t + 0.7); }
+  }
+  window.EP_DIVE_ALARM_RENDER = play;           /* 미리듣기용 */
+  const nationOf = th => th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE';
+  function tick() {
+    const g = U.state(); if (!g) { lastEm = null; return; }
+    const em = g.emergency && g.emergency.kind === 'CRASH_DIVE' ? g.emergency : null;
+    if (em && em !== lastEm) { const v = vol(); if (v > 0) { const ac = ctx(); if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {});
+        const out = ac.createGain(); out.gain.value = 0.9 * v; out.connect(ac.destination); play(ac, out, ac.currentTime + 0.03, nationOf(g.theaterId)); } } }
+    lastEm = em;
+  }
+  document.addEventListener('pointerdown', () => { const ac = AC; if (ac && ac.state === 'suspended') ac.resume().catch(() => {}); }, { passive: true });
+  setInterval(tick, 80);
+  window.EP_V6398_DIVEALARM = { version: '6.39.8' };
 })();
 </script>
 </body>
