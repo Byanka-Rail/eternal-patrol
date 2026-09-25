@@ -33,3 +33,13 @@ post-speech pause, and pitch (by resampling the synthesized audio after
 inference). It does not modify or train the Supertonic model weights.
 Use of the Supertonic 3 model is subject to the use-based restrictions of the
 BigScience OpenRAIL-M license (Attachment A), which are passed on to users.
+
+Title-screen background photographs (embedded in ETERNAL_PATROL.html)
+---------------------------------------------------------------------
+Three photographs of the control room of the German submarine SM UB-110, 1918
+(Swan Hunter shipbuilders collection, photographed by Frank & Sons, South Shields).
+Source: Tyne & Wear Archives & Museums, via Flickr The Commons / Wikimedia Commons
+(refs DS.SWH/5/3/2/14/1/26, /29, /30). Shared by the archive with no known copyright
+restrictions; credit: Tyne & Wear Archives & Museums.
+Changes: cropped (borders and plate numbers), converted to grayscale, contrast adjusted,
+resized and recompressed; tinted and lit in real time by the game.
