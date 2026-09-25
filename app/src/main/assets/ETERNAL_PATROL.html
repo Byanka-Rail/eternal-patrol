@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.37.5 Title Eerie Ping</title>
-<script id="ep-build">window.EP_BUILD='6.37.5';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.37.6 Title Lionfish Ping</title>
+<script id="ep-build">window.EP_BUILD='6.37.6';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -44726,15 +44726,19 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     const dG = AC.createGain(); dG.gain.value = 0.0001; dz.connect(dF); dF.connect(dAM); dAM.connect(dG); dG.connect(bus);
     const clat = nsrc(), cF = AC.createBiquadFilter(); cF.type = 'highpass'; cF.frequency.value = 1800; const cAM = AC.createGain(); cAM.gain.value = 0; fireG.connect(cAM.gain);
     const cG = AC.createGain(); cG.gain.value = 0.0001; clat.connect(cF); cF.connect(cAM); cAM.connect(cG); cG.connect(bus);
-    for (const n of [hum, hum2, whine, wLfo, shaft, beat, fan, dz, fire, clat]) n.start(t);
-    eng = { bus, hum, hum2, humG, h2G, whine, wG, sG, beat, fG, dG, cG, fire };
+    /* 함내 전기 계통의 웅 — USS Sealion 실전 녹음(1944)에서 늘 깔려 있던 선들(116·390·735·1462Hz)을 옅게 */
+    const room = AC.createGain(); room.gain.value = 0.0001; room.connect(bus); const roomOsc = [];
+    for (const [fr, lv] of [[116, 0.5], [390, 0.9], [735, 1], [1462, 0.35]]) { const o = AC.createOscillator(); o.frequency.value = fr * rnd(0.995, 1.005); const og = AC.createGain(); og.gain.value = lv;
+      const fl = AC.createOscillator(), fg = AC.createGain(); fl.frequency.value = rnd(0.08, 0.2); fg.gain.value = lv * 0.25; fl.connect(fg); fg.connect(og.gain); o.connect(og); og.connect(room); roomOsc.push(o, fl); }
+    for (const n of [hum, hum2, whine, wLfo, shaft, beat, fan, dz, fire, clat].concat(roomOsc)) n.start(t);
+    eng = { bus, hum, hum2, humG, h2G, whine, wG, sG, beat, fG, dG, cG, fire, room };
   }
   function setEngine(e, ramp) {
     if (!eng || !AC) return; const t = AC.currentTime, r = ramp || 2.5, L = e.lvl, rpm = e.rpm, T = (p, v) => p.setTargetAtTime(Math.max(0.0001, v), t, r / 3);
     const motor = e.kind === 'motor' ? 1 : e.kind === 'creep' ? 0.55 : 0, diesel = e.kind === 'diesel' ? 1 : 0;
     T(eng.bus.gain, 0.9); T(eng.hum.frequency, 70 + 60 * rpm); T(eng.hum2.frequency, 140 + 120 * rpm); T(eng.whine.frequency, 520 + 420 * rpm); T(eng.beat.frequency, 1.2 + 1.8 * rpm);
     T(eng.humG.gain, 0.05 * L * motor); T(eng.h2G.gain, 0.022 * L * motor); T(eng.wG.gain, 0.010 * L * motor); T(eng.sG.gain, 0.06 * L * (motor || 0.4));
-    T(eng.fG.gain, 0.012 * L); T(eng.dG.gain, 0.16 * L * diesel); T(eng.cG.gain, 0.03 * L * diesel); T(eng.fire.frequency, 8.4 + 1.6 * rpm);
+    T(eng.fG.gain, 0.012 * L); T(eng.room.gain, 0.006 + 0.004 * L); T(eng.dG.gain, 0.16 * L * diesel); T(eng.cG.gain, 0.03 * L * diesel); T(eng.fire.frequency, 8.4 + 1.6 * rpm);
   }
   function creak(power) {
     if (!AC) return; const t = AC.currentTime;
@@ -44767,30 +44771,37 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < len; i++) { const t = i / AC.sampleRate, k = Math.min(0.95, 0.35 + t * 0.14);
       lp = lp * k + (Math.random() * 2 - 1) * (1 - k); d[i] = lp * 2.2 * Math.pow(1 - i / len, 1.6) * Math.exp(-t * 0.55); } }
     const cv = AC.createConvolver(); cv.buffer = ir; const wet = AC.createGain(); wet.gain.value = 1.25; cv.connect(wet); wet.connect(out); return (verb = cv); }
-  /* 탐신음 — 낮고 긴 한 음이 천천히 가라앉으며 흔들리고(도플러), 깊은 잔향과 늦게 돌아오는 메아리가 따른다.
-     2차대전 ASDIC 보다 낮고 길게 — 음산하게. 가까우면 선체를 때리는 「팅」과 선체 울림이 겹친다. */
+  /* 탐신음 — USS Lionfish(박물관 잠수함) 소나 녹음을 재어 맞춘 모양:
+     약 880Hz 와 그 1.05배(약 920Hz) 두 음이 함께 울려 초당 40여 번 맥놀이(거칠게 떨리는 결)를 만들고,
+     1.6~1.9초 동안 거의 그대로 끌다가(-8dB 정도만 줄어듦) 뚝 끊긴다. 끊긴 뒤엔 5초짜리 어두운 잔향과 늦은 메아리가 남는다(음산함).
+     가까우면 선체를 때리는 「팅」과 선체 울림이 겹친다. */
   function ping(level, hullHit) {
-    if (!AC) return; const t = AC.currentTime, f = S.pingF || (S.pingF = rnd(640, 860)), L = 0.06 + 0.14 * level, rv = reverb(), hold = rnd(0.55, 0.9);
+    if (!AC) return; const t = AC.currentTime, f = S.pingF || (S.pingF = rnd(840, 920)), L = 0.05 + 0.13 * level, rv = reverb(), hold = rnd(1.6, 1.9);
     const bus = AC.createGain(); bus.connect(out); if (rv) bus.connect(rv);
     const g = AC.createGain(); g.connect(bus);
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.04); g.gain.setValueAtTime(L, t + hold); g.gain.exponentialRampToValueAtTime(L * 0.3, t + hold + 0.6); g.gain.exponentialRampToValueAtTime(0.0001, t + hold + 3.6);
-    const mk = (mul, lvl, type) => { const o = AC.createOscillator(); o.type = type || 'sine'; o.frequency.setValueAtTime(f * mul, t); o.frequency.exponentialRampToValueAtTime(f * mul * 0.965, t + hold + 1.5);
-      const dop = AC.createOscillator(), dg = AC.createGain(); dop.frequency.value = rnd(0.25, 0.45); dg.gain.value = f * mul * 0.004; dop.connect(dg); dg.connect(o.frequency);
-      const og = AC.createGain(); og.gain.value = lvl; o.connect(og); og.connect(g); o.start(t); dop.start(t); o.stop(t + hold + 3.8); dop.stop(t + hold + 3.8); };
-    mk(1, 1); mk(0.5, 0.22); mk(2.004, 0.07); mk(1.5, 0.04, 'triangle');
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(L, t + 0.025); g.gain.exponentialRampToValueAtTime(L * 0.4, t + hold); g.gain.exponentialRampToValueAtTime(0.0001, t + hold + 0.16);
+    const mk = (mul, lvl, type) => { const o = AC.createOscillator(); o.type = type || 'sine'; o.frequency.setValueAtTime(f * mul, t); o.frequency.linearRampToValueAtTime(f * mul * 1.012, t + hold);
+      const og = AC.createGain(); og.gain.value = lvl; o.connect(og); og.connect(g); o.start(t); o.stop(t + hold + 0.2); };
+    mk(1, 0.8); mk(1.05, 0.75); mk(0.94, 0.25); mk(2.02, 0.06, 'triangle');
+    /* 시작의 짧은 딸깍 — 송신기가 켜지는 소리 */
+    const ck = AC.createBufferSource(); ck.buffer = noise(); const cf = AC.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 900; cf.Q.value = 1.5; const cg = AC.createGain();
+    ck.connect(cf); cf.connect(cg); cg.connect(bus); env(cg, t, 0.002, 0.08 * level + 0.02, 0.05); ck.start(t, Math.random()); ck.stop(t + 0.08);
+    /* 송신 순간 물이 쉭 — 1~2.2kHz 대역 잡음이 1초 남짓 따라온다(참고 녹음의 핑마다 보이는 잡음 띠) */
+    const ws = AC.createBufferSource(); ws.buffer = noise(); ws.loop = true; const wf = AC.createBiquadFilter(); wf.type = 'bandpass'; wf.frequency.value = 1500; wf.Q.value = 0.9; const wg = AC.createGain();
+    ws.connect(wf); wf.connect(wg); wg.connect(bus); env(wg, t, 0.03, L * 0.35, 1.1); ws.start(t, Math.random()); ws.stop(t + 1.3);
     /* 늦게 돌아오는 메아리 — 멀고 먹먹하게 */
-    const d = AC.createDelay(3); d.delayTime.value = rnd(1.3, 2.2) - 0.6 * level; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; const eg = AC.createGain(); eg.gain.value = 0.28;
+    const d = AC.createDelay(3); d.delayTime.value = rnd(1.2, 2.0) - 0.6 * level; const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1100; const eg = AC.createGain(); eg.gain.value = 0.22;
     g.connect(d); d.connect(lp); lp.connect(eg); eg.connect(bus);
     if (hullHit) {
       const k = AC.createBufferSource(); k.buffer = noise(); const kf = AC.createBiquadFilter(); kf.type = 'bandpass'; kf.frequency.value = 3200; kf.Q.value = 3;
       const kg = AC.createGain(); k.connect(kf); kf.connect(kg); kg.connect(out); env(kg, t + 0.02, 0.002, 0.16 * level, 0.06); k.start(t, Math.random()); k.stop(t + 0.12);
-      for (const fr of [f * 0.37, f * 0.61, f * 1.13]) { const r = AC.createOscillator(), rg = AC.createGain(); r.frequency.value = fr; r.connect(rg); rg.connect(bus); env(rg, t + 0.02, 0.006, 0.05 * level, 2.2); r.start(t); r.stop(t + 2.5); }
+      for (const fr of [f * 0.26, f * 0.44, f * 1.13]) { const r = AC.createOscillator(), rg = AC.createGain(); r.frequency.value = fr; r.connect(rg); rg.connect(bus); env(rg, t + 0.02, 0.006, 0.05 * level, 2.2); r.start(t); r.stop(t + 2.5); }
     }
   }
   /* 핑 한 차례 — 멀리서 시작해 간격이 줄고 커진다(탐지 → 접근). 폭뢰 장면에서는 끝에 머리 위 스크류와 폭뢰가 따른다 */
   function pingRun(set) {
-    S.pingF = rnd(640, 860); const n = 5 + Math.floor(Math.random() * 4); let tt = 0;
-    for (let i = 0; i < n; i++) { const k = i / (n - 1), gap = 5.2 - 2.8 * k;
+    S.pingF = rnd(840, 920); const n = 5 + Math.floor(Math.random() * 4); let tt = 0;
+    for (let i = 0; i < n; i++) { const k = i / (n - 1), gap = 5.0 - 2.8 * k;
       setTimeout(() => { if (!running || S.set !== set) return; ping(0.25 + 0.75 * k, k > 0.75); }, tt * 1000); tt += gap; }
     if (set.id === 'attack' || set.id === 'silent') setTimeout(() => { if (!running || S.set !== set) return; screws(8);
       if (set.id === 'attack') setTimeout(() => { if (!running || S.set !== set) return; const salvo = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < salvo; i++) setTimeout(() => running && S.set === set && dcStrike(), 2600 + i * rnd(1200, 2600)); }, 2200); }, tt * 1000);
@@ -44949,7 +44960,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     setRunning(ov.classList.contains('on')); syncBtn();
     setInterval(() => { syncBtn(); audioVolume(); }, 1500);
     document.addEventListener('visibilitychange', () => { if (document.hidden) { if (AC && AC.state === 'running') AC.suspend(); } else if (running && AC) AC.resume(); });
-    window.EP_V637_TITLE = { version: '6.37.5', pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
+    window.EP_V637_TITLE = { version: '6.37.6', pingRun: () => pingRun(S.set), photos: () => PHOTOS.map(p => p.img.naturalWidth), crush: () => { S.timers.crush = 0; if (!S.set.ev.crush) S.set.ev.crush = [60, 90]; }, sets: SETS.map(s => s.id), state: () => ({ running, set: S.set && S.set.id, fade: +S.fade.toFixed(2), vol: sndLevel(), eng: !!eng }),
       go: id => { const s = SETS.find(x => x.id === id); if (s) switchTo(s); }, dc: () => dcStrike() };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
