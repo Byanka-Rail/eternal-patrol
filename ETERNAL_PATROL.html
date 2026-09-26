@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.44.0 Reload & SJ Radar</title>
-<script id="ep-build">window.EP_BUILD='6.44.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.44.1 Special Order Status</title>
+<script id="ep-build">window.EP_BUILD='6.44.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -22839,6 +22839,21 @@ window.Campaign = (function () {
     interceptPlan: function (id, kn, ahead) { return C ? interceptPlan(id, kn, ahead) : { ok: false }; },
     setSpeedMode: function (m) { if (!C || !{ECO:1,CRUISE:1,FLANK:1}[m]) return false; C.speedMode = m; C.speedKn = cruiseKn(); return true; },
     speedMode: function () { return C ? (C.speedMode || 'CRUISE') : 'CRUISE'; },
+    /* v6.44.1 — 특수초계의 지금 상태: 무엇이 필요하고, 지금 진행 중인지, 막혀 있으면 왜인지, 끝났는지 */
+    specialStatus: function () {
+      const o = C && C.orders; if (!o || !o.special) return null;
+      const h = localClockHour(), night = h >= 19 || h < 5, d = Math.hypot((o.x || 0) - C.x, (o.y || 0) - C.y), inside = d <= (o.radius || 1);
+      const need = { AGENT: '밤(19~05시)에 부상한 채', MINE: '잠항한 채', RECON: '잠항한 채', WEATHER: '머무르며', LIFEGUARD: '머무르며', FLOAT_RECON: '가까이서 정찰기 발진' }[o.code] || '머무르며';
+      let blocked = null;
+      if (!o.done && inside) {
+        if (o.code === 'AGENT' && !C.surfaced) blocked = '부상해야 합니다';
+        else if (o.code === 'AGENT' && !night) blocked = '밤을 기다립니다(지금 ' + String(Math.floor(h)).padStart(2, '0') + '시)';
+        else if ((o.code === 'MINE' || o.code === 'RECON') && C.surfaced) blocked = '잠항해야 합니다';
+        else if (o.code === 'FLOAT_RECON') blocked = '정찰기를 띄우십시오';
+      }
+      return { code: o.code, title: o.title || '특수초계', targetName: o.targetName || o.grid || '', done: !!o.done, inside, blocked,
+               progress: +(o.progress || 0), hours: o.hours || 0, need, nm: Math.round(d * T().THEATERS[C.theater].grid.nmPerCell) };
+    },
     speedFor: function (m) { if (!C) return 10; const o = C.speedMode; C.speedMode = m; const v = cruiseKn(); C.speedMode = o; return v; },
     detectNm: function (size) { return C ? detectNm(size) : 0; },
     radarHelps: function () { return radarHelps(); },
@@ -36133,14 +36148,22 @@ window.Lang.add('ja', {
       }
     });
     /* v6.12 특수초계 목적지 — 전과용 무전 보고와 다른 백색/호박 표식이다. */
-    if (C.orders && C.orders.special && !C.orders.done && Number.isFinite(C.orders.x) && Number.isFinite(C.orders.y)) {
-      const q=wpx(sc,C.orders.x,C.orders.y), rr=Math.max(9,(C.orders.radius||.8)*sc.k);
-      c.strokeStyle='rgba(255,176,32,.92)'; c.lineWidth=1.8; c.setLineDash([5,4]);
+    /* v6.44.1 — 특수초계 표식: 진행 중엔 호박색 고리 + 진행 호 + 조건, 끝나면 초록 ✓ 고리로 남는다 */
+    if (C.orders && C.orders.special && Number.isFinite(C.orders.x) && Number.isFinite(C.orders.y)) {
+      const S = Campaign.specialStatus ? Campaign.specialStatus() : null, done = !!C.orders.done;
+      const q=wpx(sc,C.orders.x,C.orders.y), rr=Math.max(10,(C.orders.radius||.8)*sc.k), col = done ? '61,255,160' : '255,176,32';
+      c.fillStyle='rgba('+col+','+(done?.10:.06)+')'; c.beginPath(); c.arc(q[0],q[1],rr,0,Math.PI*2); c.fill();
+      c.strokeStyle='rgba('+col+',.92)'; c.lineWidth=1.8; c.setLineDash(done?[]:[5,4]);
       c.beginPath(); c.arc(q[0],q[1],rr,0,Math.PI*2); c.stroke(); c.setLineDash([]);
-      c.fillStyle='rgba(255,176,32,.95)'; c.font='bold 10px system-ui'; c.textAlign='left';
-      c.fillText('SPECIAL · '+(C.orders.grid||C.orders.targetName||''),q[0]+rr+4,q[1]-3);
-      if (C.orders.hours) { c.font='9px system-ui'; c.fillStyle='rgba(255,205,120,.85)';
-        c.fillText(Math.min(C.orders.hours,+(C.orders.progress||0).toFixed(1))+'/'+C.orders.hours+'h',q[0]+rr+4,q[1]+9); }
+      if (!done && C.orders.hours) { const f = Math.min(1, (C.orders.progress||0) / C.orders.hours);
+        if (f > 0) { c.strokeStyle='rgba(61,255,160,.95)'; c.lineWidth=3.2; c.beginPath(); c.arc(q[0],q[1],rr+3,-Math.PI/2,-Math.PI/2+f*Math.PI*2); c.stroke(); } }
+      if (done) { c.strokeStyle='rgba(61,255,160,.98)'; c.lineWidth=2.6; c.lineCap='round'; const s=Math.min(9, rr*.45);
+        c.beginPath(); c.moveTo(q[0]-s, q[1]); c.lineTo(q[0]-s*.3, q[1]+s*.7); c.lineTo(q[0]+s, q[1]-s*.7); c.stroke(); c.lineCap='butt'; }
+      const name = (C.orders.targetName || C.orders.grid || '');
+      const lines = done ? ['✓ 특수초계 완료 · ' + name]
+        : ['특수초계 · ' + name + (C.orders.hours ? ' · ' + Math.min(C.orders.hours, +(C.orders.progress||0).toFixed(1)) + '/' + C.orders.hours + 'h' : ''),
+           S ? (S.inside ? (S.blocked ? '대기 — ' + S.blocked : '진행 중 — 이 자리에 머무르십시오') : S.need + ' 이 원 안에서 · ' + S.nm + '해리') : ''];
+      LBL.add({ x: q[0], y: q[1], lines: lines.filter(Boolean), color: done ? 'rgba(61,255,160,.95)' : 'rgba(255,190,90,.95)', font: 'bold 10px system-ui', pri: 9, gap: rr + 5 });
     }
     /* v6.40 — 보고된 선단: 추정 위치 · 오차 원(시간이 갈수록 커짐) · 침로 · 앞으로 24시간 예상 항적(6시간 눈금) */
     { const cellNm = sc.t.grid.nmPerCell, sel = window.EP_TRACK_SEL || null;
@@ -36305,7 +36328,8 @@ window.Lang.add('ja', {
     const hurt = (dmg.depthCtrl || 0) > 0.01 || (dmg.engine || 0) > 0.01;
     const rows = [
       ['부장', exp('exec') + (C.status !== 'AT_SEA' ? '초계 종료' :
-        ((C.orders && !C.orders.done
+        ((C.orders && C.orders.done && C.orders.special) ? '특수초계 완료 ✓ — ' + String(C.orders.title || '').replace(/^특수초계 · /, '') + (C.orders.targetName ? ' (' + C.orders.targetName + ')' : '') + ' · 귀항하면 보상' :
+        (C.orders && !C.orders.done
           ? (C.orders.special?'특수초계 — ':'명령 — ') + String(orderLocale(C.orders,'text') || '초계').replace(/\*\*/g, '') + (C.orders.special&&C.orders.hours?' ['+Math.min(C.orders.hours,+(C.orders.progress||0).toFixed(1))+'/'+C.orders.hours+'h]':'') : '자유 초계') +
         (C.sideObjective ? ' · 부가: ' + String(C.sideObjective.title||'').replace(/^부가목표 · /,'') : '') +
         ' · ' + (Math.floor(C.hours / 24) + 1) + '/' + Math.round(C.patrolHours / 24) + '일')), null],
