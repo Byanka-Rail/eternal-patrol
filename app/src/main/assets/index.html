@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.43.1 Hull Strain Quieter</title>
-<script id="ep-build">window.EP_BUILD='6.43.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.43.2 Smooth Chart</title>
+<script id="ep-build">window.EP_BUILD='6.43.2';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -35891,17 +35891,37 @@ window.Lang.add('ja', {
     c.restore();
   }
 
+  const chartBase = { cv: null, key: '', ox: 0, oy: 0, M: 0 };
+  function drawChartBase(c, sc, t, C, W, H, drawStatic) {
+    const dpr = cvW.width / Math.max(1, W), M = Math.round(Math.max(W, H) * 0.35);
+    const key = [t.id, W, H, cvW.width, sc.z.toFixed(5), C.weather].join('|');
+    if (!chartBase.cv) chartBase.cv = document.createElement('canvas');
+    if (chartBase.key !== key || Math.abs(sc.ox - chartBase.ox) > M * 0.9 || Math.abs(sc.oy - chartBase.oy) > M * 0.9) {
+      const S = chartBase.cv; S.width = Math.round((W + 2 * M) * dpr); S.height = Math.round((H + 2 * M) * dpr);
+      const x = S.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W + 2 * M, H + 2 * M);
+      drawStatic(x, Object.assign({}, sc, { ox: sc.ox + M, oy: sc.oy + M }), W + 2 * M, H + 2 * M);
+      chartBase.key = key; chartBase.ox = sc.ox; chartBase.oy = sc.oy; chartBase.M = M;
+    }
+    const MM = chartBase.M; c.drawImage(chartBase.cv, -MM + (sc.ox - chartBase.ox), -MM + (sc.oy - chartBase.oy), W + 2 * MM, H + 2 * MM);
+  }
+  /* 끌기·확대 중에는 한 화면에 한 번만 그린다(손가락 움직임마다 여러 번 그리던 것을 묶는다) */
+  let worldRenderPending = false;
+  function requestWorldRender() { if (worldRenderPending) return; worldRenderPending = true; requestAnimationFrame(() => { worldRenderPending = false; renderWorld(); }); }
   function renderWorld() {
     const C = Campaign.state(); if (!C) return;
     const sc = worldScale(); if (!sc) return;
     const c = cvW.getContext('2d');
     const W = cvW.clientWidth, H = cvW.clientHeight, t = sc.t;
     c.clearRect(0, 0, W, H);
+    const LBL = worldLabels(); window.__WLBL = LBL;
     /* ── 바다 — 수심으로 물들인다 ──
        얕은 곳은 밝고 깊은 곳은 어둡다. 한 전구 안에서도 대륙붕과 심해평원이
        어디인지 한눈에 보여야 사냥터를 고를 수 있다.
        (화면 픽셀마다 계산하면 무거우므로 격자 1/2칸 단위로 칠하고,
         전구를 바꾸거나 축척이 크게 달라질 때만 다시 만든다.) */
+    /* v6.43.2 — 바뀌지 않는 해도 바탕(바다·수심·등심선·격자·육지·해안)은 화면보다 넉넉히 한 번 그려 두고,
+       배율·날씨가 그대로면 옮겨 붙이기만 한다. 항해 중 매 박자·끌어 옮길 때 가장 무거운 부분을 다시 그리지 않는다. */
+    const drawStatic = (c, sc, W, H) => {
     const seaTone = { clear:['#06141b','#08111a'], haze:['#08151b','#0b1118'], fog:['#0c1719','#0b1116'], squall:['#07131b','#09101a'], gale:['#08131b','#071019'] }[C.weather] || ['#071018','#08121a'];
     const seaGrad = c.createLinearGradient(0,0,W,H); seaGrad.addColorStop(0,seaTone[0]); seaGrad.addColorStop(1,seaTone[1]);
     c.fillStyle = seaGrad; c.fillRect(0, 0, W, H);
@@ -35909,14 +35929,12 @@ window.Lang.add('ja', {
     { c.fillStyle = '#0b1c27'; c.fillRect(0, 0, W, H);
       /* 전구 안쪽은 원래 바다색으로 되돌려 둔다(수심 그림이 그 위에 얹힌다) */
       c.fillStyle = seaGrad; c.fillRect(sc.ox, sc.oy, t.grid.w * sc.k, t.grid.h * sc.k); }
-    const LBL = worldLabels(); window.__WLBL = LBL;
     drawDepthField(c, sc, t);
     drawDepthContours(c, sc, t);
     /* v6.41 — 수심은 한 단계 가라앉힌다(선단·내 배·항로가 주인공) */
     c.fillStyle = 'rgba(4,9,13,.22)'; c.fillRect(0, 0, W, H);
     { c.save(); c.strokeStyle = 'rgba(120,150,165,.22)'; c.lineWidth = 1; c.strokeRect(sc.ox, sc.oy, t.grid.w * sc.k, t.grid.h * sc.k); c.restore(); }   /* 전구 경계 */
     drawThermalFronts(c, sc, t, W, H);
-    drawGeoGraticule(c, sc, t, W, H);
     drawBathyLabels(c, sc, t, W, H);
     /* 격자 — 확대하면 한 칸을 다시 넷으로 쪼갠 잔금이 뜬다 */
     const gy0 = sc.oy, gy1 = sc.oy + t.grid.h * sc.k, gx0 = sc.ox, gx1 = sc.ox + t.grid.w * sc.k;
@@ -35954,6 +35972,9 @@ window.Lang.add('ja', {
       }
       c.fill('evenodd'); c.stroke();
     }
+    };
+    drawChartBase(c, sc, t, C, W, H, drawStatic);
+    drawGeoGraticule(c, sc, t, W, H);
     drawCloudCover(c, sc, C, W, H);
     drawNightShade(c, sc, t, C, W, H);
     drawWeatherSystems(c, sc, C, W, H);
@@ -36458,18 +36479,23 @@ window.Lang.add('ja', {
     const go = Campaign.startVoyage();
     if (!go.ok) { worldTip(go.err); return; }
     if (go.resumed) worldTip('가던 자리에서 이어 갑니다 — 남은 경유점 ' + go.left + '개.');
+    let beat = 0, lastSave = Date.now();
     worldTimer = setInterval(() => {
-      const r = Campaign.advance(0.5);              /* 한 박자에 30분 */
-      advanceSeaActivityUIV6252();
+      /* v6.43.2 — 같은 속도(실제 1초에 2시간)를 네 번의 큰 걸음 대신 열여섯 번의 작은 걸음으로: 배가 뚝뚝 뛰지 않고 미끄러진다.
+         무거운 일(함내 판 다시 쓰기·바다 활동 갱신)은 네 걸음에 한 번, 저장은 3초에 한 번(멈출 때는 바로). */
+      const r = Campaign.advance(0.125);            /* 한 박자에 7.5분 · 0.0625초 */
+      beat++;
+      if (beat % 4 === 0) advanceSeaActivityUIV6252();
       camFollow();
-      renderWorld(); renderWorldPanel();
+      renderWorld();
+      if (beat % 4 === 0 || r.events.length) renderWorldPanel();
       for (const e of r.events) handleWorldEvent(e);
       if (r.stopped) stopVoyageTimer();
       const c2 = Campaign.state();
       if (c2 && c2.navMode !== 'ROUTE' && !c2.pendingEncounter) stopVoyageTimer();
-      Campaign.save();
+      if (!worldTimer || r.events.length || Date.now() - lastSave > 3000) { Campaign.save(); lastSave = Date.now(); }
       if(Date.now()-autoSaveLastV625>30000) autoSaveV625('항해 중');
-    }, 250);   /* v6.34.2 — 항해 시간: 실제 1초에 2시간(한 박자 30분 · 0.25초) */
+    }, 62.5);
     renderWorldPanel();
   }
   function stopVoyageTimer() {
@@ -36624,7 +36650,7 @@ window.Lang.add('ja', {
     const move = ev => {
       if (ev.touches && ev.touches.length > 1) {          /* 두 손가락 — 확대 */
         const d = span(ev);
-        if (pinch > 8 && d > 8) { const m = mid(ev); camZoomAt(m.x, m.y, d / pinch); renderWorld(); }
+        if (pinch > 8 && d > 8) { const m = mid(ev); camZoomAt(m.x, m.y, d / pinch); requestWorldRender(); }
         pinch = d; moved = true; pressed = false; return;
       }
       if (!pressed) return;
@@ -36632,7 +36658,7 @@ window.Lang.add('ja', {
       if (Math.hypot(p.x - sx, p.y - sy) > 10) moved = true;
       if (moved && cam.z > 1.01) {                        /* 끌어서 이동 */
         const sc = worldScale();
-        if (sc) { cam.cx -= (p.x - lx) / sc.k; cam.cy -= (p.y - ly) / sc.k; camClamp(); renderWorld(); }
+        if (sc) { cam.cx -= (p.x - lx) / sc.k; cam.cy -= (p.y - ly) / sc.k; camClamp(); requestWorldRender(); }
       }
       lx = p.x; ly = p.y;
     };
@@ -36642,7 +36668,7 @@ window.Lang.add('ja', {
       ev.preventDefault();
       const p = at(ev);
       camZoomAt(p.x, p.y, ev.deltaY < 0 ? 1.18 : 1 / 1.18);
-      renderWorld();
+      requestWorldRender();
     }, { passive: false });
     cvW.addEventListener('dblclick', ev => { const p = at(ev); camZoomAt(p.x, p.y, 1.8); renderWorld(); });
     const up = () => {
@@ -36770,14 +36796,18 @@ window.Lang.add('ja', {
     const C = Campaign.state(); if (!C || worldTimer) return;
     Campaign.setRoute([]);                      /* 가지 않는다 */
     worldTip(L('그 자리에서 기다립니다 — 사건이 생기면 멈춥니다.'));
+    let beat = 0, lastSave = Date.now();
     worldTimer = setInterval(() => {
-      const r = Campaign.advance(0.5);
-      advanceSeaActivityUIV6252();
-      renderWorld(); renderWorldPanel();
+      /* v6.43.2 — 대기도 작은 걸음으로(같은 흐름 — 실제 1초에 약 4.5시간), 무거운 일은 덜 자주 */
+      const r = Campaign.advance(0.25);
+      beat++;
+      if (beat % 2 === 0) advanceSeaActivityUIV6252();
+      renderWorld();
+      if (beat % 3 === 0 || r.events.length) renderWorldPanel();
       for (const e of r.events) handleWorldEvent(e);
       if (r.stopped) stopVoyageTimer();
-      Campaign.save();
-    }, 110);
+      if (!worldTimer || r.events.length || Date.now() - lastSave > 3000) { Campaign.save(); lastSave = Date.now(); }
+    }, 55);
     renderWorldPanel();
   }
   $('wWait').addEventListener('click', () => {
