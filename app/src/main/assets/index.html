@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.43.0 Hull Strain</title>
-<script id="ep-build">window.EP_BUILD='6.43.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.43.1 Hull Strain Quieter</title>
+<script id="ep-build">window.EP_BUILD='6.43.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -46295,7 +46295,7 @@ body.epMenuScene{ background:#030101; }
     for (let c = 0; c < cracks; c++) { const s0 = Math.round(n * (0.62 + Math.random() * 0.28)), A = (1.6 + Math.random() * 1.6) * (0.6 + 0.4 * k);
       for (let q = 0; q < sr * 0.012 && s0 + q < n; q++) d[s0 + q] += A * (Math.random() * 2 - 1) * Math.exp(-q / (sr * 0.0025)); }
     const src = ac.createBufferSource(); src.buffer = buf;
-    const bus = ac.createGain(); bus.gain.value = 0.55 * (0.45 + 0.55 * Math.min(1, k)); bus.connect(dest);
+    const bus = ac.createGain(); bus.gain.value = 0.41 * (0.45 + 0.55 * Math.min(1, k)); bus.connect(dest);   /* v6.43.1 — 약 2.5dB 작게 */
     const tune = 0.93 + Math.random() * 0.14;
     for (const [f, g, Q] of MODES) { const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(f * tune, t);
       bp.frequency.linearRampToValueAtTime(f * tune * 0.975, t + dur); bp.Q.value = Q; const gg = ac.createGain(); gg.gain.value = g * 1.6;
