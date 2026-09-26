@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.41.0 Chart Tidy</title>
-<script id="ep-build">window.EP_BUILD='6.41.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.42.0 Chart Graphics</title>
+<script id="ep-build">window.EP_BUILD='6.42.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -35582,25 +35582,124 @@ window.Lang.add('ja', {
     if (!depthGrid || depthGrid.id !== t.id) depthGrid = buildDepthGrid(t);
     const g = depthGrid; if (!g) return null;
     if (depthRaster && depthRaster.id === t.id) return depthRaster;
-    const cv = document.createElement('canvas'); cv.width = g.w; cv.height = g.h;
-    const x = cv.getContext('2d'), im = x.createImageData(g.w, g.h);
-    const clamp8=v=>v<0?0:v>255?255:v|0;
-    for (let j=0;j<g.h;j++) for (let i=0;i<g.w;i++) {
-      const idx=j*g.w+i, d=g.v[idx], q=depthRGBA(d), k=idx*4;
-      if(d>0){
-        const l=g.v[j*g.w+Math.max(0,i-1)]||d, r=g.v[j*g.w+Math.min(g.w-1,i+1)]||d;
-        const u=g.v[Math.max(0,j-1)*g.w+i]||d, dn=g.v[Math.min(g.h-1,j+1)*g.w+i]||d;
-        const gx=(r-l)*.5, gy=(dn-u)*.5;
-        const relief=Math.max(-1,Math.min(1,(-gx*.62-gy*.78)/3200));
-        const slope=Math.min(1,Math.hypot(gx,gy)/2800);
-        const lift=relief*14+slope*2;
-        q[0]=clamp8(q[0]+lift); q[1]=clamp8(q[1]+lift*1.06); q[2]=clamp8(q[2]+lift*1.15);
-        q[3]=clamp8(q[3]+slope*7);
-      }
-      im.data[k]=q[0]; im.data[k+1]=q[1]; im.data[k+2]=q[2]; im.data[k+3]=q[3];
+    /* v6.42 — 해저를 세 배 촘촘히: 0.25칸 격자를 쌍선형으로 이어 층이 끊기지 않게, 북서쪽 빛으로 해저 지형을 비춘다.
+       대륙붕 끝(급한 비탈)은 밝은 능선처럼, 얕은 물은 청록으로. */
+    const S = 3, W = g.w * S, H = g.h * S, D = new Float32Array(W * H);
+    const at = (i, j) => { i = Math.max(0, Math.min(g.w - 1, i)); j = Math.max(0, Math.min(g.h - 1, j)); return g.v[j * g.w + i]; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const fx = (x + .5) / S - .5, fy = (y + .5) / S - .5, i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+      const a0 = at(i, j), a1 = at(i + 1, j), a2 = at(i, j + 1), a3 = at(i + 1, j + 1);
+      if (a0 <= 0 && a1 <= 0 && a2 <= 0 && a3 <= 0) { D[y * W + x] = 0; continue; }
+      const f = q => q > 0 ? q : Math.max(a0, a1, a2, a3) * 0.35;
+      D[y * W + x] = (f(a0) * (1 - u) + f(a1) * u) * (1 - v) + (f(a2) * (1 - u) + f(a3) * u) * v;
     }
-    x.putImageData(im, 0, 0);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const x2 = cv.getContext('2d'), im = x2.createImageData(W, H), cl = v => v < 0 ? 0 : v > 255 ? 255 : v | 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const k = y * W + x, d = D[k], o = k * 4; if (d <= 0) { im.data[o + 3] = 0; continue; }
+      const q = depthRGBA(d);
+      const l = D[y * W + Math.max(0, x - 1)] || d, r = D[y * W + Math.min(W - 1, x + 1)] || d, up = D[Math.max(0, y - 1) * W + x] || d, dn = D[Math.min(H - 1, y + 1) * W + x] || d;
+      const gx = (r - l) * .5, gy = (dn - up) * .5, shade = Math.max(-1, Math.min(1, (gx * .7 + gy * .7) / 900)), slope = Math.min(1, Math.hypot(gx, gy) / 700);
+      const shallow = Math.max(0, 1 - d / 140);
+      let R = q[0] + shade * 16 + slope * 6, G2 = q[1] + shade * 18 + slope * 8 + shallow * 22, B = q[2] + shade * 20 + slope * 9 + shallow * 12;
+      im.data[o] = cl(R); im.data[o + 1] = cl(G2); im.data[o + 2] = cl(B); im.data[o + 3] = cl(q[3] + slope * 10 + shallow * 40);
+    }
+    x2.putImageData(im, 0, 0);
     return (depthRaster = { id: t.id, cv: cv });
+  }
+  /* v6.42 — 육지의 기복: 해안에서 떨어질수록 높아지는 가짜 고도(거리 변환 + 잡음)에 북서쪽 빛, 위도에 따른 땅색.
+     해안선이 흐려지지 않도록 벡터 해안 경로로 잘라 그 안에만 칠한다. */
+  let landRelief = null;
+  function buildLandRelief(t) {
+    if (landRelief && landRelief.id === t.id) return landRelief;
+    const TT = window.THEATERS, per = 6, W = Math.round(t.grid.w * per), H = Math.round(t.grid.h * per);
+    const land = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) land[y * W + x] = TT.isLand(t, (x + .5) / per, (y + .5) / per) ? 1 : 0;
+    const dist = new Float32Array(W * H); const BIG = 1e6;
+    for (let k = 0; k < W * H; k++) dist[k] = land[k] ? BIG : 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = y * W + x; if (!land[k]) continue; let m = dist[k];
+      if (x > 0) m = Math.min(m, dist[k - 1] + 1); if (y > 0) m = Math.min(m, dist[k - W] + 1); if (x > 0 && y > 0) m = Math.min(m, dist[k - W - 1] + 1.414); if (x < W - 1 && y > 0) m = Math.min(m, dist[k - W + 1] + 1.414); dist[k] = m; }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const k = y * W + x; if (!land[k]) continue; let m = dist[k];
+      if (x < W - 1) m = Math.min(m, dist[k + 1] + 1); if (y < H - 1) m = Math.min(m, dist[k + W] + 1); if (x < W - 1 && y < H - 1) m = Math.min(m, dist[k + W + 1] + 1.414); if (x > 0 && y < H - 1) m = Math.min(m, dist[k + W - 1] + 1.414); dist[k] = m; }
+    const hash = (i, j) => { let n = i * 374761393 + j * 668265263; n = (n ^ (n >>> 13)) * 1274126177; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+    const vn = (x, y) => { const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, s = q => q * q * (3 - 2 * q);
+      const a = hash(i, j), b = hash(i + 1, j), c2 = hash(i, j + 1), d = hash(i + 1, j + 1); return a + (b - a) * s(u) + (c2 - a) * s(v) + (a - b - c2 + d) * s(u) * s(v); };
+    const fbm = (x, y) => vn(x, y) * .5 + vn(x * 2.1, y * 2.1) * .25 + vn(x * 4.3, y * 4.3) * .15 + vn(x * 8.7, y * 8.7) * .1;
+    const E = new Float32Array(W * H);
+    for (let k = 0; k < W * H; k++) if (land[k]) { const x = k % W, y = (k / W) | 0; E[k] = Math.min(1, dist[k] / (per * 1.6)) * (0.45 + 0.9 * fbm(x / 9, y / 9)) + fbm(x / 3.5 + 11, y / 3.5) * 0.18; }
+    const geo = window.COASTLINES && window.COASTLINES.toGeo;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'), im = cx.createImageData(W, H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = y * W + x, o = k * 4; if (!land[k]) { im.data[o + 3] = 0; continue; }
+      const gx = (E[y * W + Math.min(W - 1, x + 1)] - E[y * W + Math.max(0, x - 1)]), gy = (E[Math.min(H - 1, y + 1) * W + x] - E[Math.max(0, y - 1) * W + x]);
+      const lit = Math.max(-1, Math.min(1, -(gx * .7 + gy * .7) * 9));
+      const ll = geo ? geo(t.id, (x + .5) / per, (y + .5) / per) : null, lat = ll ? Math.abs(ll.lat) : 45;
+      /* 땅색 — 북쪽 어두운 초록 / 온대 올리브 / 건조대 황갈 / 열대 짙은 초록 */
+      const arid = lat > 18 && lat < 38 && ll && (ll.lon > -20 && ll.lon < 60) ? 1 : lat > 20 && lat < 34 ? 0.35 : 0;
+      const base = lat > 52 ? [30, 42, 36] : lat > 38 ? [36, 48, 34] : lat < 18 ? [24, 46, 30] : [40, 46, 32];
+      const dry = [70, 60, 40], hi = E[k];
+      let R = base[0] * (1 - arid) + dry[0] * arid, G = base[1] * (1 - arid) + dry[1] * arid, B = base[2] * (1 - arid) + dry[2] * arid;
+      R += hi * 14 + lit * 16; G += hi * 12 + lit * 16; B += hi * 8 + lit * 13;
+      im.data[o] = Math.max(0, Math.min(255, R)); im.data[o + 1] = Math.max(0, Math.min(255, G)); im.data[o + 2] = Math.max(0, Math.min(255, B)); im.data[o + 3] = 255; }
+    cx.putImageData(im, 0, 0);
+    return (landRelief = { id: t.id, cv: cv });
+  }
+  /* v6.42 — 구름 덮개: 기상대·태풍 자리에 위성 사진 같은 잡음 구름. 바람 따라 흐르고 태풍은 소용돌이 */
+  let cloudTex = null;
+  function cloudTexture() {
+    /* 이어 붙여도 이음매가 없는 주기 잡음(4옥타브) — 위성 사진의 구름 결 */
+    if (cloudTex) return cloudTex; const N = 192, cv = document.createElement('canvas'); cv.width = cv.height = N; const x = cv.getContext('2d'), im = x.createImageData(N, N);
+    const hash = (i, j, s) => { let n = i * 374761393 + j * 668265263 + s * 2246822519; n = (n ^ (n >>> 13)) * 1274126177; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+    const sm = q => q * q * (3 - 2 * q);
+    for (let y = 0; y < N; y++) for (let x0 = 0; x0 < N; x0++) {
+      let s = 0, amp = .5;
+      for (const fr of [6, 12, 24, 48]) { const X = x0 / N * fr, Y = y / N * fr, i = Math.floor(X), j = Math.floor(Y), u = X - i, v = Y - j, P = fr;
+        const hh = (a2, b2) => hash(((a2 % P) + P) % P, ((b2 % P) + P) % P, fr);
+        const A = hh(i, j), B2 = hh(i + 1, j), C2 = hh(i, j + 1), D2 = hh(i + 1, j + 1); s += amp * (A + (B2 - A) * sm(u) + (C2 - A) * sm(v) + (A - B2 - C2 + D2) * sm(u) * sm(v)); amp *= .5; }
+      const d = Math.max(0, Math.min(1, (s / .9375 - .42) / .3)), o4 = (y * N + x0) * 4;
+      im.data[o4] = 228; im.data[o4 + 1] = 234; im.data[o4 + 2] = 238; im.data[o4 + 3] = Math.round(sm(d) * 255); }
+    x.putImageData(im, 0, 0); return (cloudTex = cv);
+  }
+  function drawCloudCover(c, sc, C, W, H) {
+    const tex = cloudTexture(), now = C.hours || 0, list = [];
+    for (const w of (C.weatherSystems || [])) list.push({ x: w.x, y: w.y, r: (w.r || 1) * 1.15, a: { haze: .16, fog: .22, squall: .42, gale: .5 }[w.kind] || .18, dark: w.kind === 'gale' || w.kind === 'squall' ? .35 : 0, spin: 0, drift: w.course || 60, sp: w.speed || .08, ph: w.phase || 0 });
+    for (const t of (C.typhoonSystems || [])) list.push({ x: t.x, y: t.y, r: (t.galeR || 1.4) * 1.35, a: .62, dark: .3, spin: 1, drift: 0, sp: 0, ph: 0 });
+    if (!list.length) return;
+    let tmp = drawCloudCover.tmp; if (!tmp) { tmp = drawCloudCover.tmp = document.createElement('canvas'); }
+    c.save();
+    for (const s of list) {
+      const p = wpx(sc, s.x, s.y), R = Math.max(18, s.r * sc.k); if (p[0] < -R || p[0] > W + R || p[1] < -R || p[1] > H + R) continue;
+      const D = Math.min(320, Math.ceil(R * 2)); tmp.width = tmp.height = D; const x = tmp.getContext('2d');
+      x.clearRect(0, 0, D, D); x.save(); x.translate(D / 2, D / 2);
+      if (s.spin) x.rotate(-now * 0.05); const scale = D / 170, dr = (s.drift || 0) * Math.PI / 180, mv = (now * (4 + s.sp * 40) + s.ph * 40) % 192;
+      x.scale(scale, scale); const pat = x.createPattern(tex, 'repeat'); x.fillStyle = pat;
+      x.translate(Math.sin(dr) * mv, -Math.cos(dr) * mv); const L = D / scale + 400; x.fillRect(-L, -L, 2 * L, 2 * L); x.restore();   /* 바람 따라 결이 흐른다 */
+      if (s.spin) { x.globalCompositeOperation = 'destination-out'; x.strokeStyle = 'rgba(0,0,0,.55)'; x.lineWidth = D * 0.05; x.beginPath();   /* 나선 틈 */
+        for (let k = 0; k < 2; k++) for (let th = 0; th < 9; th += .15) { const rr = D * 0.03 * th, ang = th + k * Math.PI - now * 0.05; const qx = D / 2 + Math.cos(ang) * rr, qy = D / 2 + Math.sin(ang) * rr; th ? x.lineTo(qx, qy) : x.moveTo(qx, qy); }
+        x.stroke(); x.beginPath(); x.arc(D / 2, D / 2, D * 0.035, 0, 7); x.fill(); x.globalCompositeOperation = 'source-over'; }
+      x.globalCompositeOperation = 'destination-in'; const gr = x.createRadialGradient(D / 2, D / 2, 0, D / 2, D / 2, D / 2);
+      gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(.6, 'rgba(0,0,0,.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, D, D); x.globalCompositeOperation = 'source-over';
+      if (s.dark) { x.globalCompositeOperation = 'source-atop'; x.fillStyle = 'rgba(40,50,60,' + s.dark + ')'; x.fillRect(0, 0, D, D); x.globalCompositeOperation = 'source-over'; }
+      c.globalAlpha = s.a; c.drawImage(tmp, p[0] - R, p[1] - R, 2 * R, 2 * R); c.globalAlpha = 1;
+    }
+    c.restore();
+  }
+  /* v6.42 — 밤과 낮: 내 배 자리의 시각(= 탐지 계산에 쓰는 시각)을 기준으로, 경도마다 해의 시각을 밀어 밤인 곳을 어둡게.
+     해 지고 뜨는 경계(약 ±1시간)는 부드럽게. 밤이면 선단을 알아볼 거리가 크게 줄어든다(물 위 낮 20해리 → 밤 8해리). */
+  function drawNightShade(c, sc, t, C, W, H) {
+    const toGeo = window.COASTLINES && window.COASTLINES.toGeo; if (!toGeo) return;
+    const me = toGeo(t.id, C.x, C.y); if (!me) return;
+    const hr0 = ((C.hours % 24) + 24) % 24, step = 6;
+    let edgeX = null, prevDark = null;
+    for (let x = 0; x < W; x += step) {
+      const wx = (x + step / 2 - sc.ox) / sc.k, ll = toGeo(t.id, wx, C.y); if (!ll) continue;
+      let dl = ll.lon - me.lon; if (dl > 180) dl -= 360; if (dl < -180) dl += 360;
+      const hr = ((hr0 + dl / 15) % 24 + 24) % 24;
+      const day = Math.min(1, Math.max(0, Math.min((hr - 5.4) / 1.4, (19.6 - hr) / 1.4)));
+      const dark = 1 - day; if (dark > 0.01) { c.fillStyle = 'rgba(0,4,14,' + (0.42 * dark).toFixed(3) + ')'; c.fillRect(x, 0, step, H); }
+      const isDark = dark > 0.5; if (prevDark !== null && isDark !== prevDark && edgeX == null) edgeX = x; prevDark = isDark;
+    }
+    if (edgeX != null && H > 200) { c.save(); c.strokeStyle = 'rgba(214,200,140,.38)'; c.setLineDash([3, 5]); c.beginPath(); c.moveTo(edgeX, 0); c.lineTo(edgeX, H); c.stroke(); c.setLineDash([]);
+      if (window.__WLBL) window.__WLBL.add({ x: edgeX, y: 36, lines: [prevDark ? '← 낮 · 밤 →' : '← 밤 · 낮 →'], color: 'rgba(214,204,150,.7)', font: '9px system-ui', pri: 2, gap: 4 }); c.restore(); }
   }
   function drawDepthField(c, sc, t) {
     const r = buildDepthRaster(t); if (!r) return;
@@ -35706,10 +35805,8 @@ window.Lang.add('ja', {
       g.addColorStop(0,'rgba('+st.rgb+','+(st.a*1.45*pulse).toFixed(3)+')');
       g.addColorStop(.55,'rgba('+st.rgb+','+(st.a*.70*pulse).toFixed(3)+')');
       g.addColorStop(1,'rgba('+st.rgb+',0)');
-      c.fillStyle=g; c.beginPath(); c.arc(p[0],p[1],rad,0,Math.PI*2); c.fill();
-      c.strokeStyle='rgba('+st.rgb+','+(C.weatherCellId===w.id?.48:.19)+')';
-      c.lineWidth=C.weatherCellId===w.id?1.7:1; c.setLineDash(w.kind==='gale'||w.kind==='squall'?[6,5]:[3,5]);
-      c.beginPath(); c.arc(p[0],p[1],rad*.78,0,Math.PI*2); c.stroke(); c.setLineDash([]);
+      /* v6.42 — 둥근 빛무리·점선 고리는 구름 덮개가 대신한다. 지금 우리가 든 기상대만 가늘게 테를 둔다 */
+      if (C.weatherCellId===w.id) { c.strokeStyle='rgba('+st.rgb+',.40)'; c.lineWidth=1.2; c.setLineDash([3,5]); c.beginPath(); c.arc(p[0],p[1],rad*.78,0,Math.PI*2); c.stroke(); c.setLineDash([]); }
       if (sc.z>1.45) {
         const info=TH.WEATHERS.find(x=>x.id===w.kind);
         c.fillStyle='rgba('+st.rgb+',.78)'; c.font='9px system-ui'; c.textAlign='center';
@@ -35837,11 +35934,16 @@ window.Lang.add('ja', {
     const seaTone = { clear:['#06141b','#08111a'], haze:['#08151b','#0b1118'], fog:['#0c1719','#0b1116'], squall:['#07131b','#09101a'], gale:['#08131b','#071019'] }[C.weather] || ['#071018','#08121a'];
     const seaGrad = c.createLinearGradient(0,0,W,H); seaGrad.addColorStop(0,seaTone[0]); seaGrad.addColorStop(1,seaTone[1]);
     c.fillStyle = seaGrad; c.fillRect(0, 0, W, H);
+    /* v6.42 — 전구 바깥도 깊은 바다로 이어 칠해 지도가 잘려 보이지 않게(자료가 없으니 무늬 없이 어둡게) */
+    { c.fillStyle = '#0b1c27'; c.fillRect(0, 0, W, H);
+      /* 전구 안쪽은 원래 바다색으로 되돌려 둔다(수심 그림이 그 위에 얹힌다) */
+      c.fillStyle = seaGrad; c.fillRect(sc.ox, sc.oy, t.grid.w * sc.k, t.grid.h * sc.k); }
     const LBL = worldLabels(); window.__WLBL = LBL;
     drawDepthField(c, sc, t);
     drawDepthContours(c, sc, t);
     /* v6.41 — 수심은 한 단계 가라앉힌다(선단·내 배·항로가 주인공) */
-    c.fillStyle = 'rgba(4,9,13,.32)'; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(4,9,13,.22)'; c.fillRect(0, 0, W, H);
+    { c.save(); c.strokeStyle = 'rgba(120,150,165,.22)'; c.lineWidth = 1; c.strokeRect(sc.ox, sc.oy, t.grid.w * sc.k, t.grid.h * sc.k); c.restore(); }   /* 전구 경계 */
     drawThermalFronts(c, sc, t, W, H);
     drawGeoGraticule(c, sc, t, W, H);
     drawBathyLabels(c, sc, t, W, H);
@@ -35865,9 +35967,11 @@ window.Lang.add('ja', {
       c.fillStyle = '#18231d'; c.strokeStyle = '#4a6352'; c.lineWidth = 1.0 / Math.max(0.01, sc.k);
       const coastOutline = window.COASTLINES.outlinePath ? window.COASTLINES.outlinePath(t.id) : coastPath;
       c.fill(coastPath, 'evenodd');
-      if (coastOutline) c.stroke(coastOutline);
-      c.strokeStyle = 'rgba(91,171,151,.10)'; c.lineWidth = 2.6 / Math.max(0.01, sc.k);
-      if (coastOutline) c.stroke(coastOutline);
+      /* v6.42 — 땅의 기복과 색(해안 경로로 잘라 그 안에만) */
+      { const lr = buildLandRelief(t); if (lr) { c.save(); c.clip(coastPath, 'evenodd'); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(lr.cv, 0, 0, t.grid.w, t.grid.h); c.restore(); } }
+      /* 해안 파도선 — 가늘고 밝게, 그 바깥으로 옅은 여울빛 */
+      c.strokeStyle = 'rgba(120,200,210,.12)'; c.lineWidth = 3.2 / Math.max(0.01, sc.k); if (coastOutline) c.stroke(coastOutline);
+      c.strokeStyle = 'rgba(214,232,236,.34)'; c.lineWidth = 0.9 / Math.max(0.01, sc.k); if (coastOutline) c.stroke(coastOutline);
       c.restore();
     } else {
       c.beginPath();
@@ -35880,6 +35984,8 @@ window.Lang.add('ja', {
       }
       c.fill('evenodd'); c.stroke();
     }
+    drawCloudCover(c, sc, C, W, H);
+    drawNightShade(c, sc, t, C, W, H);
     drawWeatherSystems(c, sc, C, W, H);
     drawTyphoonSystems(c, sc, C, W, H);
     /* 상선 항로 */
@@ -36003,6 +36109,11 @@ window.Lang.add('ja', {
         c.fillStyle = 'rgba(255,190,90,' + a.toFixed(2) + ')';
         for (const hh of [6, 12, 18, 24]) { const tx = q[0] + ux * perH * hh, ty = q[1] + uy * perH * hh; c.beginPath(); c.arc(tx, ty, 1.8, 0, 7); c.fill();
           if (!stale && perH * 6 > 22) LBL.add({ x: tx, y: ty, lines: ['+' + hh + 'h'], color: 'rgba(255,190,90,' + a.toFixed(2) + ')', font: '9px system-ui', pri: on ? 8 : 1, gap: 5 }); }
+        /* v6.42 — 선단 대형: 추정 위치에 흐릿한 배 점들(규모만큼, 최대 18), 침로 방향으로 줄지어 */
+        { const n = Math.min(18, Math.max(3, tr.size || 6)), cols = Math.max(2, Math.round(Math.sqrt(n * 1.6))), rows = Math.ceil(n / cols), sp = Math.max(2.4, Math.min(5, sc.k * 0.04));
+          c.fillStyle = 'rgba(255,200,120,' + (a * 0.55).toFixed(3) + ')';
+          for (let k2 = 0; k2 < n; k2++) { const ci = k2 % cols - (cols - 1) / 2, ri = Math.floor(k2 / cols) - (rows - 1) / 2, px = ci * sp * 1.4, py = -ri * sp * 1.1;
+            const X = q[0] + px * (-uy) + py * ux, Y = q[1] + px * ux + py * uy; c.beginPath(); c.arc(X, Y, 1.1, 0, 7); c.fill(); } }
         /* 표식 — 마름모 + 침로 화살 */
         c.strokeStyle = 'rgba(255,176,32,' + Math.max(0.5, a).toFixed(2) + ')'; c.lineWidth = on ? 2.2 : 1.6;
         c.beginPath(); c.moveTo(q[0], q[1] - 6); c.lineTo(q[0] + 6, q[1]); c.lineTo(q[0], q[1] + 6); c.lineTo(q[0] - 6, q[1]); c.closePath(); c.stroke();
@@ -36044,6 +36155,14 @@ window.Lang.add('ja', {
         c.closePath(); c.stroke();
       });
     }
+    /* v6.42 — 지나온 항적: 한 시간마다 한 점, 사흘치까지. 오래될수록 옅게 */
+    { const tr = C._wake || (C._wake = []); const last = tr[tr.length - 1];
+      if (!last || Math.abs(C.hours - last.h) >= 1 || last.h > C.hours) { if (last && last.h > C.hours) tr.length = 0; tr.push({ x: C.x, y: C.y, h: C.hours }); if (tr.length > 72) tr.splice(0, tr.length - 72); }
+      if (tr.length > 1) { c.save(); c.lineCap = 'round';
+        for (let i = 1; i < tr.length; i++) { const p0 = wpx(sc, tr[i - 1].x, tr[i - 1].y), p1 = wpx(sc, tr[i].x, tr[i].y), age = C.hours - tr[i].h;
+          if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 200) continue; c.strokeStyle = 'rgba(160,220,200,' + Math.max(0.05, 0.42 * (1 - age / 72)).toFixed(3) + ')'; c.lineWidth = 1.4;
+          c.beginPath(); c.moveTo(p0[0], p0[1]); c.lineTo(p1[0], p1[1]); c.stroke(); }
+        const pz = wpx(sc, tr[tr.length - 1].x, tr[tr.length - 1].y), pb = wpx(sc, C.x, C.y); c.strokeStyle = 'rgba(160,220,200,.42)'; c.beginPath(); c.moveTo(pz[0], pz[1]); c.lineTo(pb[0], pb[1]); c.stroke(); c.restore(); } }
     /* 자함 — v6.41: 은은한 빛무리와 두 겹 고리, 긴 뱃머리 선으로 한눈에 */
     const b = wpx(sc, C.x, C.y), hr = C.course * Math.PI / 180, own = C.surfaced ? '61,255,160' : '143,208,255';
     { const gl = c.createRadialGradient(b[0], b[1], 2, b[0], b[1], 26); gl.addColorStop(0, 'rgba(' + own + ',.30)'); gl.addColorStop(1, 'rgba(' + own + ',0)'); c.fillStyle = gl; c.beginPath(); c.arc(b[0], b[1], 26, 0, 7); c.fill(); }
