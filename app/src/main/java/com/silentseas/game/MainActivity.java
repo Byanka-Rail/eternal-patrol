@@ -45,8 +45,8 @@ public class MainActivity extends Activity {
     private static final String HOME_URL = ORIGIN + "/index.html";
     private static final String UPDATE_MANIFEST = "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/main/update.json";
     private static final String ALLOWED_UPDATE_PREFIX = "https://raw.githubusercontent.com/Byanka-Rail/eternal-patrol/";
-    private static final String BUNDLED_GAME_VERSION = "6.25.5";
-    private static final int FALLBACK_VERSION_CODE = 62505;
+    private static final String BUNDLED_GAME_VERSION = BuildConfig.GAME_VERSION;   /* 앱에 담긴 게임 버전 — 빌드 때 게임 파일에서 읽는다 */
+    private static final int FALLBACK_VERSION_CODE = BuildConfig.VERSION_CODE;
     /* 켤 때마다·다시 앞으로 올 때마다 확인한다. 30분 안에 거듭 켠 경우만 건너뛴다(예전 6시간). */
     private static final long UPDATE_INTERVAL_MS = 30L * 60L * 1000L;
     private static final int REQ_BACKUP = 401;

@@ -36,21 +36,23 @@ jobs:
         with:
           gradle-version: '8.13'
 
-      - name: Validate v6.25.5 + FP32 voice baseline
+      - name: Validate game file + FP32 voice baseline
         shell: bash
         run: |
           set -euo pipefail
           cmp ETERNAL_PATROL.html app/src/main/assets/index.html
-          grep -q 'V6.25.5 WORLD AUDIO' ETERNAL_PATROL.html
-          grep -q "versionCode 62505" app/build.gradle
-          grep -q "versionName '6.25.5'" app/build.gradle
+          GAME=$(grep -o "window.EP_BUILD='[0-9.]*'" ETERNAL_PATROL.html | head -1 | grep -o "[0-9][0-9.]*")
+          test -n "$GAME"
+          grep -q '"gameVersion": "'"$GAME"'"' update.json
+          grep -q "versionName gameVersion" app/build.gradle
+          grep -q "BuildConfig.GAME_VERSION" app/src/main/java/com/silentseas/game/MainActivity.java
+          test -f app/debug.keystore
           grep -q "onnxruntime-android:1.29.0" app/build.gradle
-          grep -q 'BUNDLED_GAME_VERSION = "6.25.5"' app/src/main/java/com/silentseas/game/MainActivity.java
           test -f app/src/main/java/com/silentseas/game/voice/EternalVoiceBridge.java
           test -f app/src/main/java/com/silentseas/game/voice/SupertonicEngine.java
           test -f app/src/main/java/com/silentseas/game/voice/VoicePackManager.java
+          echo "Game version: $GAME"
           echo "Game SHA256: $(sha256sum ETERNAL_PATROL.html | cut -d' ' -f1)"
-          echo "Safe merge validation passed."
 
       - name: Remove obsolete lightweight-wrapper leftovers from build workspace
         shell: bash
@@ -75,5 +77,5 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: ETERNAL_PATROL_v6.25.5_FP32_MOOD_LIVING_SEA_debug_apk
+          name: ETERNAL_PATROL_debug_apk
           path: app/build/outputs/apk/debug/app-debug.apk
