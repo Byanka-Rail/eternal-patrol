@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.40.3 No Periscope Brake</title>
-<script id="ep-build">window.EP_BUILD='6.40.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.41.0 Chart Tidy</title>
+<script id="ep-build">window.EP_BUILD='6.41.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -35775,6 +35775,33 @@ window.Lang.add('ja', {
   function advanceSeaActivityUIV6252(){
     if(!window.War||!War.seaActivityAdvance)return null;const r=War.seaActivityAdvance(currentSeaActivityDayV6252());if(r&&r.news&&r.news.length)pushSeaActivityNewsV6252(r.news);return r;
   }
+  /* v6.41 — 지도 글자 관리자. 글자를 모아 두었다가 맨 마지막에 중요한 것부터 놓는다.
+     놓을 자리(오른쪽·왼쪽·위·아래)를 차례로 대 보고 이미 놓인 글자와 겹치지 않는 첫 자리에 놓는다.
+     다 겹치면 짧은 글(번호만)로 다시 해 보고, 그래도 안 되면 뺀다. 글자 둘레엔 어두운 테두리를 둘러 지도 위에서도 읽힌다. */
+  function worldLabels() {
+    const items = [];
+    return {
+      add(o) { items.push(o); },
+      draw(c, W, H) {
+        const boxes = [], hit = (a, b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+        items.sort((a, b) => (b.pri || 0) - (a.pri || 0));
+        c.save(); c.textBaseline = 'top'; c.textAlign = 'left'; c.lineJoin = 'round';   /* 앞서 그린 것의 정렬이 남아 있으면 글자가 자리에서 밀린다 */
+        for (const it of items) {
+          const tryPlace = lines => {
+            c.font = it.font || '10px system-ui'; const lh = it.lh || 12, w = Math.max(...lines.map(s => c.measureText(s).width)), hh = lines.length * lh, g = it.gap || 9;
+            const cands = it.cands || [[g, -hh / 2], [-g - w, -hh / 2], [-w / 2, -hh - g], [-w / 2, g]];
+            for (const [dx, dy] of cands) { const x = it.x + dx, y = it.y + dy, box = [x - 2, y - 1, w + 4, hh + 2];
+              if (x < 2 || y < 2 || x + w > W - 2 || y + hh > H - 2) continue; if (boxes.some(b => hit(b, box))) continue;
+              boxes.push(box); c.lineWidth = 3; c.strokeStyle = 'rgba(4,9,13,.88)'; c.fillStyle = it.color || '#cfdbe4';
+              lines.forEach((s, i) => { c.strokeText(s, x, y + i * lh); c.fillText(s, x, y + i * lh); }); return true; }
+            return false; };
+          if (!tryPlace(it.lines) && it.short) tryPlace([it.short]);
+        }
+        c.restore();
+      },
+      block(x, y, w, hh) { items.push({ x, y, lines: [''], pri: 99, cands: [[0, 0]], _w: w }); },
+    };
+  }
   function drawSeaActivityIntelV6252(c,sc,C,W,H){
     if(!window.War||!War.seaActivityIntel)return;const list=War.seaActivityIntel(currentSeaActivityDayV6252(),3);if(!list||!list.length)return;
     c.save();c.font='9px system-ui,-apple-system,"Malgun Gothic",sans-serif';
@@ -35790,7 +35817,8 @@ window.Lang.add('ja', {
       const ageH=Math.round((it.ageDays||0)*24),txt=(battle?'교전 보고':it.kind==='ESCORT_SWEEP'?'대잠 활동':'호송 추정')+' · '+ageH+'h · ±'+Math.round(it.errorNm)+'nm';
       const right=q[0]>W*.68,lx=q[0]+(right?-rad-4:rad+4);let ly=Math.max(12,Math.min(H-10,q[1]-2));
       for(let n=0;n<4&&usedLabels.some(z=>Math.abs(z[0]-lx)<96&&Math.abs(z[1]-ly)<11);n++)ly=Math.max(12,Math.min(H-10,ly+(n%2===0?12:-24)));
-      usedLabels.push([lx,ly]);c.textAlign=right?'right':'left';c.fillText(txt,lx,ly);
+      if(window.__WLBL){ window.__WLBL.add({ x:q[0]+(right?-rad:rad), y:q[1], lines:[txt], color:battle?'rgba(255,176,32,'+Math.max(.5,a).toFixed(2)+')':'rgba(166,194,205,'+Math.max(.5,a).toFixed(2)+')', font:'9px system-ui', pri:1, gap:4 }); }
+      else { usedLabels.push([lx,ly]);c.textAlign=right?'right':'left';c.fillText(txt,lx,ly); }
     }
     c.restore();
   }
@@ -35809,19 +35837,22 @@ window.Lang.add('ja', {
     const seaTone = { clear:['#06141b','#08111a'], haze:['#08151b','#0b1118'], fog:['#0c1719','#0b1116'], squall:['#07131b','#09101a'], gale:['#08131b','#071019'] }[C.weather] || ['#071018','#08121a'];
     const seaGrad = c.createLinearGradient(0,0,W,H); seaGrad.addColorStop(0,seaTone[0]); seaGrad.addColorStop(1,seaTone[1]);
     c.fillStyle = seaGrad; c.fillRect(0, 0, W, H);
+    const LBL = worldLabels(); window.__WLBL = LBL;
     drawDepthField(c, sc, t);
     drawDepthContours(c, sc, t);
+    /* v6.41 — 수심은 한 단계 가라앉힌다(선단·내 배·항로가 주인공) */
+    c.fillStyle = 'rgba(4,9,13,.32)'; c.fillRect(0, 0, W, H);
     drawThermalFronts(c, sc, t, W, H);
     drawGeoGraticule(c, sc, t, W, H);
     drawBathyLabels(c, sc, t, W, H);
     /* 격자 — 확대하면 한 칸을 다시 넷으로 쪼갠 잔금이 뜬다 */
     const gy0 = sc.oy, gy1 = sc.oy + t.grid.h * sc.k, gx0 = sc.ox, gx1 = sc.ox + t.grid.w * sc.k;
     if (sc.z > 2.2) {
-      c.strokeStyle = 'rgba(38,52,61,.24)'; c.lineWidth = 1;
+      c.strokeStyle = 'rgba(38,52,61,.14)'; c.lineWidth = 1;
       for (let i = 0; i <= t.grid.w * 4; i++) { if (i % 4 === 0) continue; const p = wpx(sc, i / 4, 0); c.beginPath(); c.moveTo(p[0], gy0); c.lineTo(p[0], gy1); c.stroke(); }
       for (let j = 0; j <= t.grid.h * 4; j++) { if (j % 4 === 0) continue; const p = wpx(sc, 0, j / 4); c.beginPath(); c.moveTo(gx0, p[1]); c.lineTo(gx1, p[1]); c.stroke(); }
     }
-    c.strokeStyle = 'rgba(38,52,61,.38)'; c.lineWidth = 1;
+    c.strokeStyle = 'rgba(38,52,61,.24)'; c.lineWidth = 1;
     for (let i = 0; i <= t.grid.w; i++) { const p = wpx(sc, i, 0); c.beginPath(); c.moveTo(p[0], gy0); c.lineTo(p[0], gy1); c.stroke(); }
     for (let j = 0; j <= t.grid.h; j++) { const p = wpx(sc, 0, j); c.beginPath(); c.moveTo(gx0, p[1]); c.lineTo(gx1, p[1]); c.stroke(); }
     /* 육지 — V6.2 지리좌표 보정 + 경계 클리핑 고정밀 해안선. Path2D는 전구마다 최초 한 번만 만들고
@@ -35831,11 +35862,11 @@ window.Lang.add('ja', {
     if (coastPath) {
       c.save();
       c.translate(sc.ox, sc.oy); c.scale(sc.k, sc.k);
-      c.fillStyle = '#16211b'; c.strokeStyle = '#334a3a'; c.lineWidth = 1.1 / Math.max(0.01, sc.k);
+      c.fillStyle = '#18231d'; c.strokeStyle = '#4a6352'; c.lineWidth = 1.0 / Math.max(0.01, sc.k);
       const coastOutline = window.COASTLINES.outlinePath ? window.COASTLINES.outlinePath(t.id) : coastPath;
       c.fill(coastPath, 'evenodd');
       if (coastOutline) c.stroke(coastOutline);
-      c.strokeStyle = 'rgba(91,171,151,.22)'; c.lineWidth = 2.2 / Math.max(0.01, sc.k);
+      c.strokeStyle = 'rgba(91,171,151,.10)'; c.lineWidth = 2.6 / Math.max(0.01, sc.k);
       if (coastOutline) c.stroke(coastOutline);
       c.restore();
     } else {
@@ -35855,8 +35886,8 @@ window.Lang.add('ja', {
     for (const r of t.routes) {
       const rt=Campaign.routeTraffic ? Campaign.routeTraffic(r) : r.traffic;
       const rm=Campaign.routeMemoryAt ? Campaign.routeMemoryAt(r.name) : null;
-      c.strokeStyle = 'rgba(143,208,255,' + (0.10 + rt * 0.16).toFixed(2) + ')';
-      c.lineWidth = 1 + rt * 3.5; c.setLineDash([9, 7]);
+      c.strokeStyle = 'rgba(143,208,255,' + (0.07 + rt * 0.11).toFixed(2) + ')';
+      c.lineWidth = 1 + rt * 2.4; c.setLineDash([9, 7]);
       c.beginPath();
       r.pts.forEach((p, i) => { const q = wpx(sc, p[0], p[1]); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); });
       c.stroke(); c.setLineDash([]);
@@ -35941,8 +35972,7 @@ window.Lang.add('ja', {
       /* 축소하면 이름이 뭉친다 — 지금 배가 나온 모항과 적 항구만, 그것도 겹치면 건너뛴다 */
       const mine = C.homePort === p.id;
       const worth = sc.z > 2.0 || role === 'ENEMY' || mine;
-      const clash = labelBoxes.some(b => Math.abs(b[0] - lx) < 52 && Math.abs(b[1] - ty) < 13);
-      if (worth && !clash) { c.fillText(p.name, lx, ty); labelBoxes.push([lx, ty]); }
+      if (worth) LBL.add({ x: q[0], y: q[1], lines: [p.name], color: col, font: '10px system-ui', pri: (mine || role === 'ENEMY') ? 7 : 3, gap: 8 });
       if (worldPoint.portId === p.id) {
         c.strokeStyle = '#ffffff'; c.lineWidth = 1.4; c.setLineDash([3, 3]);
         c.beginPath(); c.arc(q[0], q[1], 11, 0, 7); c.stroke(); c.setLineDash([]);
@@ -35961,7 +35991,7 @@ window.Lang.add('ja', {
     /* v6.40 — 보고된 선단: 추정 위치 · 오차 원(시간이 갈수록 커짐) · 침로 · 앞으로 24시간 예상 항적(6시간 눈금) */
     { const cellNm = sc.t.grid.nmPerCell, sel = window.EP_TRACK_SEL || null;
       for (const tr of (Campaign.tracks ? Campaign.tracks() : [])) {
-        const q = wpx(sc, tr.x, tr.y), a = (0.18 + tr.strength * 0.72), on = sel === tr.id;
+        const q = wpx(sc, tr.x, tr.y), stale = tr.err > 90 && !(sel === tr.id), a = stale ? 0.22 : (0.18 + tr.strength * 0.72), on = sel === tr.id;
         const rad = Math.max(5, tr.err / cellNm * sc.k), cr = tr.course * Math.PI / 180, ux = Math.sin(cr), uy = -Math.cos(cr);
         c.fillStyle = 'rgba(255,176,32,' + (0.05 + 0.05 * a).toFixed(3) + ')'; c.beginPath(); c.arc(q[0], q[1], rad, 0, 7); c.fill();
         c.strokeStyle = 'rgba(255,176,32,' + (on ? 0.95 : a * 0.8).toFixed(2) + ')'; c.lineWidth = on ? 1.8 : 1.2; c.setLineDash([3, 4]);
@@ -35970,16 +36000,17 @@ window.Lang.add('ja', {
         const perH = tr.speedKn / cellNm * sc.k;
         c.strokeStyle = 'rgba(255,176,32,' + (a * 0.7).toFixed(2) + ')'; c.lineWidth = 1; c.setLineDash([2, 5]);
         c.beginPath(); c.moveTo(q[0], q[1]); c.lineTo(q[0] + ux * perH * 24, q[1] + uy * perH * 24); c.stroke(); c.setLineDash([]);
-        c.fillStyle = 'rgba(255,190,90,' + a.toFixed(2) + ')'; c.font = '9px system-ui'; c.textAlign = 'center';
+        c.fillStyle = 'rgba(255,190,90,' + a.toFixed(2) + ')';
         for (const hh of [6, 12, 18, 24]) { const tx = q[0] + ux * perH * hh, ty = q[1] + uy * perH * hh; c.beginPath(); c.arc(tx, ty, 1.8, 0, 7); c.fill();
-          if (perH * 6 > 16) c.fillText('+' + hh + 'h', tx + uy * 9, ty - ux * 9 + 3); }
+          if (!stale && perH * 6 > 22) LBL.add({ x: tx, y: ty, lines: ['+' + hh + 'h'], color: 'rgba(255,190,90,' + a.toFixed(2) + ')', font: '9px system-ui', pri: on ? 8 : 1, gap: 5 }); }
         /* 표식 — 마름모 + 침로 화살 */
         c.strokeStyle = 'rgba(255,176,32,' + Math.max(0.5, a).toFixed(2) + ')'; c.lineWidth = on ? 2.2 : 1.6;
         c.beginPath(); c.moveTo(q[0], q[1] - 6); c.lineTo(q[0] + 6, q[1]); c.lineTo(q[0], q[1] + 6); c.lineTo(q[0] - 6, q[1]); c.closePath(); c.stroke();
         c.beginPath(); c.moveTo(q[0] + ux * 6, q[1] + uy * 6); c.lineTo(q[0] + ux * 20, q[1] + uy * 20); c.stroke();
-        c.fillStyle = 'rgba(255,190,90,' + Math.max(0.55, a).toFixed(2) + ')'; c.font = (on ? 'bold ' : '') + '10px system-ui'; c.textAlign = 'left';
-        c.fillText(tr.id + ' · ' + tr.qKo + ' · ' + Math.round(tr.age) + '시간 전 · ±' + tr.err + '해리', q[0] + 9, q[1] - 8);
-        c.fillText(String(tr.course).padStart(3, '0') + '° ' + tr.speedKn + '노트 · ' + tr.size + '척', q[0] + 9, q[1] + 4);
+        if (!stale || on) { const full = on || sc.z >= 2.6;
+          LBL.add({ x: q[0], y: q[1], color: 'rgba(255,190,90,' + Math.max(0.6, a).toFixed(2) + ')', font: (on ? 'bold ' : '') + '10px system-ui', pri: on ? 10 : 6 - Math.min(4, tr.age / 12),
+            lines: full ? [tr.id + ' · ' + tr.qKo + ' · ' + Math.round(tr.age) + '시간 전 · ±' + tr.err + '해리', String(tr.course).padStart(3, '0') + '° ' + tr.speedKn + '노트 · ' + tr.size + '척']
+                        : [tr.id + ' · ' + Math.round(tr.age) + 'h · ±' + tr.err], short: tr.id, gap: 10 }); }
       }
       /* 고른 선단으로 가는 요격 선 — v6.40.2: 요격 카드가 열려 있을 때만, 그리고 지금 자리에서 다시 계산해 그린다.
          (예전엔 카드를 닫고 항로를 잡은 뒤에도 옛 계산의 점과 선이 남아, 배가 움직이면 엉뚱한 곳으로 선이 따라다녔다.
@@ -35992,8 +36023,8 @@ window.Lang.add('ja', {
       }
       if (sel && pl && pl.ok) { const s0 = wpx(sc, C.x, C.y), p1 = wpx(sc, pl.x, pl.y);
         c.strokeStyle = 'rgba(143,208,255,.9)'; c.lineWidth = 1.6; c.setLineDash([6, 4]); c.beginPath(); c.moveTo(s0[0], s0[1]); c.lineTo(p1[0], p1[1]); c.stroke(); c.setLineDash([]);
-        c.beginPath(); c.arc(p1[0], p1[1], 7, 0, 7); c.stroke(); c.fillStyle = 'rgba(143,208,255,.95)'; c.font = 'bold 10px system-ui'; c.textAlign = 'left';
-        c.fillText((pl.ahead ? '매복점' : '요격점') + ' · 약 ' + pl.hours.toFixed(1) + '시간', p1[0] + 10, p1[1] + 3); }
+        c.beginPath(); c.arc(p1[0], p1[1], 7, 0, 7); c.stroke();
+        LBL.add({ x: p1[0], y: p1[1], lines: [(pl.ahead ? '매복점' : '요격점') + ' · 약 ' + pl.hours.toFixed(1) + '시간'], color: 'rgba(143,208,255,.95)', font: 'bold 10px system-ui', pri: 9, gap: 10 }); }
     }
     /* v6.25.2 — 정확한 패킷 위치가 아니라 오래될수록 퍼지는 정보 흔적만 표시 */
     drawSeaActivityIntelV6252(c,sc,C,W,H);
@@ -36013,12 +36044,15 @@ window.Lang.add('ja', {
         c.closePath(); c.stroke();
       });
     }
-    /* 자함 */
-    const b = wpx(sc, C.x, C.y), hr = C.course * Math.PI / 180;
-    c.strokeStyle = C.surfaced ? '#3dffa0' : '#8fd0ff'; c.lineWidth = 2.2;
-    c.beginPath(); c.moveTo(b[0], b[1]);
-    c.lineTo(b[0] + Math.sin(hr) * 15, b[1] - Math.cos(hr) * 15); c.stroke();
+    /* 자함 — v6.41: 은은한 빛무리와 두 겹 고리, 긴 뱃머리 선으로 한눈에 */
+    const b = wpx(sc, C.x, C.y), hr = C.course * Math.PI / 180, own = C.surfaced ? '61,255,160' : '143,208,255';
+    { const gl = c.createRadialGradient(b[0], b[1], 2, b[0], b[1], 26); gl.addColorStop(0, 'rgba(' + own + ',.30)'); gl.addColorStop(1, 'rgba(' + own + ',0)'); c.fillStyle = gl; c.beginPath(); c.arc(b[0], b[1], 26, 0, 7); c.fill(); }
+    c.strokeStyle = 'rgba(' + own + ',.45)'; c.lineWidth = 1; c.beginPath(); c.arc(b[0], b[1], 11, 0, 7); c.stroke();
+    c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 2.4;
+    c.beginPath(); c.moveTo(b[0] + Math.sin(hr) * 5, b[1] - Math.cos(hr) * 5);
+    c.lineTo(b[0] + Math.sin(hr) * 24, b[1] - Math.cos(hr) * 24); c.stroke();
     c.beginPath(); c.arc(b[0], b[1], 5, 0, 7); c.stroke();
+    LBL.add({ x: b[0], y: b[1], lines: ['\u2003\u2003\u2003'], lh: 28, pri: 100, cands: [[-14, -14]], font: '10px system-ui', color: 'rgba(0,0,0,0)' });   /* 내 배 둘레는 글자가 덮지 않게 */
     if (C.waveDir != null) {
       const wa=(C.waveDir||0)*Math.PI/180, wl=10+Math.min(10,(C.seaState||1)*2.2);
       const sx=b[0]-Math.sin(wa)*wl*.55, sy=b[1]+Math.cos(wa)*wl*.55;
@@ -36028,6 +36062,8 @@ window.Lang.add('ja', {
       c.moveTo(ex,ey); c.lineTo(ex-Math.sin(wa+.55)*4,ey+Math.cos(wa+.55)*4); c.stroke();
     }
     if (!C.surfaced) { c.setLineDash([2, 3]); c.beginPath(); c.arc(b[0], b[1], 9, 0, 7); c.stroke(); c.setLineDash([]); }
+    /* v6.41 — 모아 둔 글자를 마지막에 한꺼번에 놓는다 */
+    LBL.draw(c, W, H); window.__WLBL = null;
     /* 안내 */
     c.fillStyle = '#4e5f6b'; c.font = '10px system-ui'; c.textAlign = 'left';
     c.fillText('격자 1칸 = ' + t.grid.nmPerCell + '해리' +
@@ -46069,6 +46105,74 @@ body.epMenuScene{ background:#030101; }
   document.addEventListener('pointerdown', () => { const ac = AC; if (ac && ac.state === 'suspended') ac.resume().catch(() => {}); }, { passive: true });
   setInterval(tick, 80);
   window.EP_V6398_DIVEALARM = { version: '6.39.8' };
+})();
+</script>
+<style id="ep-v641-worldui-style">
+/* ══════════ V6.41 전략 지도 화면 정리 ══════════ */
+/* 지도를 크게 — 명령은 한 줄로 */
+#world:not(.bigmap):not(.bridge-view) #cvWorld{ height:60vh; }
+#wCmd.epCompact{ display:grid; grid-template-columns:repeat(5,1fr); gap:5px; }
+#wCmd.epCompact > button{ min-height:44px; font-size:12px; line-height:1.2; padding:2px 4px; white-space:normal; }
+#wCmd.epCompact:not(.epOpen) > button:not(.epPri):not(.epCtx):not(#wMore){ display:none !important; }
+#wCmd.epCompact > button.epHide{ display:none !important; }
+#wCmd.epCompact > button.epCtx{ border-color:var(--amber); color:var(--amber); }
+#wCmd.epCompact.epOpen > button:not(.epPri):not(#wMore){ min-height:40px; font-size:11.5px; }
+#wMore{ font-weight:600; }
+/* 선단 목록 띠 — 지도 위쪽 */
+#epTrackStrip{ position:absolute; z-index:6; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px 0; pointer-events:auto; }
+#epTrackStrip::-webkit-scrollbar{ display:none; }
+#epTrackStrip button{ flex:0 0 auto; min-height:34px; padding:3px 9px; border-radius:6px; background:rgba(10,16,21,.82); color:#ffbe5a;
+  border:1px solid rgba(255,176,32,.45); font-size:11px; line-height:1.25; text-align:left; white-space:nowrap; }
+#epTrackStrip button small{ display:block; color:var(--dim); font-size:10px; }
+#epTrackStrip button.stale{ color:var(--dim); border-color:var(--steel); }
+#epTrackStrip button.on{ background:rgba(255,176,32,.16); border-color:var(--amber); }
+#world.bridge-view #epTrackStrip{ display:none; }
+</style>
+<script id="ep-v641-worldui-script">
+/* 명령 줄: 항해 개시/정지(하나만) · 잠항/부상 · 속력 · 대기 · 「더 보기」. 나머지는 「더 보기」 안에.
+   기항·접선처럼 지금 할 수 있는 일은 호박색으로 앞줄에 따로 나온다.
+   선단 목록 띠: 보고된 선단을 매복까지 걸리는 시간 순으로(못 따라잡으면 뒤로, 낡은 보고는 흐리게). 누르면 그 선단으로 지도가 옮겨 가고 요격 카드가 열린다. */
+(function EP_WORLD_UI(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const PRI = ['wGo', 'wStop', 'wDive', 'wSpeed', 'wWait'], CTX = ['wDock', 'wMeet'];
+  function setupCmd() {
+    const cmd = $('wCmd'); if (!cmd || cmd.classList.contains('epCompact')) return !!cmd;
+    cmd.classList.add('epCompact');
+    const more = document.createElement('button'); more.type = 'button'; more.className = 'mini'; more.id = 'wMore'; more.textContent = '더 보기 ▾';
+    more.addEventListener('click', () => { cmd.classList.toggle('epOpen'); more.textContent = cmd.classList.contains('epOpen') ? '접기 ▴' : '더 보기 ▾'; });
+    cmd.insertBefore(more, $('wSnork') || null);
+    for (const id of PRI) { const b = $(id); if (b) { b.classList.add('epPri'); cmd.insertBefore(b, more); } }
+    return true;
+  }
+  function syncCmd() {
+    const go = $('wGo'), st = $('wStop'); if (!go || !st) return;
+    const running = !st.disabled; go.classList.toggle('epHide', running); st.classList.toggle('epHide', !running);
+    const open = $('wCmd').classList.contains('epOpen');
+    for (const id of CTX) { const b = $(id); if (!b) continue; const can = !b.disabled && b.style.display !== 'none'; b.classList.toggle('epCtx', can && !open); }
+    const w = $('wWait'); if (w && /대기 중/.test(w.textContent)) w.textContent = '대기 중 · 멈추기';
+  }
+  function strip() {
+    const world = $('world'); if (!world || !world.classList.contains('on') || !window.Campaign || !Campaign.state()) return;
+    let el = $('epTrackStrip'); if (!el) { el = document.createElement('div'); el.id = 'epTrackStrip'; world.appendChild(el); }
+    const ex = $('wExitQuick'), zm = $('wZoom'); if (ex && zm) { const wr = world.getBoundingClientRect(), er = ex.getBoundingClientRect(), zr = zm.getBoundingClientRect();
+      el.style.top = (er.top - wr.top) + 'px'; el.style.left = (er.right - wr.left + 8) + 'px'; el.style.right = (wr.right - zr.left + 8) + 'px'; }
+    const trs = Campaign.tracks ? Campaign.tracks() : []; if (!trs.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+    el.style.display = '';
+    const mode = Campaign.speedMode(), kn = Campaign.speedFor(mode);
+    const rows = trs.map(t => { const p = Campaign.interceptPlan(t.id, kn, 25); return { t, p, stale: t.err > 90, key: (t.err > 90 ? 1e4 : 0) + (p.ok ? p.hours : 5000) }; }).sort((a, b) => a.key - b.key).slice(0, 8);
+    const sel = window.EP_TRACK_SEL;
+    const html = rows.map(r => '<button type="button" data-t="' + r.t.id + '" class="' + (r.stale ? 'stale' : '') + (sel === r.t.id ? ' on' : '') + '">' + r.t.id + ' · ' + Math.round(r.t.age) + 'h · ±' + r.t.err +
+      '<small>' + (r.p.ok ? '매복 ' + r.p.hours.toFixed(1) + 'h · ' + r.t.size + '척' : '못 따라잡음 · ' + r.t.size + '척') + '</small></button>').join('');
+    if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; }
+  }
+  document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('#epTrackStrip button'); if (!b) return;
+    const id = b.dataset.t, tr = (Campaign.tracks() || []).find(t => t.id === id); if (!tr) return;
+    try { const g = WorldView.get(); WorldView.set(Math.max(g.z || 1, 2.4), tr.x, tr.y); } catch (err) {}
+    if (window.EP_V640) EP_V640.open(id); strip(); });
+  function tick() { if (setupCmd()) syncCmd(); strip(); }
+  setInterval(tick, 500);
+  window.EP_V641_WORLDUI = { version: '6.41.0' };
 })();
 </script>
 </body>
