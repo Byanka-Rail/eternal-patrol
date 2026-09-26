@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.44.1 Special Order Status</title>
-<script id="ep-build">window.EP_BUILD='6.44.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.44.2 Missions Review</title>
+<script id="ep-build">window.EP_BUILD='6.44.2';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -21147,6 +21147,7 @@ window.Campaign = (function () {
     const enc = makeEncounter(th, 'CONVOY');
     enc.course = Math.round(k.tc); enc.speedKn = +k.ts.toFixed(1); enc.ships = r.size != null ? r.size : enc.ships;
     enc.from = '선단 ' + r.id + ' — 직접 발견'; enc.trackId = r.id; enc.geoFromTrack = geoId;
+    if (r.route) enc.route = r.route;   /* v6.44.2 — 항로 차단 명령·기한 임무는 이 이름으로 센다(예전엔 빠져서 추적 선단 격침이 안 셌다) */
     if (enc.director) {
       enc.director.geometry = Object.assign({}, GEO_BY_ID[geoId]);
       const day = localClockHour() >= 6 && localClockHour() < 19;
@@ -21676,13 +21677,14 @@ window.Campaign = (function () {
     if (C.orders && C.orders.special && !C.orders.done && C.orders.code==='FLOAT_RECON') {
       const d=Math.hypot((C.orders.x||0)-C.x,(C.orders.y||0)-C.y);
       if (d <= (C.orders.radius||1.4)) {
-        C.orders.done=true; C.orders.progress=1; C.intel=(C.intel||0)+3;
+        C.orders.done=true; C.orders.progress=1; C.intel=(C.intel||0)+3; C._specialJustDone=true;
         say('특수초계 달성 — 지정 해역 함재기 정찰 완료. 촬영·관측 자료를 회수했습니다.', 'radio', 'orders');
       }
     }
     /* 뜨고 내리는 동안 우리는 물 위에 떠 있다 */
     C.alert = clamp(C.alert + 0.08, 0, 1);
-    return { ok: true, found: found.length, reports: found };
+    const specialDone = !!C._specialJustDone; C._specialJustDone = false;
+    return { ok: true, found: found.length, reports: found, specialDone: specialDone };
   }
 
   /* 연안 포격 — 실제로 벌어진 일이다. 전과는 크지 않았지만 파장은 컸다. */
@@ -22345,7 +22347,7 @@ window.Campaign = (function () {
     const reportHours = arr && Number.isFinite(arr.hours) ? arr.hours : C.hours;
     const reportFuel = arr && Number.isFinite(arr.fuel) ? arr.fuel : C.fuel;
     const reportHull = arr && Number.isFinite(arr.hull) ? arr.hull : C.hull;
-    const fallbackTorpUsed = Math.max(0, spec.reserve + spec.tubes - (C.torpReserve + C.torpLoaded) - (C.specialTorpCost||0));
+    const fallbackTorpUsed = Math.max(0, spec.reserve + spec.tubes + (spec.sternTubes || 0) - (C.torpReserve + C.torpLoaded) - (C.specialTorpCost||0));
     return {
       theater: C.theater, theaterName: th.name, boat: spec.name, navy: spec.navy,
       days: +(reportHours / 24).toFixed(1), calendarDays:+(C.hours/24).toFixed(3), plannedDays: Math.round(C.patrolHours / 24),
@@ -22537,7 +22539,7 @@ window.Campaign = (function () {
       return { ok: false, err: '접선점까지 더 가야 합니다.' };
     if (!C.surfaced) return { ok: false, err: '접선하려면 부상해야 합니다.' };
     const spec = T().BOATS[C.boatId];
-    const cap = spec.tubes + spec.reserve;
+    const cap = spec.tubes + (spec.sternTubes || 0) + spec.reserve;
     const give = Math.max(0, Math.min(4, cap - (C.torpLoaded + C.torpReserve)));
     C.fuel = 1; C.torpReserve += give; C.battery = 1; C.air = 1;
     C.hours += 4;
@@ -22659,7 +22661,7 @@ window.Campaign = (function () {
     const p = o.port, role = p.role || 'HOME';
     if (role === 'ENEMY') return { ok: false, err: p.name + ' 은(는) 적의 항구입니다.' };
     const spec = T().BOATS[C.boatId];
-    const cap = spec.tubes + spec.reserve;
+    const cap = spec.tubes + (spec.sternTubes || 0) + spec.reserve;
     const before = { fuel: C.fuel, torp: C.torpLoaded + C.torpReserve, hull: C.hull };
     let hours;
     if (role === 'HOME') {
@@ -22782,7 +22784,7 @@ window.Campaign = (function () {
       C.crewCareer=normalizeCrewCareer(C.crewCareer,C.crewSkill);
       if (!Number.isFinite(C.torpExpended)) {
         const spec=T().BOATS[C.boatId];
-        C.torpExpended=Math.max(0,(spec.tubes+spec.reserve)-(C.torpLoaded+C.torpReserve)-(C.specialTorpCost||0));
+        C.torpExpended=Math.max(0,(spec.tubes+(spec.sternTubes||0)+spec.reserve)-(C.torpLoaded+C.torpReserve)-(C.specialTorpCost||0));
       }
       /* v6.22.2 이전 저장에는 사건 처리 전과 분리 필드가 없다. 구세이브는 빈 기록으로 시작한다. */
       if (!Number.isFinite(C.eventTonnage)) C.eventTonnage=0;
@@ -22839,6 +22841,24 @@ window.Campaign = (function () {
     interceptPlan: function (id, kn, ahead) { return C ? interceptPlan(id, kn, ahead) : { ok: false }; },
     setSpeedMode: function (m) { if (!C || !{ECO:1,CRUISE:1,FLANK:1}[m]) return false; C.speedMode = m; C.speedKn = cruiseKn(); return true; },
     speedMode: function () { return C ? (C.speedMode || 'CRUISE') : 'CRUISE'; },
+    /* v6.44.2 — 이번 초계의 모든 임무(사령부 명령 + 기한 임무) — 지도와 함내 줄이 쓴다 */
+    missions: function () {
+      if (!C) return [];
+      const th = T().THEATERS[C.theater], out = [], shore = id => (th.shoreTargets || []).find(s => s.id === id);
+      const o = C.orders;
+      if (o && !o.special && o.kind !== 'FREE') {
+        if (o.kind === 'PATROL_GRID') out.push({ src: 'ORDER', type: 'GRID', title: '명령 · 격자 ' + o.grid + ' 초계', x: o.x, y: o.y, radius: o.radius, progress: +(o.progress || 0), goal: o.hours, unit: 'h', done: !!o.done });
+        else if (o.kind === 'INTERCEPT') out.push({ src: 'ORDER', type: 'INTERCEPT', title: '명령 · ' + o.route + ' 차단', route: o.route, progress: o.progress || 0, goal: o.need, unit: '척', done: !!o.done });
+        else if (o.kind === 'BOMBARD') { const s = shore(o.targetId); out.push({ src: 'ORDER', type: 'BOMBARD', title: '명령 · ' + o.targetName + ' 포격', x: s && s.x, y: s && s.y, progress: o.done ? 1 : 0, goal: 1, unit: '', done: !!o.done }); }
+      }
+      for (const t of (C.eventTasks || [])) {
+        const k = t.task || {};
+        if (k.kind === 'GRID') out.push({ src: 'TASK', type: 'GRID', title: t.title + ' · 격자 ' + k.grid, x: k.x, y: k.y, radius: k.radius, progress: +(t.progress || 0), goal: k.hours, unit: 'h', done: !!t.done });
+        else if (k.kind === 'INTERCEPT') out.push({ src: 'TASK', type: 'INTERCEPT', title: t.title + ' · ' + k.route, route: k.route, progress: t.progress || 0, goal: k.need, unit: '척', done: !!t.done });
+        else if (k.kind === 'BOMBARD') { const s = k.targetId ? shore(k.targetId) : null; out.push({ src: 'TASK', type: 'BOMBARD', title: t.title + ' · ' + (k.targetName || '연안 목표'), x: s && s.x, y: s && s.y, progress: t.done ? 1 : 0, goal: 1, unit: '', done: !!t.done }); }
+      }
+      return out;
+    },
     /* v6.44.1 — 특수초계의 지금 상태: 무엇이 필요하고, 지금 진행 중인지, 막혀 있으면 왜인지, 끝났는지 */
     specialStatus: function () {
       const o = C && C.orders; if (!o || !o.special) return null;
@@ -22849,7 +22869,7 @@ window.Campaign = (function () {
         if (o.code === 'AGENT' && !C.surfaced) blocked = '부상해야 합니다';
         else if (o.code === 'AGENT' && !night) blocked = '밤을 기다립니다(지금 ' + String(Math.floor(h)).padStart(2, '0') + '시)';
         else if ((o.code === 'MINE' || o.code === 'RECON') && C.surfaced) blocked = '잠항해야 합니다';
-        else if (o.code === 'FLOAT_RECON') blocked = '정찰기를 띄우십시오';
+        else if (o.code === 'FLOAT_RECON') { const cf = canFloatplane(); blocked = cf.ok ? '정찰기를 띄우십시오(더 보기 → 정찰기 발진)' : cf.err.replace(/\.$/, ''); }
       }
       return { code: o.code, title: o.title || '특수초계', targetName: o.targetName || o.grid || '', done: !!o.done, inside, blocked,
                progress: +(o.progress || 0), hours: o.hours || 0, need, nm: Math.round(d * T().THEATERS[C.theater].grid.nmPerCell) };
@@ -36148,6 +36168,30 @@ window.Lang.add('ja', {
       }
     });
     /* v6.12 특수초계 목적지 — 전과용 무전 보고와 다른 백색/호박 표식이다. */
+    /* v6.44.2 — 명령·기한 임무 표식: 명령은 하늘색, 기한 임무는 호박색, 끝나면 초록 ✓ */
+    for (const ms of (Campaign.missions ? Campaign.missions() : [])) {
+      const col = ms.done ? '61,255,160' : ms.src === 'ORDER' ? '143,208,255' : '255,176,32';
+      const prog = ms.goal ? (ms.unit === 'h' ? Math.min(ms.goal, +ms.progress.toFixed(1)) + '/' + ms.goal + 'h' : ms.unit ? ms.progress + '/' + ms.goal + ms.unit : '') : '';
+      const label = (ms.done ? '✓ ' : '') + ms.title + (prog && !ms.done ? ' · ' + prog : ms.done ? ' · 완료' : '');
+      if (ms.type === 'GRID' && Number.isFinite(ms.x)) {
+        const q = wpx(sc, ms.x, ms.y), rr = Math.max(10, (ms.radius || 1.5) * sc.k);
+        c.fillStyle = 'rgba(' + col + ',.05)'; c.beginPath(); c.arc(q[0], q[1], rr, 0, 7); c.fill();
+        c.strokeStyle = 'rgba(' + col + ',.85)'; c.lineWidth = 1.6; c.setLineDash(ms.done ? [] : [6, 5]); c.beginPath(); c.arc(q[0], q[1], rr, 0, 7); c.stroke(); c.setLineDash([]);
+        if (!ms.done && ms.goal) { const f = Math.min(1, ms.progress / ms.goal); if (f > 0) { c.strokeStyle = 'rgba(61,255,160,.9)'; c.lineWidth = 3; c.beginPath(); c.arc(q[0], q[1], rr + 3, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); c.stroke(); } }
+        const inside = Math.hypot(ms.x - C.x, ms.y - C.y) <= (ms.radius || 1.5);
+        LBL.add({ x: q[0], y: q[1], lines: [label, !ms.done ? (inside ? '진행 중 — 원 안에 머무르십시오' : '원 안에 머무르면 시간이 쌓입니다') : ''].filter(Boolean), color: 'rgba(' + col + ',.95)', font: 'bold 10px system-ui', pri: 8, gap: rr + 5 });
+      } else if (ms.type === 'INTERCEPT') {
+        const r = (sc.t.routes || []).find(z => z.name === ms.route); if (!r) continue;
+        c.save(); c.strokeStyle = 'rgba(' + col + ',' + (ms.done ? .55 : .7) + ')'; c.lineWidth = 3; c.setLineDash([12, 6]); c.beginPath();
+        r.pts.forEach((p, i) => { const q = wpx(sc, p[0], p[1]); i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1]); }); c.stroke(); c.restore();
+        const m = r.pts[Math.floor(r.pts.length / 2)], q = wpx(sc, m[0], m[1]);
+        LBL.add({ x: q[0], y: q[1], lines: [label, !ms.done ? '이 항로의 선단·단독선을 격침하십시오' : ''].filter(Boolean), color: 'rgba(' + col + ',.95)', font: 'bold 10px system-ui', pri: 7, gap: 8 });
+      } else if (ms.type === 'BOMBARD' && Number.isFinite(ms.x)) {
+        const q = wpx(sc, ms.x, ms.y);
+        c.strokeStyle = 'rgba(' + col + ',.9)'; c.lineWidth = 1.8; c.setLineDash(ms.done ? [] : [4, 4]); c.beginPath(); c.arc(q[0], q[1], 13, 0, 7); c.stroke(); c.setLineDash([]);
+        LBL.add({ x: q[0], y: q[1], lines: [label, !ms.done ? '해안에 붙어 부상 → 더 보기 → 연안 포격' : ''].filter(Boolean), color: 'rgba(' + col + ',.95)', font: 'bold 10px system-ui', pri: 8, gap: 16 });
+      }
+    }
     /* v6.44.1 — 특수초계 표식: 진행 중엔 호박색 고리 + 진행 호 + 조건, 끝나면 초록 ✓ 고리로 남는다 */
     if (C.orders && C.orders.special && Number.isFinite(C.orders.x) && Number.isFinite(C.orders.y)) {
       const S = Campaign.specialStatus ? Campaign.specialStatus() : null, done = !!C.orders.done;
@@ -36329,10 +36373,13 @@ window.Lang.add('ja', {
     const rows = [
       ['부장', exp('exec') + (C.status !== 'AT_SEA' ? '초계 종료' :
         ((C.orders && C.orders.done && C.orders.special) ? '특수초계 완료 ✓ — ' + String(C.orders.title || '').replace(/^특수초계 · /, '') + (C.orders.targetName ? ' (' + C.orders.targetName + ')' : '') + ' · 귀항하면 보상' :
+        (C.orders && C.orders.done && C.orders.kind !== 'FREE') ? '명령 완료 ✓ — ' + String(orderLocale(C.orders,'text') || '').replace(/\*\*/g, '') + ' · 귀항하면 보상' :
         (C.orders && !C.orders.done
-          ? (C.orders.special?'특수초계 — ':'명령 — ') + String(orderLocale(C.orders,'text') || '초계').replace(/\*\*/g, '') + (C.orders.special&&C.orders.hours?' ['+Math.min(C.orders.hours,+(C.orders.progress||0).toFixed(1))+'/'+C.orders.hours+'h]':'') : '자유 초계') +
+          ? (C.orders.special?'특수초계 — ':'명령 — ') + String(orderLocale(C.orders,'text') || '초계').replace(/\*\*/g, '') + (C.orders.hours?' ['+Math.min(C.orders.hours,+(C.orders.progress||0).toFixed(1))+'/'+C.orders.hours+'h]':C.orders.kind==='INTERCEPT'?' ['+(C.orders.progress||0)+'/'+C.orders.need+'척]':'') : '자유 초계') +
         (C.sideObjective ? ' · 부가: ' + String(C.sideObjective.title||'').replace(/^부가목표 · /,'') : '') +
         ' · ' + (Math.floor(C.hours / 24) + 1) + '/' + Math.round(C.patrolHours / 24) + '일')), null],
+      ...((C.eventTasks || []).length ? [['기한 임무', (C.eventTasks || []).map(t => { const k = t.task || {};
+          return (t.done ? '✓ ' : '') + t.title + (t.done ? ' 완료' : k.kind === 'GRID' ? ' [' + Math.min(k.hours, +(t.progress || 0).toFixed(1)) + '/' + k.hours + 'h]' : k.kind === 'INTERCEPT' ? ' [' + (t.progress || 0) + '/' + k.need + '척]' : ''); }).join(' · '), null]] : []),
       ['항해사', exp('nav') + (C.navMode === 'ROUTE'
         ? '항해 중 — 남은 경유점 ' + Math.max(0, C.route.length - C.routeIndex) + '개'
         : (C.route.length ? '대기 — 경유점 ' + C.route.length + '개 찍힘' : '대기 — 항로 없음')), null],
@@ -36849,7 +36896,8 @@ window.Lang.add('ja', {
     stopVoyageTimer();
     const r = Campaign.launchFloatplane();
     if (!r.ok) { worldTip(r.err); return; }
-    worldTip(r.found ? '함재기가 ' + r.found + '곳에서 선박을 찾았습니다.' : '함재기가 아무것도 찾지 못했습니다.');
+    worldTip((r.specialDone ? '특수초계 달성 — 함재기 정찰 완료. ' : '') + (r.found ? '함재기가 ' + r.found + '곳에서 선박을 찾았습니다.' : '함재기가 아무것도 찾지 못했습니다.'));
+    if (r.specialDone && window.Snd && Snd.event) Snd.event('taskdone', {});
     renderWorld(); renderWorldPanel(); Campaign.save();
   });
   $('wShore').addEventListener('click', () => {
