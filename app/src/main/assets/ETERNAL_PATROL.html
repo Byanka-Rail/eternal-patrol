@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.42.0 Chart Graphics</title>
-<script id="ep-build">window.EP_BUILD='6.42.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.42.1 Plain Land</title>
+<script id="ep-build">window.EP_BUILD='6.42.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -35607,42 +35607,6 @@ window.Lang.add('ja', {
     x2.putImageData(im, 0, 0);
     return (depthRaster = { id: t.id, cv: cv });
   }
-  /* v6.42 — 육지의 기복: 해안에서 떨어질수록 높아지는 가짜 고도(거리 변환 + 잡음)에 북서쪽 빛, 위도에 따른 땅색.
-     해안선이 흐려지지 않도록 벡터 해안 경로로 잘라 그 안에만 칠한다. */
-  let landRelief = null;
-  function buildLandRelief(t) {
-    if (landRelief && landRelief.id === t.id) return landRelief;
-    const TT = window.THEATERS, per = 6, W = Math.round(t.grid.w * per), H = Math.round(t.grid.h * per);
-    const land = new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) land[y * W + x] = TT.isLand(t, (x + .5) / per, (y + .5) / per) ? 1 : 0;
-    const dist = new Float32Array(W * H); const BIG = 1e6;
-    for (let k = 0; k < W * H; k++) dist[k] = land[k] ? BIG : 0;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = y * W + x; if (!land[k]) continue; let m = dist[k];
-      if (x > 0) m = Math.min(m, dist[k - 1] + 1); if (y > 0) m = Math.min(m, dist[k - W] + 1); if (x > 0 && y > 0) m = Math.min(m, dist[k - W - 1] + 1.414); if (x < W - 1 && y > 0) m = Math.min(m, dist[k - W + 1] + 1.414); dist[k] = m; }
-    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) { const k = y * W + x; if (!land[k]) continue; let m = dist[k];
-      if (x < W - 1) m = Math.min(m, dist[k + 1] + 1); if (y < H - 1) m = Math.min(m, dist[k + W] + 1); if (x < W - 1 && y < H - 1) m = Math.min(m, dist[k + W + 1] + 1.414); if (x > 0 && y < H - 1) m = Math.min(m, dist[k + W - 1] + 1.414); dist[k] = m; }
-    const hash = (i, j) => { let n = i * 374761393 + j * 668265263; n = (n ^ (n >>> 13)) * 1274126177; return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
-    const vn = (x, y) => { const i = Math.floor(x), j = Math.floor(y), u = x - i, v = y - j, s = q => q * q * (3 - 2 * q);
-      const a = hash(i, j), b = hash(i + 1, j), c2 = hash(i, j + 1), d = hash(i + 1, j + 1); return a + (b - a) * s(u) + (c2 - a) * s(v) + (a - b - c2 + d) * s(u) * s(v); };
-    const fbm = (x, y) => vn(x, y) * .5 + vn(x * 2.1, y * 2.1) * .25 + vn(x * 4.3, y * 4.3) * .15 + vn(x * 8.7, y * 8.7) * .1;
-    const E = new Float32Array(W * H);
-    for (let k = 0; k < W * H; k++) if (land[k]) { const x = k % W, y = (k / W) | 0; E[k] = Math.min(1, dist[k] / (per * 1.6)) * (0.45 + 0.9 * fbm(x / 9, y / 9)) + fbm(x / 3.5 + 11, y / 3.5) * 0.18; }
-    const geo = window.COASTLINES && window.COASTLINES.toGeo;
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d'), im = cx.createImageData(W, H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = y * W + x, o = k * 4; if (!land[k]) { im.data[o + 3] = 0; continue; }
-      const gx = (E[y * W + Math.min(W - 1, x + 1)] - E[y * W + Math.max(0, x - 1)]), gy = (E[Math.min(H - 1, y + 1) * W + x] - E[Math.max(0, y - 1) * W + x]);
-      const lit = Math.max(-1, Math.min(1, -(gx * .7 + gy * .7) * 9));
-      const ll = geo ? geo(t.id, (x + .5) / per, (y + .5) / per) : null, lat = ll ? Math.abs(ll.lat) : 45;
-      /* 땅색 — 북쪽 어두운 초록 / 온대 올리브 / 건조대 황갈 / 열대 짙은 초록 */
-      const arid = lat > 18 && lat < 38 && ll && (ll.lon > -20 && ll.lon < 60) ? 1 : lat > 20 && lat < 34 ? 0.35 : 0;
-      const base = lat > 52 ? [30, 42, 36] : lat > 38 ? [36, 48, 34] : lat < 18 ? [24, 46, 30] : [40, 46, 32];
-      const dry = [70, 60, 40], hi = E[k];
-      let R = base[0] * (1 - arid) + dry[0] * arid, G = base[1] * (1 - arid) + dry[1] * arid, B = base[2] * (1 - arid) + dry[2] * arid;
-      R += hi * 14 + lit * 16; G += hi * 12 + lit * 16; B += hi * 8 + lit * 13;
-      im.data[o] = Math.max(0, Math.min(255, R)); im.data[o + 1] = Math.max(0, Math.min(255, G)); im.data[o + 2] = Math.max(0, Math.min(255, B)); im.data[o + 3] = 255; }
-    cx.putImageData(im, 0, 0);
-    return (landRelief = { id: t.id, cv: cv });
-  }
   /* v6.42 — 구름 덮개: 기상대·태풍 자리에 위성 사진 같은 잡음 구름. 바람 따라 흐르고 태풍은 소용돌이 */
   let cloudTex = null;
   function cloudTexture() {
@@ -35967,8 +35931,7 @@ window.Lang.add('ja', {
       c.fillStyle = '#18231d'; c.strokeStyle = '#4a6352'; c.lineWidth = 1.0 / Math.max(0.01, sc.k);
       const coastOutline = window.COASTLINES.outlinePath ? window.COASTLINES.outlinePath(t.id) : coastPath;
       c.fill(coastPath, 'evenodd');
-      /* v6.42 — 땅의 기복과 색(해안 경로로 잘라 그 안에만) */
-      { const lr = buildLandRelief(t); if (lr) { c.save(); c.clip(coastPath, 'evenodd'); c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high'; c.drawImage(lr.cv, 0, 0, t.grid.w, t.grid.h); c.restore(); } }
+      /* v6.42.1 — 땅은 칠하지 않는다. 실제 지형 자료 없이 만든 기복·땅색은 지어낸 것이라 뺐다(해안선과 파도선만 실제 해안을 따른다). */
       /* 해안 파도선 — 가늘고 밝게, 그 바깥으로 옅은 여울빛 */
       c.strokeStyle = 'rgba(120,200,210,.12)'; c.lineWidth = 3.2 / Math.max(0.01, sc.k); if (coastOutline) c.stroke(coastOutline);
       c.strokeStyle = 'rgba(214,232,236,.34)'; c.lineWidth = 0.9 / Math.max(0.01, sc.k); if (coastOutline) c.stroke(coastOutline);
