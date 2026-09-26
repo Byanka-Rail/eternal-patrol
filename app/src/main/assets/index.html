@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.43.3 Plot Zoom</title>
-<script id="ep-build">window.EP_BUILD='6.43.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.43.4 Auto Reattack</title>
+<script id="ep-build">window.EP_BUILD='6.43.4';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -9467,13 +9467,13 @@ window.AutoMission = (function () {
                   'CONTACT_LOST', 'COMPLETE', 'ABORT'];
 
   const STATE_KO = {
-    IDLE: '대기', OPEN_DISTANCE: '호위망 이탈', SURFACE_RUN: '수상 앞지르기',
+    IDLE: '대기', OPEN_DISTANCE: '호위망 벗어나기', SURFACE_RUN: '수상 앞지르기',
     SURFACE_RUSH: '수상 돌입', DIVE_POINT: '잠항 전환',
     SUBMERGED_AMBUSH: '진로 위 매복', INTERCEPT: '잠항 침투',
     ATTACK_SETUP: '공격 준비', ATTACK_READY: '공격 승인 대기',
     FIRE_DECISION: '발사 판단', ATTACK: '공격',
     REPOSITION: '접근로 재설정', POST_ATTACK: '공격 후 처리',
-    EVADE: '회피', ESCAPE: '이탈', LONG_HUNT_RESOLUTION: '장기 추적 결말',
+    EVADE: '회피', ESCAPE: '조용히 떨어지기', LONG_HUNT_RESOLUTION: '장기 추적 결말',   /* v6.43.4 — 방침 「이탈」과 헷갈리지 않게 */
     CONTACT_LOST: '접촉 상실', COMPLETE: '임무 종료', ABORT: '중단',
   };
 
@@ -9513,21 +9513,21 @@ window.AutoMission = (function () {
                   escapeSeconds: 200,
                   surfaceKn: 10, surfaceSafe: 15000, surfaceRisk: 0.12, diveBack: 7000,
                   repositionAt: 0.34, fireScoreMin: 0.56,
-                  diveWindowSec: 720, diveEscortRange: 8000, runBudget: 2400 },
+                  diveWindowSec: 720, diveEscortRange: 8000, runBudget: 2400, maxAttacks: 2 },
     BALANCED:   { label: '균형', shadowRange: 5500, approachRange: 2800, observeRange: 2200,
                   fireRange: 2600, minConfidence: 0.48, maxExposure: 0.55,
                   escortAbortStrength: 0.70, transitKn: 6.4, approachKn: 3.0, evadeKn: 5.0,
                   escapeSeconds: 160,
                   surfaceKn: 13, surfaceSafe: 12500, surfaceRisk: 0.22, diveBack: 5500,
                   repositionAt: 0.46, fireScoreMin: 0.46,
-                  diveWindowSec: 600, diveEscortRange: 7000, runBudget: 2400 },
+                  diveWindowSec: 600, diveEscortRange: 7000, runBudget: 2400, maxAttacks: 3 },
     AGGRESSIVE: { label: '공격적', shadowRange: 4500, approachRange: 2400, observeRange: 1800,
                   fireRange: 3000, minConfidence: 0.40, maxExposure: 0.75,
                   escortAbortStrength: 0.90, transitKn: 7.4, approachKn: 3.8, evadeKn: 6.5,
                   escapeSeconds: 130,
                   surfaceKn: 16, surfaceSafe: 10000, surfaceRisk: 0.34, diveBack: 4500,
                   repositionAt: 0.60, fireScoreMin: 0.36,
-                  diveWindowSec: 480, diveEscortRange: 5500, runBudget: 2400 },
+                  diveWindowSec: 480, diveEscortRange: 5500, runBudget: 2400, maxAttacks: 4 },
     /* 이탈 — 쏘지 않는다. 붙지도 않는다. 떼어내고 빠져나오는 것만 한다.
        함장이 「오늘은 아니다」라고 정했을 때 쓰는 방침이다. */
     EVADE:      { label: '이탈', shadowRange: 9000, approachRange: 0, observeRange: 0,
@@ -10173,9 +10173,12 @@ window.AutoMission = (function () {
         st !== 'LONG_HUNT_RESOLUTION' &&
         !((st === 'EVADE' || st === 'ESCAPE' || st === 'POST_ATTACK') && realDanger(inp))) {
       out.push({ type: 'periscope', value: false });
-      /* 이미 쏜 판은 되돌아가지 않는다 — 한 판은 한 번의 교전이다 */
-      go((st === 'EVADE' || st === 'ESCAPE' || st === 'POST_ATTACK' || attacked)
-         ? 'COMPLETE' : 'INTERCEPT', '판단을 다시 세운다');
+      /* v6.43.4 — 오래 숨었는데 실제 위협이 없으면 조용히 빠지는 단계(ESCAPE)로 — 곧장 「임무 종료」로 가지 않는다.
+         쏜 뒤라도 공격 횟수가 남았으면 다시 접근로를 세운다. */
+      const attacksDone = mem.attackCount || (attacked ? 1 : 0), budget = doc.maxAttacks || 1;
+      const nx = (st === 'EVADE' || st === 'POST_ATTACK') ? 'ESCAPE' : st === 'ESCAPE' ? 'COMPLETE'
+         : (attacked && attacksDone >= budget) ? 'COMPLETE' : 'INTERCEPT';
+      go(nx, nx === 'ESCAPE' ? '한동안 조용하다 — 떨어져서 다음을 본다' : nx === 'INTERCEPT' ? '판단을 다시 세운다 — 접근로부터' : '판단을 다시 세운다');
       return out;
     }
 
@@ -10207,7 +10210,8 @@ window.AutoMission = (function () {
     const APPROACH_STATES = ['IDLE', 'OPEN_DISTANCE', 'SURFACE_RUN', 'DIVE_POINT',
                              'SUBMERGED_AMBUSH', 'INTERCEPT'];
     const APPROACH_WAIT = 180;   /* 결심을 기다리는 한계 — 3분 */
-    if (!attacked && APPROACH_STATES.indexOf(st) >= 0) {
+    /* v6.43.4 — 다시 붙을 때도 표적을 다시 고른다(첫 표적이 가라앉았거나 더 나은 배가 있으면) */
+    if ((!attacked || (mem.attackCount || 1) < (doc.maxAttacks || 1)) && APPROACH_STATES.indexOf(st) >= 0) {
       const current0 = inp.contacts.find(c => c.id === inp.targetContactId) || null;
       const pref0 = mem.preferredTargetId || inp.targetContactId || null;
       const ranked0 = rankTargets(inp, doc, current0 ? current0.id : null, pref0);
@@ -11557,12 +11561,13 @@ window.AutoMission = (function () {
       case 'POST_ATTACK': {
         out.push({ type: 'periscope', value: false });
         out.push({ type: 'memo', key: 'attacked', value: 1 });
+
         order('depth', inp.presets.LAYER_BELOW);
         order('speed', 2.2);
         out.push({ type: 'silent', value: true });
         if (target) order('course', Math.round(norm360(target.bearing + 180)));
         if (realDanger(inp)) { go('EVADE', realDanger(inp)); break; }
-        if (longHuntDue(inp, mem, dur)) { go('LONG_HUNT_RESOLUTION', '오래 물렸다 — 결말을 낸다'); break; }
+        if (longHuntDue(inp, mem, dur, doc)) { go('LONG_HUNT_RESOLUTION', '오래 물렸다 — 결말을 낸다'); break; }
         /* 조용해졌으면 빠져나간다. 아직 어수선하면 잠시 더 내려가 있는다. */
         const q = (inp.danger && inp.danger.quietFor != null) ? inp.danger.quietFor : dur;
         if (dur > 45 && q > 45) { go('ESCAPE', '조용하다 — 빠져나간다'); break; }
@@ -11571,7 +11576,7 @@ window.AutoMission = (function () {
            실측에서 공격 후 처리에 40분을 앉아 있는 판이 있었다 —
            위험도 아니고 조용하지도 않은 어중간한 상태가 이어진 것이다. */
         teach('쏘고 나서 빠지는 중입니다',
-              '한 판은 한 번의 교전입니다 — 같은 표적을 다시 치러 돌아가지 않습니다',
+              '떨어져서 조용해지면, 어뢰와 공격 횟수가 남았는지 보고 다시 붙을지 정합니다',
               q > 20 ? '조용해지면 이탈로 넘어갑니다'
                      : '마지막 위협에서 ' + Math.round(q) + '초 — 45초 조용하면 빠져나갑니다',
               realDanger(inp) ? '아직 쫓기고 있습니다' : null);
@@ -11779,7 +11784,7 @@ window.AutoMission = (function () {
               : ph === 'ASSESS' ? '조용한 채 확인이 끝나면 이탈합니다'
               : '폭뢰가 멎으면 거리를 벌기 시작합니다',
               (!usingBottom && !belowLayer && ph !== 'BREAK') ? '아직 수온약층 위입니다' : null);
-        if (longHuntDue(inp, mem, dur)) go('LONG_HUNT_RESOLUTION', '오래 물렸다 — 결말을 낸다');
+        if (longHuntDue(inp, mem, dur, doc)) go('LONG_HUNT_RESOLUTION', '오래 물렸다 — 결말을 낸다');
         break;
       }
 
@@ -11822,18 +11827,28 @@ window.AutoMission = (function () {
         if (doc.noAttack) break;
         const tries = mem.retry || 0;
         const haveTorp = (inp.loadedTubes || []).length > 0;
+        const reserve = (inp.own && inp.own.torp && inp.own.torp.reserve) || 0;
+        const attacksDone = mem.attackCount || (attacked ? 1 : 0), budget = doc.maxAttacks || 1;
         /* ── 한 판은 한 번의 교전이다 ──
            교전 시뮬에서는 쏘고 나서 다시 표적을 치러 돌아가지 않는다.
            재공격은 초계 시뮬이나 전략 초계 쪽에서 **새 교전**으로 다룬다.
            그러지 않으면 한 판이 몇 시간짜리 추격전이 되어 버린다. */
-        const mayRetry = inp.simMode === 'PATROL_SIM' || !attacked;
+        /* v6.43.4 — 「한 판에 한 번」을 풀었다. 한 번 쏘고(빗나가도) 어뢰를 안은 채 전장을 떠나던 것이
+           「자동전투가 혼자 이탈한다」는 인상의 주인이었다. 이리떼 함장들은 떨어졌다 다시 붙었다.
+           대신 교리마다 공격 횟수에 한도를 둔다(신중 2 · 균형 3 · 공격적 4), 크게 상한 배(55% 아래)는 다시 붙지 않는다. */
+        const mayRetry = inp.simMode === 'PATROL_SIM' || !attacked || (attacksDone < budget && (inp.own.hp == null || inp.own.hp >= 55));
+        /* 발사관이 비었어도 예비 어뢰가 있으면 떠나지 않고 재장전을 기다린다 */
+        if (mayRetry && !haveTorp && reserve > 0 && !realDanger(inp)) {
+          teach('재장전을 기다립니다', '발사관이 비었습니다 — 예비 어뢰 ' + reserve + '발', '장전되면 다시 붙습니다', null);
+          break;
+        }
         /* **추정 위협으로 얼어붙지 않는다.** 실제로 쫓기고 있지 않고 어뢰가 남아
            있으면 다시 붙는다. 조용히 숨어 있는 것과 임무를 접은 것은 다르다. */
         if (mayRetry && tries < 4 && haveTorp && dur > 150 && !realDanger(inp) &&
             (inp.escapeSeconds == null || inp.escapeSeconds > 60)) {
           out.push({ type: 'memo', key: 'retry', value: tries + 1 });
           out.push({ type: 'memo', key: 'commitAt', value: null });
-          go('IDLE', '다시 붙는다 — ' + (tries + 1) + '차 시도');
+          go('IDLE', attacked ? '다시 붙는다 — ' + (attacksDone + 1) + '번째 공격' : '다시 붙는다 — ' + (tries + 1) + '차 시도');
           break;
         }
         /* ── 확인사살 (Fangschuss) ──
@@ -11863,9 +11878,13 @@ window.AutoMission = (function () {
            「깊이 잠수한 채 아무 일도 없는 시간」이 된다. 실측에서 회피 체류가
            판의 64% 였던 이유가 그것이다. 함장의 권한은 「여기 있지 않는다」이다. */
         const quietNow = (inp.danger && inp.danger.quietFor != null) ? inp.danger.quietFor : 0;
-        if ((!mayRetry || !haveTorp || tries >= 4) && dur > 120 && !realDanger(inp) && quietNow > 120) {
-          out.push({ type: 'report', priority: 'P1', who: 'exec',
-            text: '더 할 일이 없습니다 — 전장을 떠납니다.' });
+        if ((!mayRetry || (!haveTorp && reserve <= 0) || tries >= 4) && dur > 120 && !realDanger(inp) && quietNow > 120) {
+          /* 떠나는 이유를 분명히 말한다 */
+          const why = (!haveTorp && reserve <= 0) ? '어뢰를 다 썼습니다'
+            : (inp.own.hp != null && inp.own.hp < 55) ? '배가 크게 상했습니다'
+            : attacked && attacksDone >= budget ? '공격 ' + attacksDone + '번 — 교리(' + doc.label + ')의 한도입니다'
+            : tries >= 4 ? '네 번 붙어 보았지만 자리가 나지 않습니다' : '더 칠 것이 없습니다';
+          out.push({ type: 'report', priority: 'P1', who: 'exec', text: why + ' — 전장을 떠납니다.' });
           out.push({ type: 'disengage' });
         }
         break;
@@ -11885,7 +11904,7 @@ window.AutoMission = (function () {
        ③ 우리는 깊이 내려가 회피 중이다
        ④ 호위가 아직 우리를 쥐고 있다
        ⑤ 새로 할 수 있는 공격 행동이 없다 */
-  function longHuntDue(inp, mem, dur) {
+  function longHuntDue(inp, mem, dur, doc) {
     const d = inp.danger || {};
     /* 폭뢰가 한 발도 안 떨어졌는데 15분 넘게 쥐여 있는 경우도 있다 —
        그때도 함장이 고를 것은 남아 있지 않다(실측 — 공격 후 처리에 40분). */
@@ -11913,7 +11932,7 @@ window.AutoMission = (function () {
     const shootable = inp.contacts.some(c =>
       age(c, inp.time) <= 120 && c.classification !== 'ESCORT' && c.propeller !== 'fast' &&
       c.rangeEstimate != null && c.rangeEstimate < 6000);
-    if (shootable && (inp.loadedTubes || []).length > 0 && !mem.attacked) return false;
+    if (shootable && (inp.loadedTubes || []).length > 0 && (!mem.attacked || (doc && (mem.attackCount || 1) < (doc.maxAttacks || 1)))) return false;
     if (shootable && (inp.loadedTubes || []).length > 0 &&
         inp.simMode === 'PATROL_SIM') return false;
     return true;
@@ -16568,6 +16587,8 @@ window.UBOAT = (function () {
       const finalHeading = norm360(sol.bearingToLead + spread + gauss(0.35));
       const tubeHeading = norm360(b.heading + (useAft ? 180 : 0));
       const rel = rollTorpedoReliability(ty, fz, runDepth);
+      { const mm = G.autoMission && G.autoMission._mem; if (mm) {                 /* v6.43.4 — 실제 일제사격 횟수(60초 넘게 떨어지면 새 공격) */
+          if (mm.lastSalvoAt == null || G.time - mm.lastSalvoAt > 60) mm.attackCount = (mm.attackCount || 0) + 1; mm.lastSalvoAt = G.time; } }
       G.torpedoes.push({
         x: b.x, y: b.y, heading: tubeHeading,
         targetHeading: finalHeading, aimX: aimX, aimY: aimY,
