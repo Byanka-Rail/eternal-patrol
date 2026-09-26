@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.43.4 Auto Reattack</title>
-<script id="ep-build">window.EP_BUILD='6.43.4';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.44.0 Reload & SJ Radar</title>
+<script id="ep-build">window.EP_BUILD='6.44.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -12390,6 +12390,16 @@ window.UBOAT = (function () {
     /* 발사관부터 채운다 — 주력을 먼저 */
     const order = list.map(t => t.id);
     boat.torp.tubeType = [];
+    /* v6.44 — 초계에서 이어 온 판이면 발사관은 「초계가 기억하는 만큼」만 차 있다.
+       예전에는 매 교전 시작마다 발사관을 예비 어뢰(재고)에서 새로 채워, 지난 교전 끝에 발사관에 들어 있던 어뢰가
+       사라지고 그만큼 예비가 줄었다. 이제 장전 수와 종류를 그대로 옮기고, 재고는 예비 어뢰만 뜻한다. */
+    if (opts && opts.torpStock && opts.loadedCount != null) {
+      const types = Array.isArray(opts.tubeTypes) ? opts.tubeTypes : [];
+      for (let i = 0; i < boat.torp.bowLoaded.length; i++) {
+        if (i < opts.loadedCount) { boat.torp.bowLoaded[i] = true; boat.torp.tubeType.push(types[i] && list.some(t => t.id === types[i]) ? types[i] : order[0]); }
+        else { boat.torp.bowLoaded[i] = false; boat.torp.tubeType.push(null); }
+      }
+    } else
     for (let i = 0; i < boat.torp.bowLoaded.length; i++) {
       let put = null;
       for (const id of order) if (stock[id] > 0) { put = id; break; }
@@ -19114,6 +19124,7 @@ window.UBOAT = (function () {
       sunkList: (G.stats.sunkList || []).slice(),
       theater: G.theater, spec: G.spec,
       reserve: b.torp.reserve, loaded: b.torp.bowLoaded.filter(Boolean).length,
+      tubeTypes: (b.torp.tubeType || []).filter((t, i) => b.torp.bowLoaded[i]),
       battery: b.battery, air: b.air, hp: b.hp,
       torpStock: Object.assign({}, b.torp.stock),
       damage: { depthCtrl: b.damage.depthCtrl, engine: b.damage.engine },
@@ -20785,7 +20796,7 @@ window.Campaign = (function () {
          되돌리려면 디젤을 돌려야 하고, 디젤은 물 위에서만(또는 스노클로만) 돈다. */
       battery: 1, air: 1, snorkel: false,
       hasSnorkel: !!opts.snorkel, hasHoming: !!opts.homingIssued,
-      torpLoaded: spec.tubes, torpReserve: spec.reserve + (Number(support.extraTorp)||0),
+      torpLoaded: spec.tubes + (spec.sternTubes || 0), torpReserve: spec.reserve + (Number(support.extraTorp)||0),
       /* 실제 발사량은 현재 재고로 역산하지 않는다. 전방기지/모항 보급 뒤에도
          초계 전체 소모량이 남도록 교전 AAR에서 누적한다. */
       torpExpended: 0, homeArrival: null,
@@ -21104,7 +21115,16 @@ window.Campaign = (function () {
     if (C.surfaced) R = day ? ({ clear: 20, haze: 13, gale: 9, squall: 7, fog: 4 }[w] || 15) : (w === 'clear' ? 8 : 5);
     else if (C.snorkel) R = 7;
     else R = 22 * clamp(1 - Math.max(0, sea - 1) * 0.1, 0.5, 1);     /* 잠항 청음 — 가장 멀리 듣는다 */
+    /* v6.44 — 미 잠수함의 SJ 수상 레이더: 물 위에 있으면 밤·안개·비와 상관없이 큰 배를 약 14해리(27km)에서 잡는다.
+       낮 맑은 날 눈(20해리)보다는 짧지만, 밤과 궂은 날씨에 선단을 놓치지 않게 해 준다. */
+    if (C.surfaced && C.theater === 'PACIFIC') R = Math.max(R, 14);
     return R * big;
+  }
+  function radarHelps() {                        /* 지금 레이더가 알아보는 거리를 늘리고 있는가(카드 표시용) */
+    if (!C || !C.surfaced || C.theater !== 'PACIFIC') return false;
+    const h = localClockHour(), day = h >= 6 && h < 19, w = C.weather || 'clear';
+    const eye = day ? ({ clear: 20, haze: 13, gale: 9, squall: 7, fog: 4 }[w] || 15) : (w === 'clear' ? 8 : 5);
+    return eye < 14;
   }
   function relGeoId(k) {
     const brg = gridBearing(k.tx, k.ty, C.x, C.y);
@@ -21179,7 +21199,7 @@ window.Campaign = (function () {
         const brg = Math.round(gridBearing(C.x, C.y, k.tx, k.ty) / 5) * 5;
         say((C.surfaced && localClockHour() >= 6 && localClockHour() < 19 ? '견시 — 수평선 ' : '청음 — 희미한 스크류 소리, ') + '방위 ' + String(brg).padStart(3, '0') + '° 쪽. 선단 ' + r.id + ' 일지 모릅니다.', 'hydro', 'report');
         events.push({ kind: 'HINT', track: r.id, bearing: brg }); }
-      if (d <= R) { say('선단이다 — ' + (C.surfaced ? '수평선에 연기와 돛대.' : '청음기에 여러 스크류.') + ' 선단 ' + r.id + ', 약 ' + Math.round(d) + '해리.', 'hydro', 'encounter');
+      if (d <= R) { say('선단이다 — ' + (C.surfaced ? (radarHelps() ? 'SJ 레이더에 큰 반사가 여럿.' : '수평선에 연기와 돛대.') : '청음기에 여러 스크류.') + ' 선단 ' + r.id + ', 약 ' + Math.round(d) + '해리.', 'hydro', 'encounter');
         startTrackEncounter(th, r, events); return true; } }
     return false;
   }
@@ -21900,6 +21920,19 @@ window.Campaign = (function () {
       const running = (C.surfaced || C.snorkel);
       const burn = (C.navMode === 'ROUTE' ? (C.surfaced ? ({ECO:0.7,CRUISE:1.0,FLANK:2.3}[C.speedMode||'CRUISE']||1) : (C.snorkel ? 0.7 : 0.15)) : (running ? 0.3 : 0.08));
       C.fuel = clamp(C.fuel - burn * dt / (spec.fuelDays * 24), 0, 1);
+      /* ── v6.44 어뢰 재장전 ── 교전 뒤 빈 발사관을 예비 어뢰로 다시 채운다(항해 중 한 발에 약 16분, 파도 4 넘으면 더 느리게).
+         예비 재고가 종류별로 있으면 가장 많이 남은 종류부터 꺼낸다. */
+      { const full = spec.tubes + (spec.sternTubes || 0);
+        if (C.torpLoaded < full && C.torpReserve > 0) {
+          const per = (spec.reloadSeconds || 600) / 3600 * 1.6 * ((C.seaState || 1) >= 4 ? 1.6 : 1);
+          C._reloadAcc = (C._reloadAcc || 0) + dt;
+          while (C._reloadAcc >= per && C.torpLoaded < full && C.torpReserve > 0) {
+            C._reloadAcc -= per; C.torpLoaded++; C.torpReserve--;
+            let pick = null; if (C.torpStock) { for (const k of Object.keys(C.torpStock)) if ((C.torpStock[k] | 0) > 0 && (pick == null || C.torpStock[k] > C.torpStock[pick])) pick = k; if (pick) C.torpStock[pick]--; }
+            (C.tubeTypes || (C.tubeTypes = [])).push(pick);
+            if (C.torpLoaded >= full || C.torpReserve <= 0) say('어뢰 재장전 끝 — 발사관 ' + C.torpLoaded + '/' + full + ', 예비 ' + C.torpReserve + '발.', 'tdc');
+          }
+        } else C._reloadAcc = 0; }
       if (C.weather && C.snorkel) {
         if ((C.seaState == null ? 1 : C.seaState) >= 4) { C.snorkel = false; C.speedKn = cruiseKn();
           say('파도가 높아 스노클을 내렸다.', 'eng'); }
@@ -22152,6 +22185,7 @@ window.Campaign = (function () {
          충전 안 하고 뛰어들면 그 상태로 싸운다 */
       battery: C.battery, air: C.air, snorkel: C.hasSnorkel, homing: C.hasHoming,
       torpStock: C.torpStock ? JSON.parse(JSON.stringify(C.torpStock)) : null,
+      loadedCount: C.torpStock ? C.torpLoaded : null, tubeTypes: C.tubeTypes ? C.tubeTypes.slice() : null,
       seed: (C.seed != null ? (C.seed + C.encounters * 7919) : undefined),
       _encounter: e,
     };
@@ -22174,6 +22208,7 @@ window.Campaign = (function () {
     if (aar.reserve != null) C.torpReserve = aar.reserve;
     if (aar.loaded != null) C.torpLoaded = aar.loaded;
     if (aar.torpStock) C.torpStock = JSON.parse(JSON.stringify(aar.torpStock));
+    if (Array.isArray(aar.tubeTypes)) C.tubeTypes = aar.tubeTypes.slice();
     /* 교전 뒤의 전지와 공기가 그대로 이어진다 — 도망치느라 다 썼으면 올라가야 한다 */
     if (aar.battery != null) C.battery = clamp(aar.battery, 0, 1);
     if (aar.air != null) C.air = clamp(aar.air, 0, 1);
@@ -22638,7 +22673,7 @@ window.Campaign = (function () {
       };
       hours = 20 + (100 - C.hull) * 0.35;
       C.fuel = 1;
-      C.torpLoaded = spec.tubes; C.torpReserve = spec.reserve; C.torpStock = null;
+      C.torpLoaded = spec.tubes + (spec.sternTubes || 0); C.torpReserve = spec.reserve; C.torpStock = null; C.tubeTypes = null;
       C.hull = 100;
       C.damage.depthCtrl = 0; C.damage.engine = 0;
       say((p.returnGate ? ((p.returnGate.label || (p.name + ' 귀항항로')) + ' 진입 — 이후 항해를 생략해 ' + p.name + ' 입항으로 처리. ')
@@ -22806,6 +22841,7 @@ window.Campaign = (function () {
     speedMode: function () { return C ? (C.speedMode || 'CRUISE') : 'CRUISE'; },
     speedFor: function (m) { if (!C) return 10; const o = C.speedMode; C.speedMode = m; const v = cruiseKn(); C.speedMode = o; return v; },
     detectNm: function (size) { return C ? detectNm(size) : 0; },
+    radarHelps: function () { return radarHelps(); },
     detectNmSub: function (size) { if (!C) return 0; const s = C.surfaced, k = C.snorkel; C.surfaced = false; C.snorkel = false; const v = detectNm(size); C.surfaced = s; C.snorkel = k; return v; },
     _trackTruth: function (id) { const r = C && C.reports.find(z => z.id === id); return r ? trackOf(r) : null; },
     beginEncounter: beginEncounter, resolveEncounter: resolveEncounter, abortEncounter: abortEncounter,
@@ -36284,7 +36320,7 @@ window.Lang.add('ja', {
       ['손상통제', exp('damage') + (hurt
         ? '수리 중 — 심도조종 ' + pct(dmg.depthCtrl || 0) + ' · 기관 ' + pct(dmg.engine || 0)
         : '이상 없음 · 선체 ' + Math.round(C.hull) + '%'), hurt || C.hull < 60 ? 'bad' : null],
-      ['어뢰사관', exp('tdc') + '발사관 ' + C.torpLoaded + '발 · 예비 ' + C.torpReserve + '발',
+      ['어뢰사관', exp('tdc') + '발사관 ' + C.torpLoaded + '/' + (spec.tubes + (spec.sternTubes || 0)) + ' · 예비 ' + C.torpReserve + '발' + (C.torpLoaded < spec.tubes + (spec.sternTubes || 0) && C.torpReserve > 0 ? ' · 재장전 중' : ''),
         (C.torpLoaded + C.torpReserve) === 0 ? 'bad' : null],
       ['관측원', exp('observer') + (C.planeUp ? '함재기 수색 중'
         : (C.air != null ? '함내 공기 ' + pct(C.air) : '견시 중')),
@@ -36338,7 +36374,7 @@ window.Lang.add('ja', {
       const line = (p, label) => p.ok ? '<div class="pl"><b>' + label + '</b> — 침로 ' + String(p.course).padStart(3, '0') + '° · ' + p.nm + '해리 · 약 ' + p.hours.toFixed(1) + '시간 · 연료 −' + p.fuel + '%' +
         '<small>도착할 때 선단 위치 오차 약 ±' + p.errNm + '해리' + (p.land ? ' · 목표점이 육지 — 해안을 돌아감' : '') + '</small></div>' : '<div class="pl bad"><b>' + label + '</b> — ' + p.err + '</div>';
       card.innerHTML = '<div class="hd"><b>선단 ' + tr.id + '</b> <span>' + tr.qKo + ' 보고 · ' + tr.age.toFixed(1) + '시간 전 · 추정 오차 ±' + tr.err + '해리</span><button type="button" class="x" data-a="close">✕</button></div>' +
-        '<div class="st">추정 침로 <b>' + String(tr.course).padStart(3, '0') + '°</b> · 약 <b>' + tr.speedKn + '노트</b> · ' + tr.size + '척 · 격자 ' + tr.grid + ' · 이 선단을 알아볼 거리 약 ' + Math.round(Campaign.detectNm(tr.size)) + '해리' + (Campaign.state().surfaced ? ' (잠항해 청음하면 약 ' + Math.round(Campaign.detectNmSub(tr.size)) + '해리)' : '') + '</div>' +
+        '<div class="st">추정 침로 <b>' + String(tr.course).padStart(3, '0') + '°</b> · 약 <b>' + tr.speedKn + '노트</b> · ' + tr.size + '척 · 격자 ' + tr.grid + ' · 이 선단을 알아볼 거리 약 ' + Math.round(Campaign.detectNm(tr.size)) + '해리' + (Campaign.radarHelps && Campaign.radarHelps() ? '(SJ 레이더)' : '') + (Campaign.state().surfaced ? ' (잠항해 청음하면 약 ' + Math.round(Campaign.detectNmSub(tr.size)) + '해리)' : '') + '</div>' +
         '<div class="sp">' + ['ECO', 'CRUISE', 'FLANK'].map(m => '<button type="button" class="mini' + (m === mode ? ' on' : '') + '" data-s="' + m + '">' + speedLabel(m) + ' ' + Campaign.speedFor(m).toFixed(1) + '노트</button>').join('') + '</div>' +
         line(pI, '요격') + line(pA, '앞으로 돌아 매복(선단 앞 25해리)') +
         '<div class="ac"><button type="button" class="mini" data-a="int"' + (pI.ok ? '' : ' disabled') + '>요격 항로</button><button type="button" class="mini go" data-a="amb"' + (pA.ok ? '' : ' disabled') + '>매복 항로</button></div>';
