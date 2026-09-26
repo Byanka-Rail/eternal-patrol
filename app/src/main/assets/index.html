@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.42.1 Plain Land</title>
-<script id="ep-build">window.EP_BUILD='6.42.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.43.0 Hull Strain</title>
+<script id="ep-build">window.EP_BUILD='6.43.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -26335,6 +26335,13 @@ window.Snd = (function () {
     creak: function (hard) {
       const k = typeof hard === 'number' ? Math.max(0, Math.min(1.4, hard)) : (hard ? 1 : 0.35);
       const pan = (Math.random() - 0.5) * 0.62;
+      /* v6.43 — 실제 선체 삐걱임 녹음을 재어 맞춘 합성(스틱-슬립 딸깍임 + 선체 고유 공명 + 끝 무렵의 딱) */
+      if (window.EP_HULL_STRAIN && ok()) {
+        const g = AC.createGain(); g.gain.value = 0.38 * mix('mechanics'); route(g, { pan: pan, group: 'mechanics' });
+        window.EP_HULL_STRAIN(AC, g, now() + 0.02, k);
+        if (k > 0.72) tone(48 + Math.random() * 16, 1.10 + k * 0.55, 0.025 + k * 0.035, 'sine', 29, { pan: pan * 0.25, group: 'mechanics', delay: 0.08, pitchJitter: 0.07 });
+        return;
+      }
       const f = 118 + Math.random() * 165;
       const dur = 0.80 + Math.random() * 0.85 + k * 0.55;
       noise(dur, 'bandpass', f, 7 + k * 4, 0.030 + k * 0.070, 0.12,
@@ -45402,6 +45409,7 @@ body.epMenuScene{ background:#030101; }
   }
   function creak(power) {
     if (!AC) return; const t = AC.currentTime;
+    if (window.EP_HULL_STRAIN) { window.EP_HULL_STRAIN(AC, out, t + 0.02, Math.min(1.4, power * 0.85)); return; }   /* v6.43 — 실제 녹음을 재어 맞춘 선체 압력음 */
     const o = AC.createOscillator(), g = AC.createGain(), bp = AC.createBiquadFilter(); o.type = 'sawtooth';
     o.frequency.setValueAtTime(140 + Math.random() * 60, t); o.frequency.exponentialRampToValueAtTime(85 + Math.random() * 20, t + 1.4);
     bp.type = 'bandpass'; bp.frequency.setValueAtTime(420, t); bp.frequency.exponentialRampToValueAtTime(190, t + 1.4); bp.Q.value = 9;
@@ -46255,6 +46263,51 @@ body.epMenuScene{ background:#030101; }
   function tick() { if (setupCmd()) syncCmd(); strip(); }
   setInterval(tick, 500);
   window.EP_V641_WORLDUI = { version: '6.41.0' };
+})();
+</script>
+<script id="ep-v643-hullstrain-script">
+/* ══════════ V6.43 선체 압력음 — 실제 녹음을 재어 맞춘 모양 ══════════
+   참고 녹음(잠수함 선체 삐걱임, 약 4초짜리 두 번)에서 잰 것:
+     · 소리 몸통은 미끄러지다 걸리는(스틱-슬립) 딸깍임이 초당 약 38번 이어지는 것 — 스펙트럼에 촘촘한 세로 줄.
+     · 그 딸깍임이 선체의 고유 진동(비조화 공명)을 울린다: 약 100 · 127 · 180 · 215 · 340 · 431 · 535 · 870Hz, 거의 흔들림 없이.
+     · 1~3kHz 의 갈리는 잡음이 전체의 약 4분의 1.
+     · 1~1.5초에 걸쳐 커지고, 1.5초쯤 3~6Hz 로 들쭉날쭉 버티다가, 끝 무렵 날카로운 「딱」 2~4번, 0.6초에 잦아든다.
+   이 모양 그대로: 딸깍임·잡음을 직접 만든 소리판을 공명 필터 여덟 개에 통과시킨다.
+   게임 소리(깊이 들어갈수록 강재가 우는 소리)와 제목 화면이 같은 합성을 쓴다. k: 0(가벼운 삐걱) ~ 1.4(압궤 직전). */
+(function EP_HULL_STRAIN(){
+  'use strict';
+  const MODES = [[96, 1.0, 18], [108, 0.98, 18], [127, 0.95, 20], [180, 0.65, 24], [215, 0.6, 24], [340, 0.32, 26], [431, 0.5, 28], [535, 0.42, 28], [870, 0.3, 30]];
+  window.EP_HULL_STRAIN = function (ac, dest, t, k) {
+    k = Math.max(0, Math.min(1.4, k == null ? 0.8 : k));
+    const sr = ac.sampleRate, dur = 2.2 + 1.9 * k, n = Math.round(sr * dur), buf = ac.createBuffer(1, n, sr), d = buf.getChannelData(0);
+    const rise = dur * (0.3 + Math.random() * 0.12), rel = dur * 0.16, am1 = 3 + Math.random() * 3, am2 = 0.7 + Math.random() * 0.8, ph = Math.random() * 6;
+    const env = s => { const u = s / sr; let e = u < rise ? Math.pow(u / rise, 1.6) : u > dur - rel ? Math.max(0, (dur - u) / rel) : 1;
+      return e * (0.72 + 0.18 * Math.sin(u * am1 * 6.283 + ph) + 0.1 * Math.sin(u * am2 * 6.283 + ph * 2)); };
+    /* 스틱-슬립 딸깍임 — 간격이 들쭉날쭉한 짧은 충격 */
+    const rate = 30 + Math.random() * 14;
+    for (let s = 0; s < n;) { const e = env(s), a = e * (0.45 + 0.55 * Math.random()) * (Math.random() < 0.5 ? 1 : -1);
+      for (let q = 0; q < 24 && s + q < n; q++) d[s + q] += a * Math.exp(-q / 3.2);
+      s += Math.round(sr / rate * (0.7 + Math.random() * 0.6)); }
+    /* 갈리는 잡음 */
+    for (let s = 0; s < n; s++) d[s] += (Math.random() * 2 - 1) * 0.16 * env(s);
+    /* 끝 무렵의 「딱」 */
+    const cracks = 1 + Math.round(k * 2 + Math.random());
+    for (let c = 0; c < cracks; c++) { const s0 = Math.round(n * (0.62 + Math.random() * 0.28)), A = (1.6 + Math.random() * 1.6) * (0.6 + 0.4 * k);
+      for (let q = 0; q < sr * 0.012 && s0 + q < n; q++) d[s0 + q] += A * (Math.random() * 2 - 1) * Math.exp(-q / (sr * 0.0025)); }
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const bus = ac.createGain(); bus.gain.value = 0.55 * (0.45 + 0.55 * Math.min(1, k)); bus.connect(dest);
+    const tune = 0.93 + Math.random() * 0.14;
+    for (const [f, g, Q] of MODES) { const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.setValueAtTime(f * tune, t);
+      bp.frequency.linearRampToValueAtTime(f * tune * 0.975, t + dur); bp.Q.value = Q; const gg = ac.createGain(); gg.gain.value = g * 1.6;
+      src.connect(bp); bp.connect(gg); gg.connect(bus); }
+    /* 갈리는 소리 — 세질수록 위로 밝아진다(처음엔 1kHz 아래, 한창일 때 3kHz 가까이) */
+    const hiss = ac.createBiquadFilter(); hiss.type = 'bandpass'; hiss.frequency.value = 1400; hiss.Q.value = 0.7;
+    const hl = ac.createBiquadFilter(); hl.type = 'lowpass'; hl.frequency.setValueAtTime(900, t); hl.frequency.linearRampToValueAtTime(2200 + 900 * Math.min(1, k), t + rise);
+    hl.frequency.setValueAtTime(2200 + 900 * Math.min(1, k), t + dur - rel); hl.frequency.linearRampToValueAtTime(800, t + dur);
+    const hg = ac.createGain(); hg.gain.value = 0.21; src.connect(hiss); hiss.connect(hl); hl.connect(hg); hg.connect(bus);
+    src.start(t); src.stop(t + dur + 0.05);
+    return dur;
+  };
 })();
 </script>
 </body>
