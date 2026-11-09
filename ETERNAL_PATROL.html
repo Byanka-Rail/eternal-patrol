@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.56.0 Paper Charts</title>
-<script id="ep-build">window.EP_BUILD='6.56.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.57.0 Watch Log</title>
+<script id="ep-build">window.EP_BUILD='6.57.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -48609,6 +48609,371 @@ html[data-lamp="day"][data-skin="film"] :is(.zbtn, #wExitQuick, .chartBig){ back
     window.EP_V656_PAPER = { sync: syncW };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 50), { once: true }); else setTimeout(init, 50);
+})();
+</script>
+
+<script id="ep-v657-watch-script">
+/* ═══════════════════════════════════════════════════════════════
+   v6.57 — 당직 일지: 조립식 대화와 생활 사건
+   ───────────────────────────────────────────────────────────────
+   v6.34 은행은 통째로 쓴 대화라 같은 상황이면 같은 문장이 돌아온다.
+   여기서는 대화를 **꺼내는 말 · 받는 말 · 덧붙이는 말**로 쪼개 두고 매번 조립한다.
+   빈칸(이름 · 고향 · 음식 · 항해 일수 · 남은 어뢰 · 마지막 전과 · 아군 잠수함)이
+   그때그때 채워지므로 같은 조합도 같은 문장이 되지 않는다.
+
+   · 초계마다 이름 있는 수병 여섯이 정해진다(국적별 이름 · 고향 · 직무).
+   · 상황 반응: 격침 직후 · 피격 뒤 · 무전과 · 어뢰 바닥 · 귀항길 · 아군 선단 발견 전문 · 빵이 상하는 날수
+   · 생활 사건: 짧은 장면. 효과는 없거나 아주 작다(훈련 → 숙련 +0.002).
+   · 기존 대화 자리를 나눠 쓴다(대화 수는 늘지 않는다). 생활 사건만 따로 약 1분에 한 번.
+   · 한국어일 때만. 엔진 난수 미사용.
+   ═══════════════════════════════════════════════════════════════ */
+(function EP_V657_WATCH(){
+  'use strict';
+  const CP = window.Campaign; if (!CP) return;
+  const R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  const hod = C => ((C.hours % 24) + 24) % 24;
+  const day = C => Math.floor((C.hours || 0) / 24) + 1;
+  const nat = C => C.theater === 'PACIFIC' ? 'US' : C.theater === 'EASTPAC' ? 'JP' : 'DE';
+  const torps = C => (C.torpLoaded || 0) + (C.torpReserve || 0);
+  const ROLE = { x: 'exec', n: 'nav', h: 'hydro', o: 'observer', t: 'tdc', e: 'engine', d: 'damage' };
+
+  /* ── 사람과 고향 ── */
+  const NAMES = {
+    DE: ['쿠르트', '프리츠', '빌리', '헬무트', '에리히', '파울', '귄터', '하인리히', '오토', '칼', '루디', '요제프'],
+    US: ['코왈스키', '머피', '산체스', '오브라이언', '밀러', '데이비스', '스미티', '존슨', '그레코', '피터슨'],
+    JP: ['다나카', '스즈키', '사토', '야마다', '나카무라', '고바야시', '이토', '와타나베', '마쓰모토'],
+  };
+  const TOWNS = {
+    DE: ['함부르크', '킬', '브레멘', '뮌헨', '드레스덴', '쾰른', '뤼베크', '슈투트가르트', '빈', '로스토크'],
+    US: ['오하이오', '텍사스', '브루클린', '시카고', '메인', '아이오와', '샌디에이고', '피츠버그', '오클라호마'],
+    JP: ['구레', '사세보', '홋카이도', '오사카', '나가사키', '센다이', '요코스카', '가고시마', '시즈오카'],
+  };
+  const JOBS = ['어뢰병', '기관병', '조타수', '무전병', '견시', '조리장', '신병', '전기병'];
+  const FOOD = {
+    DE: ['감자 수프', '통조림 소시지', '자우어크라우트', '흑빵', '완두콩 죽', '절인 청어', '대용 커피'],
+    US: ['스팸', '팬케이크', '칠리', '통조림 복숭아', '스테이크', '아이스크림', '진한 커피'],
+    JP: ['주먹밥', '미소시루', '단무지', '통조림 고등어', '보리밥', '우메보시', '녹차'],
+  };
+  const GAME = { DE: '스카트', US: '포커', JP: '하나후다' };
+  const HQ = { DE: '사령부', US: '잠수함대 사령부', JP: '제6함대 사령부' };
+
+  function crew(C) {
+    if (C.watchV657 && C.watchV657.nat === nat(C)) return C.watchV657;
+    const n = nat(C), names = NAMES[n].slice(), jobs = JOBS.slice(), men = [];
+    for (let i = 0; i < 6; i++) {
+      const nm = names.splice(Math.floor(R() * names.length), 1)[0];
+      const jb = jobs.splice(Math.floor(R() * jobs.length), 1)[0];
+      men.push({ name: nm, job: jb, town: pick(TOWNS[n]) });
+    }
+    C.watchV657 = { nat: n, men: men, seen: [], nextLife: null, reacted: {} };
+    return C.watchV657;
+  }
+
+  /* ── 조사 — 마지막 글자에 받침이 있는가 ── */
+  const DIG = { '0': 1, '1': 1, '2': 0, '3': 1, '4': 0, '5': 0, '6': 1, '7': 1, '8': 1, '9': 0 };
+  function batchim(w) {
+    const ch = String(w).trim().slice(-1); if (!ch) return { has: false, rieul: false };
+    const c = ch.charCodeAt(0);
+    if (c >= 0xAC00 && c <= 0xD7A3) { const j = (c - 0xAC00) % 28; return { has: j !== 0, rieul: j === 8 }; }
+    if (DIG[ch] != null) return { has: !!DIG[ch], rieul: '178'.includes(ch) };
+    return { has: /[LMN]/i.test(ch), rieul: /L/i.test(ch) };
+  }
+  const JOSA = { '이': ['이', '가'], '은': ['은', '는'], '을': ['을', '를'], '과': ['과', '와'], '아': ['아', '야'], '로': ['으로', '로'] };
+  function josa(w, k) { const b = batchim(w), p = JOSA[k]; if (!p) return w; if (k === '로') return w + (b.has && !b.rieul ? p[0] : p[1]); return w + (b.has ? p[0] : p[1]); }
+
+  /* ── 빈칸 ── */
+  function lastKill(C) { const k = (C.kills || [])[C.kills.length - 1]; return k || null; }
+  function lastKillH(C) { const k = lastKill(C); return k ? ((k.day || 1) - 1) * 24 + (k.hour || 0) : -1e9; }
+  function friendReport(C) {
+    const F = C.fleetV655; if (!F) return null; let best = null;
+    for (const b of F.boats) if (b.rep && b.rep.kind === 'CONTACT' && (C.hours - b.rep.h) < 10 && (!best || b.rep.h > best.rep.h)) best = b;
+    return best;
+  }
+  function fill(C, tpl, ctx) {
+    const W = crew(C), n = W.nat;
+    const used = [];
+    const man = () => { const pool = W.men.filter(m => !used.includes(m) && m.job !== '조리장'); const m = pick(pool.length ? pool : W.men); used.push(m); return m; };
+    const S = ctx.S || (ctx.S = man()), S2 = ctx.S2 || (ctx.S2 = W.men.find(m => m !== S) || S);
+    const k = lastKill(C), fb = ctx.fb;
+    const V = {
+      S: S.name, SJ: S.job, ST: S.town, S2: S2.name, S2J: S2.job, S2T: S2.town,
+      F: ctx.food || (ctx.food = pick(FOOD[n])), F2: ctx.food2 || (ctx.food2 = pick(FOOD[n].filter(x => x !== ctx.food))), G: GAME[n], HQ: HQ[n],
+      D: String(day(C)), T: String(torps(C)), FUEL: String(Math.round((C.fuel == null ? 1 : C.fuel) * 100)),
+      HULL: String(Math.round(C.hull == null ? 100 : C.hull)),
+      SHIP: k ? (k.tanker ? '유조선' : k.escort ? '호위함' : '상선') : '상선', TON: k ? Math.round(k.tons || k.tonnage || 0).toLocaleString() : '0',
+      KILLS: String((C.kills || []).length), TONS: Math.round(C.tonnage || 0).toLocaleString(),
+      BOAT: fb ? fb.hull : '아군 보트', CAPT: fb && fb.capt ? fb.capt : (fb ? fb.hull : ''),
+      GRID: fb && fb.rep && Number.isFinite(fb.rep.cx) && window.THEATERS && THEATERS.gridName ? THEATERS.gridName(C.theater, fb.rep.cx, fb.rep.cy) : '그 격자',
+    };
+    return tpl.replace(/\{([A-Z0-9]+)(?::(이|은|을|과|아|로))?\}/g, (m, key, j) => { const v = V[key] != null ? V[key] : m; return j ? josa(v, j) : v; });
+  }
+
+  /* ── 조립식 대화 은행 ──
+     open: 꺼내는 말 · reply: 받는 말 · tail: 덧붙이는 말(없어도 된다)
+     화자 — x 부장 · n 항해사 · h 청음수 · o 관측원 · t 어뢰사관 · e 기관장 · d 손상통제 · s 수병(이름) · s2 다른 수병 · r 통신사 */
+  const TALK = {
+    AFTERKILL: { w: 5, when: C => C.hours - lastKillH(C) < 30 && C.hours - lastKillH(C) >= 2, open: [
+        't|발사관 다시 장전했습니다. {SJ} {S:이} 손이 아직도 떨린답니다.',
+        'x|{SHIP} 하나. 일지에는 {TON}톤이라고만 적어.',
+        's|어제 그 배요… 구명정이 몇 척이나 내렸을까요.',
+        'h|가라앉는 소리가 아직 귀에 남아 있습니다. 철판이 우는 소리요.',
+        'n|격침 위치 기록했습니다. 해도에 작은 십자가 하나 늘었습니다.',
+        'e|발사 뒤로 다들 말이 없습니다. 기관실이 이렇게 조용한 건 처음입니다.',
+      ], reply: [
+        'x|잘했어. 그리고 잊지는 마. 둘 다 해야 하는 일이야.',
+        'x|저쪽에도 우리 같은 당직이 있었겠지. 그 생각은 집에 가서 하자.',
+        's2|{HQ}에서 축하 전문이 오겠죠?',
+        'o|바다는 벌써 아무 일 없었던 것처럼 잔잔합니다.',
+        'd|잔해 떠다니는 곳은 넓게 돌아가겠습니다. 프로펠러에 걸리면 안 됩니다.',
+        't|남은 건 {T}발입니다. 다음 걸 고를 때 더 아껴 쓰겠습니다.',
+      ], tail: [
+        'x|다들 뭐라도 먹어 둬. {F}라도.',
+        's|…예, 알겠습니다.',
+        'r|{HQ} 전문입니다. 「잘했다, 계속하라」. 그게 전부입니다.',
+      ] },
+    DAMAGED: { w: 4, when: C => (C.hull == null ? 100 : C.hull) < 85, open: [
+        'd|선체 {HULL}%. 용접 자국이 늘어날 때마다 이 배가 조금씩 무거워지는 것 같습니다.',
+        'e|지난번 폭뢰로 좌현 축 베어링이 아직 끽끽거립니다.',
+        's|선미 쪽에서 또 물방울이 떨어집니다. {S2J} {S2:이} 양동이 받쳐 놨습니다.',
+        'x|다들 그날 이후로 잠을 못 자는군. 당직 시간 줄여 줘.',
+        'h|폭뢰 터질 때 들은 소리가 꿈에 나옵니다. 똑, 하고 신관 걸리는 소리요.',
+      ], reply: [
+        'd|모항까지는 버팁니다. 대신 깊이는 아껴 써야 합니다.',
+        'x|살아서 그 소리를 기억하는 거야. 그게 다행이지.',
+        'e|정비창 가면 제일 먼저 저것부터 뜯겠습니다.',
+        's2|저는 그날 기도문을 처음부터 끝까지 다 외웠습니다. 몰랐는데 외우고 있더라고요.',
+        'n|안전심도를 해도 옆에 크게 적어 두겠습니다. 모두 보게요.',
+      ], tail: [ 'x|고칠 수 있는 건 고치고, 못 고치는 건 기억해 둬.', 'd|양동이 하나 더 갖다 놓겠습니다.' ] },
+    DRY: { w: 3, when: C => (C.kills || []).length === 0 && day(C) >= 6, open: [
+        's|벌써 {D}일째입니다. 바다에 우리만 있는 것 같습니다.',
+        'x|{D}일 동안 연기 한 줄 못 봤군.',
+        'h|청음기에는 고래랑 새우뿐입니다. 상선은 다 어디 간 걸까요.',
+        't|어뢰들이 지루해합니다. 매일 닦아서 반짝반짝합니다.',
+        'n|항로 세 개를 다 건너 봤습니다. 선단이 항로를 바꾼 것 같습니다.',
+      ], reply: [
+        'x|사냥은 기다리는 게 구 할이야. 나머지 일 할이 무섭지.',
+        'o|내일은 볼 겁니다. 오늘 바다 색이 다릅니다.',
+        's2|{G} 판돈이 다 떨어졌습니다. 이제 담배를 겁니다.',
+        'n|사령부 전문을 다시 보겠습니다. 다른 보트가 본 게 있을지도 모릅니다.',
+        'e|조용한 초계도 연료는 똑같이 먹습니다. 남은 연료 {FUEL}%입니다.',
+      ], tail: [ 'x|조급해하면 먼저 들키는 건 우리야.', 's|…예. 내일은 보겠죠.' ] },
+    LOWTORP: { w: 3, when: C => torps(C) > 0 && torps(C) <= 3, open: [
+        't|남은 어뢰 {T}발입니다. 이제는 한 발마다 이름을 붙여야 할 것 같습니다.',
+        's|어뢰실이 넓어졌습니다. 해먹을 하나 더 걸 수 있겠습니다.',
+        'x|{T}발로 뭘 할지 생각해 둬. 아무 데나 쓰면 안 돼.',
+      ], reply: [
+        'x|큰 놈만. 작은 놈은 보내 줘.',
+        't|선수관에 아껴 두겠습니다. 확실할 때만 쏘겠습니다.',
+        's2|저는 어뢰보다 빵이 더 걱정입니다.',
+        'n|다 쓰면 바로 귀항 침로 잡겠습니다. 미리 그어 두겠습니다.',
+      ], tail: [ 'e|어뢰가 줄면 배가 가벼워집니다. 연료도 조금 덜 먹습니다.' ] },
+    NOTORP: { w: 5, when: C => torps(C) === 0, open: [
+        't|어뢰실이 텅 비었습니다. 이렇게 넓은 줄 몰랐습니다.',
+        'x|어뢰가 없는 유보트는 그냥 쇳덩이 배야. 집에 가자.',
+        's|어뢰실에서 축구를 할 수 있겠습니다.',
+      ], reply: [ 'n|귀항 침로 잡았습니다.', 'x|이제부터는 보는 것만 보고하자. 눈은 아직 쓸 만하니까.', 'e|가는 길에 연료 아끼겠습니다.' ], tail: [] },
+    HOMEWARD: { w: 3, when: C => C._homewardV657 === true, open: [
+        's|{ST}에 가면 제일 먼저 뭘 할 거냐고요? 목욕입니다. 세 시간짜리요.',
+        's|어머니가 {F2:을} 해 놓으셨을 겁니다. 편지에 그렇게 적혀 있었거든요.',
+        'n|모항까지 며칠 안 남았습니다. 해도 끝이 보입니다.',
+        'x|들어가기 전에 일지 정리해 둬. 사령부는 우리보다 서류를 더 좋아해.',
+        'e|정비창 사람들이 우리 디젤을 보면 울 겁니다.',
+      ], reply: [
+        's2|저는 침대요. 흔들리지 않는 침대.',
+        'x|입항할 때까지는 아직 바다야. 마지막 날에 가라앉은 배도 많아.',
+        'o|항구 앞이 제일 위험합니다. 비행기가 거기서 기다립니다.',
+        'd|입항 전에 수염 깎을 사람은 지금 줄 서.',
+      ], tail: [ 'x|비스케이 만은 끝까지 조심해.', 's|…목욕은 두 시간으로 줄이겠습니다.' ] },
+    FRIEND: { w: 6, when: C => !!friendReport(C), open: [
+        'r|{BOAT} 전문입니다. 선단 발견, {GRID}. 추적 중이랍니다.',
+        'x|{CAPT:이} 선단을 잡았다는군. {GRID}이야.',
+        'r|{BOAT}에서 위치 보고가 계속 들어옵니다. 선단을 놓치지 않고 있습니다.',
+      ], reply: [
+        'n|여기서 {GRID}까지 해도에 그어 보겠습니다.',
+        'x|가 볼 만한지 보자. 늦으면 남는 건 호위함뿐이야.',
+        's|{CAPT:은} 늘 운이 좋더라고요.',
+        'e|최대 속력으로 가면 연료가 {FUEL}%에서 꽤 빠집니다.',
+        'o|그 방향 수평선 계속 보겠습니다. 연기가 보일지도 모릅니다.',
+      ], tail: [ 'x|결정은 함장님이 하신다. 해도부터 펴 둬.', 'r|추가 전문 오면 바로 올리겠습니다.' ] },
+    BREAD: { w: 1.6, when: C => day(C) >= 6 && day(C) <= 18, open: [
+        's|빵에 흰 털이 났습니다. 다들 「토끼」라고 부릅니다.',
+        'x|오늘 빵은 어떤가?',
+        's|또 {F}입니다. {D}일째인데 {D}일 내내 같은 걸 먹은 기분입니다.',
+        'e|기관실 옆 창고 감자에서 싹이 났습니다. 감자도 집에 가고 싶은가 봅니다.',
+      ], reply: [
+        's2|털 난 부분만 떼면 먹을 만합니다. 진짜입니다.',
+        'x|곰팡이도 단백질이야. 의무병한테는 말하지 마.',
+        'd|레몬은 아직 남았습니다. 괴혈병보다는 곰팡이가 낫습니다.',
+        's|{F2:이} 꿈에 나옵니다.',
+      ], tail: [ 'x|조리장한테 고맙다고 해. 이 배에서 제일 힘든 일이야.' ] },
+    LONGSEA: { w: 1.4, when: C => day(C) >= 12, open: [
+        's|{D}일째 씻지 못했습니다. 냄새가 이제 안 납니다. 그게 더 무섭습니다.',
+        'x|다들 수염이 제법이군. 누가 제일 긴지 내기라도 해.',
+        's|{S2:이} 편지를 또 읽습니다. 벌써 마흔 번째입니다.',
+        'n|오늘로 {D}일. 출항할 때 달이 반달이었는데 한 바퀴 돌았습니다.',
+        'e|디젤 기름 냄새가 피부에 뱄습니다. 집에 가서도 안 빠질 것 같습니다.',
+      ], reply: [
+        's2|편지는 읽을 때마다 다른 말이 보입니다.',
+        'x|향수(香水) 아직 남았지? 소금기 닦는 데 쓰고.',
+        's|{S2} 너 {S2T} 이야기 그만해. 다들 가고 싶어지잖아.',
+        'd|수염 내기에는 {S:이} 이길 겁니다. 출항 때부터 안 깎았습니다.',
+      ], tail: [ 'x|조금만 더. 바다는 끝이 있어.', 's2|…마흔한 번째 읽겠습니다.' ] },
+    GALLEYTALK: { w: 1.2, when: C => { const h = hod(C); return (h >= 6 && h < 8) || (h >= 11 && h < 13) || (h >= 17 && h < 19); }, open: [
+        's|오늘은 {F}입니다. 조리장이 특별히 신경 썼답니다.',
+        'x|{F} 냄새가 함수까지 옵니다.',
+        's|{S2:이} 생일이라 조리장이 케이크 비슷한 걸 만들었습니다.',
+      ], reply: [
+        's2|비슷한 거라도 감사합니다.',
+        'x|식사는 교대로. 당직 빠뜨리지 말고.',
+        'e|기관실 몫은 따뜻할 때 갖다 주십시오. 지난번엔 식어서 왔습니다.',
+        'o|함교 당직은 젖은 빵 말고 마른 빵 부탁드립니다.',
+      ], tail: [ 'x|조리장 솜씨가 이 배의 사기야.' ] },
+    NIGHTWATCH: { w: 1, when: C => hod(C) >= 22 || hod(C) < 4, open: [
+        's|{ST}에서는 지금쯤 다들 자고 있겠죠.',
+        'o|함교 당직 교대. {S:이} 올라오면서 뜨거운 차를 들고 왔습니다.',
+        's|별이 이렇게 많은 건 바다에서만 봅니다. {ST}에서는 굴뚝 연기 때문에 안 보였거든요.',
+      ], reply: [
+        'x|조용히. 밤바다는 소리가 멀리 가.',
+        'n|저 별이 북극성입니다. 집은 저쪽입니다.',
+        's2|저희 동네도 등화관제라 요즘은 별이 잘 보인답니다.',
+      ], tail: [ 'x|교대할 때 쌍안경 닦아 두고.' ] },
+  };
+
+  /* ── 생활 사건 — 짧은 장면. fx 는 아주 작게 ── */
+  const LIFE = [
+    { w: 1, t: ['s|화장실이 또 막혔습니다! 밸브 순서를 틀리면 다 거꾸로 올라옵니다.', 'x|{S}, 너 아니지?', 's|…아닙니다.', 'd|순서표를 문에 붙이겠습니다.'] },
+    { w: 1, t: ['s|오늘 {S2} 생일입니다. 조리장이 비스킷에 잼으로 숫자를 그렸습니다.', 'x|생일 축하한다, {S2}. 이번 생일은 바다 밑에서 기억하겠군.'] },
+    { w: 1, t: ['s|레코드를 틀었습니다. 다 아는 노래인데 다들 조용히 듣습니다.', 'x|볼륨은 작게. 잠항 중엔 청음수 귀가 먼저야.'] },
+    { w: 1, t: ['s|{G} 판이 벌어졌습니다. {S2:이} 벌써 담배 두 갑을 잃었습니다.', 's2|다음 판엔 꼭 돌려받습니다.', 'x|싸움 나면 둘 다 빌지 청소야.'] },
+    { w: 1, t: ['x|급속 잠항 훈련. 시계 잰다.', 'e|…38초. 지난번보다 4초 빨랐습니다.', 'x|좋아. 그 4초가 언젠가 우리를 살려.'], fx: C => { C.crewSkill = Math.min(0.95, (C.crewSkill || 0.55) + 0.002); } },
+    { w: 0.9, t: ['d|공기 정화통 교체했습니다. 이산화탄소가 조금 높았습니다.', 's|어쩐지 머리가 아프더라고요.'] },
+    { w: 0.9, t: ['e|압축기 하나가 서 버렸습니다. 두 시간이면 고칩니다.', 'x|그동안 급속 잠항은 하나로 해야겠군. 견시 두 배로.'] },
+    { w: 0.8, t: ['s|{S:이} 해먹에서 떨어졌습니다. 어뢰 위에서 자다가요.', 'd|다친 데는 없습니다. 어뢰도 멀쩡합니다.', 'x|어뢰부터 확인한 건 아니지?'] },
+    { w: 0.8, t: ['r|본국 방송을 잡았습니다. 음악 한 곡이 끝까지 나왔습니다.', 's|다들 숨도 안 쉬고 들었습니다.', 'x|안테나 내려. 오래 들으면 저쪽도 우리 소리를 들어.'] },
+    { w: 0.8, t: ['s|{S2:이} 편지를 씁니다. 부칠 수도 없는데요.', 's2|입항하면 한꺼번에 보낼 겁니다. 스물세 통입니다.'] },
+    { w: 0.7, t: ['s|{S2J} {S2:이} 처음으로 멀미를 안 했습니다. 출항 {D}일 만입니다.', 'x|축하할 일이군. 이제 진짜 승조원이야.'] },
+    { w: 0.7, t: ['d|빌지에서 렌치가 나왔습니다. 지난 정비 때 잃어버린 겁니다.', 'e|그거 찾느라 사흘을 뒤졌습니다!'] },
+    { w: 0.7, t: ['s|{S:이} 함교에서 날치를 잡았습니다. 갑판에 저절로 떨어졌습니다.', 'x|조리장한테 줘. 오늘은 신선한 게 하나 있군.'], when: C => ['PACIFIC', 'EASTPAC', 'MEDITERRANEAN'].includes(C.theater) },
+    { w: 0.7, t: ['o|함교 당직 두 시간 만에 손이 얼었습니다. 쌍안경에서 손을 못 떼겠습니다.', 'x|내려와서 디젤 옆에 서. 교대 빨리 돌려.'], when: C => C.theater === 'ATLANTIC' },
+    { w: 0.6, t: ['s|{S2:이} 집 사진을 보여 줬습니다. 아이가 벌써 걷는답니다.', 'x|출항할 때는 기어 다녔다며.', 's2|예. 제가 못 봤습니다.'] },
+    { w: 0.6, t: ['n|해도에 커피를 쏟았습니다. 대서양에 갈색 섬이 하나 생겼습니다.', 'x|그 섬엔 상륙하지 말자.'] },
+    { w: 0.6, t: ['s|{S:이} 수염을 깎았습니다. 다들 처음 보는 얼굴이라고 합니다.', 's2|못 알아봤습니다. 진짜로요.'] },
+    { w: 0.6, t: ['e|디젤 실린더 하나 온도가 오릅니다. 분사기 갈겠습니다.', 'x|얼마나?', 'e|한 시간. 그동안 한쪽 기관으로 갑니다.'] },
+    { w: 0.5, t: ['s|어뢰실에 쥐가 있습니다! 출항 때 같이 탄 것 같습니다.', 'x|그놈도 승조원이야. 이름이나 지어 줘.', 's|{S2}라고 부르겠습니다.', 's2|…왜 저입니까.'] },
+    { w: 0.5, t: ['s|오늘 {ST} 이야기가 나와서 다들 고향 자랑을 했습니다.', 's2|{S2T:이} 제일입니다. 맥주가요.', 'x|입항하면 증명해 봐.'] },
+  ];
+
+  /* ── 고르기 ── */
+  function seenList(C) { const W = crew(C); return W.seen; }
+  function mark(C, key) { const s = seenList(C); s.push(key); if (s.length > 60) s.splice(0, s.length - 60); }
+  function line(C, raw, ctx) {
+    const i = raw.indexOf('|'); const code = raw.slice(0, i), txt = fill(C, raw.slice(i + 1), ctx);
+    if (code === 's' || code === 's2') {
+      const m = code === 's' ? ctx.S : ctx.S2; const lab = m.job + ' ' + m.name;
+      return { who: 'sailor', role: lab, ko: txt, en: txt, ja: txt, logText: lab + ': ' + txt };
+    }
+    if (code === 'r') return { who: 'radio', role: '통신사', ko: txt, en: txt, ja: txt };
+    return { who: ROLE[code] || 'exec', ko: txt, en: txt, ja: txt };
+  }
+  /* 덧붙이는 말 — 받은 사람과 다른 화자, 수병의 맞장구는 수병이 말을 꺼냈을 때만 */
+  function tailFor(b, oc, rp) {
+    const rc = rp.slice(0, rp.indexOf('|'));
+    const ok = (b.tail || []).filter(x => { const c = x.slice(0, x.indexOf('|')); return c !== rc && (!/^s/.test(c) || /^s/.test(oc)); });
+    return ok.length ? pick(ok) : null;
+  }
+  function chooseTalk(C) {
+    const cand = [];
+    for (const k of Object.keys(TALK)) { const b = TALK[k]; let ok = false; try { ok = b.when(C); } catch (e) {} if (ok) cand.push({ k, w: b.w * (seenList(C).slice(-6).includes('T:' + k) ? 0.25 : 1) }); }
+    if (!cand.length) return null;
+    let sum = cand.reduce((a, o) => a + o.w, 0), r = R() * sum, k = cand[0].k;
+    for (const o of cand) { r -= o.w; if (r <= 0) { k = o.k; break; } }
+    const b = TALK[k], ctx = { fb: friendReport(C) };
+    const oi = Math.floor(R() * b.open.length);
+    const o = b.open[oi], oc = o.slice(0, o.indexOf('|'));
+    /* 받는 말 — 같은 화자가 혼자 주고받지 않게 */
+    const rs = b.reply.filter(x => x.slice(0, x.indexOf('|')) !== oc || oc === 's');
+    const rp = pick(rs.length ? rs : b.reply);
+    const raws = [o, rp];
+    const tl = tailFor(b, oc, rp); if (tl && R() < 0.38) raws.push(tl);
+    mark(C, 'T:' + k);
+    if (k === 'FRIEND' && ctx.fb) crew(C).reacted[ctx.fb.hull + '@' + Math.round(ctx.fb.rep.h)] = 1;
+    return { key: k, lines: raws.map(x => line(C, x, ctx)) };
+  }
+  function chooseLife(C) {
+    const pool = LIFE.map((s, i) => ({ s, i })).filter(o => { try { return !o.s.when || o.s.when(C); } catch (e) { return false; } });
+    const s = seenList(C), fresh = pool.filter(o => !s.includes('L:' + o.i)), use = fresh.length ? fresh : pool;
+    if (!use.length) return null;
+    let sum = use.reduce((a, o) => a + o.s.w, 0), r = R() * sum, p = use[0];
+    for (const o of use) { r -= o.s.w; if (r <= 0) { p = o; break; } }
+    mark(C, 'L:' + p.i);
+    const ctx = {};
+    try { if (p.s.fx) p.s.fx(C); } catch (e) {}
+    return { key: 'LIFE', lines: p.s.t.map(x => line(C, x, ctx)) };
+  }
+  function toChat(C, picked) {
+    C._v657Seq = (C._v657Seq || 0) + 1; const id = 'WV' + C._v657Seq;
+    const ls = picked.lines;
+    for (let i = ls.length - 1; i >= 0; i--) C.log.unshift({ h: C.hours, text: ls[i].logText || ls[i].ko, variants: { ko: ls[i].logText || ls[i].ko }, who: ls[i].who, kind: 'crewchat', chatId: id });
+    if (C.log.length > 120) C.log.length = 120;
+    return { id: id, at: C.hours, context: picked.key, role: ls[0].who, lines: ls.map(l => ({ who: l.who, role: l.role, ko: l.ko, en: l.en, ja: l.ja })) };
+  }
+
+  function quiet(C) { return !C || C.status !== 'AT_SEA' || C.pendingEncounter || C.pendingChoice || (C.alert || 0) > 0.55 || C.hours < 4; }
+  function lang() { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } }
+  /* 귀항길 — 모항 쪽으로 가고 있고 어뢰가 적거나 연료가 적을 때 */
+  function homeward(C) {
+    try { const t = THEATERS.THEATERS[C.theater], p = t.ports.find(x => x.id === C.homePort); if (!p) return false;
+      const d = Math.hypot(p.x - C.x, p.y - C.y); const brg = (Math.atan2(p.x - C.x, -(p.y - C.y)) * 180 / Math.PI + 360) % 360;
+      const off = Math.abs(((brg - (C.course || 0)) + 540) % 360 - 180);
+      return d > 1 && off < 40 && (torps(C) <= 3 || (C.fuel || 1) < 0.4 || day(C) >= 18); } catch (e) { return false; }
+  }
+
+  const orig = CP.advance;
+  CP.advance = function () {
+    const r = orig.apply(this, arguments);
+    try {
+      const C = CP.state(); if (quiet(C) || lang() !== 'ko') return r;
+      const evs = r && r.events; if (!evs) return r;
+      crew(C); C._homewardV657 = homeward(C);
+      /* ① 아군 선단 발견 전문 — 바로 반응(한 전문에 한 번) */
+      const fb = friendReport(C), W = crew(C);
+      if (fb && !W.reacted[fb.hull + '@' + Math.round(fb.rep.h)] && !evs.some(e => e.kind === 'CREW_CHAT') && R() < 0.5) {
+        const ctxk = TALK.FRIEND; const save = TALK.FRIEND.w; void ctxk; void save;
+        const t = (function () { const b = TALK.FRIEND, ctx = { fb }; const o0 = pick(b.open), r0 = pick(b.reply); const raws = [o0, r0]; const t0 = tailFor(b, o0.slice(0, o0.indexOf('|')), r0); if (t0 && R() < 0.4) raws.push(t0);
+          W.reacted[fb.hull + '@' + Math.round(fb.rep.h)] = 1; mark(C, 'T:FRIEND'); return { key: 'FRIEND', lines: raws.map(x => line(C, x, ctx)) }; })();
+        evs.push({ kind: 'CREW_CHAT', chat: toChat(C, t) });
+        return r;
+      }
+      /* ② 대화 자리 — 열린 대화의 절반 남짓을 조립식으로(상황이 있으면 더 자주) */
+      const ci = evs.findIndex(e => e.kind === 'CREW_CHAT' && e.chat && !String(e.chat.id).startsWith('WV'));
+      if (ci >= 0) {
+        const t = chooseTalk(C);
+        const situ = t && !['BREAD', 'LONGSEA', 'GALLEYTALK', 'NIGHTWATCH'].includes(t.key);
+        if (t && R() < (situ ? 0.7 : 0.35)) {
+          const oldId = evs[ci].chat.id; C.log = C.log.filter(l => l.chatId !== oldId);
+          evs[ci] = { kind: 'CREW_CHAT', chat: toChat(C, t) };
+        }
+      }
+      /* ③ 생활 사건 — 약 1분(게임 70~110시간)에 한 번, 다른 대화와 겹치지 않게 */
+      if (W.nextLife == null) W.nextLife = C.hours + 40 + R() * 30;
+      if (C.hours >= W.nextLife && !evs.some(e => e.kind === 'CREW_CHAT')) {
+        W.nextLife = C.hours + 70 + R() * 40;
+        const t = chooseLife(C); if (t) evs.push({ kind: 'CREW_CHAT', chat: toChat(C, t) });
+      }
+    } catch (e) {}
+    return r;
+  };
+
+  function count() {
+    let open = 0, reply = 0, tail = 0, combos = 0;
+    for (const k of Object.keys(TALK)) { const b = TALK[k]; open += b.open.length; reply += b.reply.length; tail += (b.tail || []).length;
+      combos += b.open.length * b.reply.length * (1 + (b.tail || []).length); }
+    return { contexts: Object.keys(TALK).length, open, reply, tail, combos, life: LIFE.length };
+  }
+  window.EP_V657_WATCH = { version: '6.57.0', count, chooseTalk, chooseLife, crew, josa,
+    _sample: (k) => { const C = CP.state(); if (!C) return null; if (k === 'LIFE') return chooseLife(C); const b = TALK[k]; if (!b) return chooseTalk(C);
+      const ctx = { fb: friendReport(C) }; const o0 = pick(b.open), oc = o0.slice(0, o0.indexOf('|')); const rs = b.reply.filter(x => x.slice(0, x.indexOf('|')) !== oc || oc === 's');
+      const r0 = pick(rs.length ? rs : b.reply); const raws = [o0, r0]; const t0 = tailFor(b, oc, r0); if (t0) raws.push(t0); return { key: k, lines: raws.map(x => line(C, x, ctx)) }; } };
 })();
 </script>
 
