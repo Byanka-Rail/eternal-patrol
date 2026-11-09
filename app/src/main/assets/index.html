@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.62.0 Lifeboat</title>
-<script id="ep-build">window.EP_BUILD='6.62.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.63.0 Captain Decides</title>
+<script id="ep-build">window.EP_BUILD='6.63.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -50044,6 +50044,206 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   function wrap() { const CP = window.Campaign; if (!CP || CP._v662) return; const o = CP.advance; CP.advance = function () { if (window.EP_PAUSE_V662) return { events: [], stopped: false }; return o.apply(this, arguments); }; CP._v662 = true; }
   function init() { setInterval(() => { wrap(); watch(); const l = $('epLbRiskL'); if (l) l.textContent = T('하늘 위험', 'Air risk', '空の危険'); }, 800);
     window.EP_V662_LIFEBOAT = { version: '6.62.0', open: (k) => { const C = Campaign.state(); open(C, k || C.kills[C.kills.length - 1] || { name: 'SS Test', tons: 5000 }); }, answer, close, state: () => S }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+
+<style id="ep-v663-decide-style">
+/* ══════════ V6.63 함장 결정 · 사기 ══════════ */
+#epDec{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; background:rgba(2,8,12,.74); }
+#epDec.on{ display:flex; }
+#epDec .db{ width:min(92vw,420px); background:var(--panel,#0e1a22); border:1px solid var(--steel,#355); border-radius:12px; padding:14px; color:var(--ink,#dfe); box-shadow:0 10px 40px rgba(0,0,0,.5); }
+#epDec .who{ font-size:11px; letter-spacing:.12em; color:var(--dim,#8aa); }
+#epDec h3{ margin:2px 0 8px; font-size:16px; color:var(--amber,#e8bc68); }
+#epDec .tx{ font-size:13px; line-height:1.6; margin-bottom:12px; }
+#epDec .ch{ display:grid; gap:7px; }
+#epDec .ch button{ text-align:left; padding:9px 11px; }
+#epDec .ch button small{ display:block; font-size:11px; opacity:.72; margin-top:2px; }
+#epDec .out{ display:none; font-size:13px; line-height:1.6; padding:10px; border-radius:8px; background:rgba(255,255,255,.04); margin-bottom:10px; }
+#epDec .out.on{ display:block; }
+#epDec .mo{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dim,#8aa); margin-top:10px; }
+#epDec .mo .bar{ flex:1; height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+#epDec .mo .bar i{ display:block; height:100%; background:var(--green,#3dffa0); transition:width .5s; }
+#epMorale{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--dim,#8aa); margin:4px 0 2px; }
+#epMorale b{ font-weight:600; }
+#epMorale .bar{ width:70px; height:5px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+#epMorale .bar i{ display:block; height:100%; }
+</style>
+<script id="ep-v663-decide-script">
+/* ══════════ V6.63 함장이 결정하는 생활 사건 · 승조원 사기 ══════════
+   · 사기(0~1, 처음 0.62) — 격침 +, 폭뢰 피해 −, 긴 항해 서서히 −, 결정과 구명정 장면으로 ±.
+   · 사기는 전투에 들어갈 때 역할별 숙련에 ±0.05 안쪽으로 얹힌다(경력 기록 자체는 바꾸지 않는다).
+     사기가 아주 낮으면 가끔 작은 사고가 난다.
+   · 결정 사건 — 게임 시간 약 4~6일에 한 번, 조용할 때. 카드 하나, 선택지 둘~셋, 결과 한 줄.
+   · 결정하는 동안 항해 시계는 멈춘다. 한 · 영 · 일. */
+(function EP_V663_DECIDE(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const tx = a => Array.isArray(a) ? T(a[0], a[1], a[2]) : a;
+  const nat = C => C.theater === 'PACIFIC' ? 'US' : C.theater === 'EASTPAC' ? 'JP' : 'DE';
+  const day = C => Math.floor((C.hours || 0) / 24) + 1;
+  let cur = null;
+
+  /* ── 사기 ── */
+  function get(C) { if (C.moraleV663 == null) C.moraleV663 = 0.62; return C.moraleV663; }
+  function add(C, d) { C.moraleV663 = clamp(get(C) + d, 0, 1); return C.moraleV663; }
+  function word(m) { return m >= 0.8 ? T('높음', 'high', '高い') : m >= 0.6 ? T('좋음', 'good', '良好') : m >= 0.4 ? T('보통', 'fair', '普通') : m >= 0.22 ? T('낮음', 'low', '低い') : T('바닥', 'broken', 'どん底'); }
+  function color(m) { return m >= 0.6 ? 'var(--green,#3dffa0)' : m >= 0.4 ? 'var(--sky,#8fd0ff)' : m >= 0.22 ? 'var(--amber,#e8bc68)' : 'var(--red,#f55)'; }
+  window.EP_MORALE = { get, add, word };
+
+  /* 사건 정의 — n: 국적 · when · t: 제목 · d: 본문 · c: [ [이름, 부제, fn(C) → 결과문] ] */
+  const SAILOR = () => pick(T('쿠르트,빌리,헬무트,오토,파울', 'Kurt,Willi,Helmut,Otto,Paul', 'クルト,ヴィリ,ヘルムート,オットー,パウル').split(','));
+  const EV = [
+    { id: 'appendix', w: 0.7, t: ['급성 복통', 'Acute abdominal pain', '急性腹痛'], who: ['위생병', 'Medic', '衛生兵'],
+      d: ['기관병 하나가 오른쪽 아랫배를 붙잡고 쓰러졌습니다. 맹장염 같습니다. 이 배엔 의사가 없습니다.', 'A motorman collapsed clutching his lower right side. Looks like appendicitis. There is no doctor aboard.', '機関員が右下腹を押さえて倒れました。盲腸のようです。この艦に軍医はいません。'],
+      c: [ [['위생병에게 맡긴다', 'Leave it to the medic', '衛生兵に任せる'], ['얼음과 절식, 운에 맡긴다', 'Ice, fasting, and luck', '氷と絶食、運任せ'], C => { if (R() < 0.62) { add(C, 0.02); return ['사흘 뒤 열이 내렸습니다. 다들 위생병에게 담배를 돌렸습니다.', 'The fever broke three days later. Everyone gave the medic cigarettes.', '三日後に熱が下がりました。皆が衛生兵に煙草を回しました。']; } add(C, -0.12); return ['나흘째 밤, 그는 해먹에서 숨을 거뒀습니다. 다음 날 아침 바다에 묻었습니다.', 'On the fourth night he died in his hammock. We buried him at sea the next morning.', '四日目の夜、彼はハンモックで息を引き取りました。翌朝、水葬にしました。']; } ],
+           [['사령부에 이송을 요청한다', 'Request a transfer from HQ', '司令部に移送を要請'], ['무전 · 반나절 · 연료', 'radio · half a day · fuel', '無電・半日・燃料'], C => { C.hours += 12; C.fuel = clamp((C.fuel || 1) - 0.025, 0, 1); C.alert = clamp((C.alert || 0) + 0.05, 0, 1); add(C, 0.06); return ['보급 잠수함과 접선해 그를 넘겼습니다. 반나절과 연료를 썼지만 다들 함장을 다시 봤습니다.', 'We met a supply boat and handed him over. Half a day and some fuel, but the men looked at the captain differently.', '補給潜水艦と会合して彼を移しました。半日と燃料を使いましたが、皆が艦長を見直しました。']; } ] ] },
+    { id: 'birthday', w: 1, t: ['생일', 'A birthday', '誕生日'], who: ['조리장', 'Cook', '烹炊員'],
+      d: ['오늘 고참 하나가 서른이 됩니다. 조리장이 몰래 아껴 둔 술이 한 병 있답니다. 허락하시겠습니까?', 'One of the old hands turns thirty today. The cook has a bottle he has been hiding. Permission?', '今日、古参の一人が三十になります。烹炊員が隠していた酒が一本あるそうです。許可しますか？'],
+      c: [ [['한 잔씩 허락한다', 'One glass each', '一杯ずつ許可'], ['당직자는 빼고', 'not the watch', '当直は除く'], C => { add(C, 0.05); return ['작은 잔이 한 바퀴 돌았습니다. 오랜만에 웃음소리가 났습니다.', 'Small glasses went round once. Laughter, for the first time in a while.', '小さな杯が一巡しました。久しぶりに笑い声がしました。']; } ],
+           [['함장 몫 초콜릿도 내놓는다', 'Add the captain\'s chocolate', '艦長のチョコレートも出す'], ['함장 몫이 사라진다', 'goodbye to your ration', '艦長の分がなくなる'], C => { add(C, 0.08); return ['초콜릿을 서른 조각으로 나눴습니다. 생일 주인이 울었다는 말은 비밀입니다.', 'The chocolate went into thirty pieces. That the birthday man cried is a secret.', 'チョコレートを三十個に分けました。主役が泣いたのは秘密です。']; } ],
+           [['안 된다. 초계 중이다', 'No. We are on patrol', '駄目だ。哨戒中だ'], ['', '', ''], C => { add(C, -0.03); return ['조리장이 병을 도로 숨겼습니다. 저녁 식사가 조용했습니다.', 'The cook hid the bottle again. Supper was quiet.', '烹炊員が瓶をまた隠しました。夕食は静かでした。']; } ] ] },
+    { id: 'asleep', w: 1, t: ['졸고 있던 견시', 'A lookout asleep', '居眠りの見張り'], who: ['부장', 'XO', '副長'],
+      d: ['새벽 당직 견시가 쌍안경을 든 채 졸고 있었습니다. 열여덟 살 신병입니다.', 'The dawn lookout was asleep with his binoculars up. An eighteen-year-old recruit.', '明け方の見張りが双眼鏡を持ったまま居眠りしていました。十八歳の新兵です。'],
+      c: [ [['엄하게 처벌한다', 'Punish him hard', '厳しく罰する'], ['본보기', 'make an example', '見せしめ'], C => { add(C, -0.04); C.alertV663 = (C.alertV663 || 0) + 1; return ['빌지 청소 일주일. 다른 견시들의 눈이 다시 똑바로 섰습니다. 웃음은 줄었습니다.', 'A week of bilge duty. The other lookouts are sharp again. Fewer smiles.', '一週間のビルジ掃除。他の見張りの目が引き締まりました。笑いは減りました。']; } ],
+           [['경고하고 당직표를 고친다', 'Warn him, fix the watch bill', '警告し当直表を直す'], ['짧은 당직 · 두 명씩', 'shorter watches · pairs', '短い当直・二人一組'], C => { add(C, 0.03); return ['네 시간 당직을 세 시간으로 줄였습니다. 신병은 다음 날 제일 먼저 올라왔습니다.', 'Four-hour watches cut to three. The recruit was first up the next day.', '四時間当直を三時間にしました。新兵は翌日、一番に上がってきました。']; } ] ] },
+    { id: 'fight', w: 0.9, t: ['주먹다짐', 'A fistfight', '殴り合い'], who: ['부장', 'XO', '副長'],
+      d: ['어뢰실에서 수병 둘이 담배 한 갑을 두고 주먹다짐을 했습니다. 하나는 코피가 났습니다.', 'Two men came to blows in the torpedo room over a pack of cigarettes. One has a bloody nose.', '魚雷室で水兵二人が煙草一箱を巡って殴り合いました。一人は鼻血を出しています。'],
+      c: [ [['둘 다 빌지 청소', 'Both on bilge duty', '二人ともビルジ掃除'], ['공평하게', 'even-handed', '公平に'], C => { add(C, 0.01); return ['둘이 같이 빌지를 닦다가 화해했습니다. 냄새 때문에 말을 할 수밖에 없었답니다.', 'Scrubbing the bilge together, they made up. The smell forced them to talk.', '一緒にビルジを磨くうちに仲直りしました。臭くて話すしかなかったそうです。']; } ],
+           [['함장이 직접 이야기를 듣는다', 'Hear them out yourself', '艦長が直接話を聞く'], ['한 시간', 'an hour', '一時間'], C => { C.hours += 1; add(C, 0.04); return ['담배가 아니라 집에서 온 소식 때문이었습니다. 한 시간 이야기를 들었습니다.', 'It wasn\'t the cigarettes — it was news from home. You listened for an hour.', '煙草ではなく、家からの便りのせいでした。一時間話を聞きました。']; } ],
+           [['못 본 척한다', 'Look the other way', '見なかったことにする'], ['', '', ''], C => { add(C, -0.03); return ['다음 날 둘은 서로 말을 하지 않았습니다. 어뢰실 공기가 무겁습니다.', 'The next day they weren\'t speaking. The torpedo room feels heavy.', '翌日、二人は口をききませんでした。魚雷室の空気が重いです。']; } ] ] },
+    { id: 'diesel', w: 0.9, t: ['디젤 이상음', 'Diesel knock', 'ディーゼル異音'], who: ['기관장', 'Chief', '機関長'],
+      d: ['좌현 디젤에서 이상음이 납니다. 베어링 같습니다. 지금 세우고 고치면 여섯 시간입니다.', 'Knocking in the port diesel. Probably a bearing. Stop and fix it now: six hours.', '左舷ディーゼルに異音です。軸受のようです。今止めて直せば六時間です。'],
+      c: [ [['지금 세우고 고친다', 'Stop and fix it now', '今止めて直す'], ['6시간', '6 hours', '6時間'], C => { C.hours += 6; add(C, 0.01); return ['베어링을 갈았습니다. 기관실 사람들이 기름투성이로 박수를 쳤습니다.', 'Bearing replaced. The engine room crew applauded, covered in oil.', '軸受を交換しました。機関科が油まみれで拍手しました。']; } ],
+           [['다음 부상 정지 때 고친다', 'Fix it at the next stop', '次の停止時に直す'], ['위험을 안고 간다', 'run the risk', 'リスクを抱えて行く'], C => { if (R() < 0.35) { C.fuel = clamp((C.fuel || 1) - 0.03, 0, 1); C.hours += 10; add(C, -0.03); return ['이틀 뒤 베어링이 녹아 붙었습니다. 열 시간을 서 있었고 연료도 샜습니다.', 'Two days later the bearing seized. Ten hours dead in the water, and fuel leaked.', '二日後、軸受が焼き付きました。十時間停止し、燃料も漏れました。']; }
+             return ['운이 좋았습니다. 소리는 이어졌지만 버텼습니다.', 'Lucky. The knock stayed, but it held.', '運がよかった。音は続きましたが持ちこたえました。']; } ] ] },
+    { id: 'news', w: 0.7, n: 'DE', t: ['사적인 전문', 'A private signal', '私的な電文'], who: ['통신사', 'Radioman', '通信士'],
+      d: ['사령부 일반 전문 끝에 한 수병 앞으로 온 짧은 소식이 붙어 있습니다. 고향에 공습이 있었고, 그의 집이 맞았답니다.', 'Tacked onto an HQ signal: a short note for one sailor. An air raid at home. His house was hit.', '司令部電文の末尾に一水兵宛ての短い知らせ。故郷に空襲があり、彼の家に被弾したと。'],
+      c: [ [['바로 직접 알린다', 'Tell him yourself, now', '直接すぐ伝える'], ['', '', ''], C => { add(C, 0.01); return ['가족은 대피소에 있었답니다. 집만 잃었습니다. 그는 한참 해도 앞에 앉아 있었습니다.', 'His family was in the shelter. Only the house was lost. He sat by the chart table a long while.', '家族は防空壕にいて無事でした。家だけを失いました。彼は長いこと海図台の前に座っていました。']; } ],
+           [['귀항할 때까지 둔다', 'Hold it until port', '帰投まで伏せる'], ['', '', ''], C => { add(C, -0.02); return ['전문을 서랍에 넣었습니다. 통신사가 그 수병 얼굴을 못 봅니다.', 'The signal went in a drawer. The radioman can\'t look the man in the face.', '電文を引き出しにしまいました。通信士がその水兵の顔を見られません。']; } ] ] },
+    { id: 'manoverboard', w: 0.6, when: C => (C.seaState || 1) >= 3 && C.surfaced, t: ['사람이 빠졌다', 'Man overboard', '落水者'], who: ['함교', 'Bridge', '艦橋'],
+      d: ['큰 파도에 견시 하나가 안전줄째 쓸려 나갔습니다! 줄이 끊어졌습니다.', 'A big sea swept a lookout off, safety line and all! The line parted.', '大波で見張りが安全索ごとさらわれました！索が切れました。'],
+      c: [ [['돌아가서 찾는다', 'Turn back and search', '引き返して捜索'], ['2시간 · 위험', '2 hours · risky', '2時間・危険'], C => { C.hours += 2; C.alert = clamp((C.alert || 0) + 0.06, 0, 1); if (R() < 0.6) { add(C, 0.1); return ['한 시간 반 만에 건졌습니다. 입술이 파랬지만 살았습니다. 다들 그를 끌어안았습니다.', 'Found him after ninety minutes. Blue-lipped, alive. Everyone hugged him.', '一時間半後に引き上げました。唇は青いが生きています。皆が抱きしめました。']; } add(C, -0.06); return ['두 시간을 찾았지만 바다는 아무것도 돌려주지 않았습니다.', 'Two hours of searching. The sea gave nothing back.', '二時間探しましたが、海は何も返してくれませんでした。']; } ],
+           [['계속 간다', 'Carry on', 'そのまま行く'], ['', '', ''], C => { add(C, -0.15); return ['아무도 말하지 않았습니다. 그의 해먹은 그대로 걸려 있습니다.', 'Nobody spoke. His hammock is still hanging.', '誰も口をききませんでした。彼のハンモックはそのままです。']; } ] ] },
+    { id: 'fishing_boat', w: 0.8, when: C => C.surfaced && ['PACIFIC', 'EASTPAC', 'MEDITERRANEAN'].includes(C.theater), t: ['작은 어선', 'A small fishing boat', '小さな漁船'], who: ['견시', 'Lookout', '見張り'],
+      d: ['돛 단 어선 한 척이 가까이 있습니다. 무전 안테나가 있는지 잘 안 보입니다. 우리를 봤습니다.', 'A sailing fishing boat close by. Can\'t tell if she has a radio aerial. She has seen us.', '帆の漁船が近くにいます。無線アンテナがあるか見えません。こちらを見ました。'],
+      c: [ [['다가가 검문한다', 'Close and inspect', '近寄って臨検'], ['1시간', '1 hour', '1時間'], C => { C.hours += 1; if (R() < 0.25) { C.intel = (C.intel || 0) + 1; C.alert = clamp((C.alert || 0) + 0.04, 0, 1); return ['선실에 송신기가 있었습니다. 부수고 어부들은 보냈습니다. 정보 하나를 얻었습니다.', 'A transmitter in the cabin. We smashed it and let the fishermen go. One piece of intel.', '船室に送信機がありました。壊して漁師は帰しました。情報を一つ得ました。']; } add(C, 0.02); return ['그냥 어부들이었습니다. 생선 몇 마리를 받았습니다.', 'Just fishermen. They gave us some fish.', 'ただの漁師でした。魚を少しもらいました。']; } ],
+           [['피해서 잠항한다', 'Dive and avoid', '避けて潜航'], ['', '', ''], C => { C.surfaced = false; if (R() < 0.35) { C.alert = clamp((C.alert || 0) + 0.12, 0, 1); return ['몇 시간 뒤 하늘에 비행기가 돌았습니다. 저 배가 무전을 친 것 같습니다.', 'Hours later an aircraft circled overhead. The boat must have radioed.', '数時間後、上空を航空機が旋回しました。あの船が無電を打ったようです。']; } return ['조용히 지나갔습니다.', 'We slipped away quietly.', '静かにやり過ごしました。']; } ] ] },
+    { id: 'fresh_food', w: 0.8, when: C => day(C) >= 4 && day(C) <= 12, t: ['남은 신선식품', 'The last fresh food', '残りの生鮮食品'], who: ['조리장', 'Cook', '烹炊員'],
+      d: ['계란과 감자가 조금 남았습니다. 상하기 전에 한 번에 쓸까요, 아껴 둘까요?', 'A few eggs and potatoes left. Use them all at once before they spoil, or stretch them?', '卵とじゃがいもが少し残っています。傷む前に一度に使いますか、取っておきますか？'],
+      c: [ [['오늘 다 먹는다', 'Feast today', '今日全部食べる'], ['', '', ''], C => { add(C, 0.05); return ['계란 프라이가 한 사람에 하나씩. 그날 배 안은 계란 냄새로 가득했습니다.', 'One fried egg per man. The boat smelled of eggs all day.', '目玉焼きが一人一つずつ。その日、艦内は卵の匂いでいっぱいでした。']; } ],
+           [['아껴 둔다', 'Stretch them', '取っておく'], ['', '', ''], C => { if (R() < 0.5) { add(C, -0.02); return ['사흘 뒤 계란 절반이 상했습니다.', 'Three days later half the eggs had gone bad.', '三日後、卵の半分が傷みました。']; } add(C, 0.03); return ['일요일마다 조금씩. 다들 일요일을 기다립니다.', 'A little every Sunday. Everyone waits for Sunday now.', '日曜ごとに少しずつ。皆が日曜を待っています。']; } ] ] },
+    { id: 'promotion', w: 0.6, when: C => day(C) >= 6, t: ['진급 추천', 'A recommendation', '昇進推薦'], who: ['부장', 'XO', '副長'],
+      d: ['조타수 하나가 이번 초계 내내 침착했습니다. 하사관 진급을 추천하시겠습니까?', 'One of the helmsmen has been steady all patrol. Recommend him for petty officer?', '操舵員の一人がこの哨戒中ずっと冷静でした。下士官に推薦しますか？'],
+      c: [ [['추천한다', 'Recommend him', '推薦する'], ['', '', ''], C => { add(C, 0.04); C.crewSkill = clamp((C.crewSkill || 0.55) + 0.004, 0, 0.95); return ['그날 밤 조타실에서 작은 축하가 있었습니다.', 'A small celebration in the control room that night.', 'その夜、発令所でささやかな祝いがありました。']; } ],
+           [['귀항해서 다시 보자', 'Decide in port', '帰投後に決める'], ['', '', ''], C => ['부장이 수첩에 이름을 적어 두었습니다.', 'The XO wrote the name in his notebook.', '副長が手帳に名前を書き留めました。'] ] ] },
+    { id: 'tobacco', w: 0.7, when: C => day(C) >= 8, t: ['담배가 떨어졌다', 'Out of tobacco', '煙草切れ'], who: ['부장', 'XO', '副長'],
+      d: ['수병들 담배가 바닥났습니다. 함장실 서랍에 두 보루가 있다는 걸 다들 압니다.', 'The men are out of cigarettes. Everyone knows there are two cartons in the captain\'s drawer.', '水兵の煙草が尽きました。艦長室の引き出しに二カートンあることを皆知っています。'],
+      c: [ [['다 나눠 준다', 'Hand them all out', '全部配る'], ['', '', ''], C => { add(C, 0.06); return ['한 사람에 다섯 개비. 함장실 서랍이 비었습니다.', 'Five each. The captain\'s drawer is empty.', '一人五本。艦長室の引き出しが空になりました。']; } ],
+           [['절반만', 'Half of them', '半分だけ'], ['', '', ''], C => { add(C, 0.03); return ['남은 한 보루는 귀항길을 위해 남겼습니다.', 'The other carton is kept for the run home.', '残り一カートンは帰路のために取っておきました。']; } ] ] },
+    { id: 'hq_fuel', w: 0.6, when: C => (C.fuel || 1) < 0.6, t: ['사령부 질의', 'HQ query', '司令部照会'], who: ['통신사', 'Radioman', '通信士'],
+      d: ['사령부가 남은 연료를 묻습니다. 넉넉하다고 하면 더 먼 해역으로 보낼 겁니다.', 'HQ asks for our fuel state. Say we\'re comfortable and they\'ll send us further out.', '司令部が残燃料を問うています。余裕があると言えば、さらに遠くへ送られるでしょう。'],
+      c: [ [['정직하게 보고한다', 'Report honestly', '正直に報告'], ['', '', ''], C => { C.honestV663 = (C.honestV663 || 0) + 1; return ['「연료 ' + Math.round((C.fuel || 1) * 100) + '%」. 사령부는 현 해역 유지를 지시했습니다.', '"Fuel ' + Math.round((C.fuel || 1) * 100) + '%." HQ ordered us to hold our area.', '「燃料' + Math.round((C.fuel || 1) * 100) + '%」。司令部は現海域維持を指示しました。']; } ],
+           [['조금 부풀린다', 'Pad it a little', '少し多めに言う'], ['', '', ''], C => { C.padV663 = (C.padV663 || 0) + 1; add(C, -0.01); return ['기관장이 말없이 연료계를 봤습니다.', 'The chief looked at the fuel gauge and said nothing.', '機関長が無言で燃料計を見ました。']; } ] ] },
+    { id: 'record_broken', w: 0.5, t: ['깨진 레코드', 'A broken record', '割れたレコード'], who: ['수병', 'Sailor', '水兵'],
+      d: ['배가 크게 기울 때 제일 아끼던 레코드가 깨졌습니다. 다들 그 노래 없이는 못 잔다고 합니다.', 'A hard roll smashed the favourite record. The men say they can\'t sleep without that song.', '大きく傾いた時、一番大事なレコードが割れました。皆あの歌なしでは眠れないと言います。'],
+      c: [ [['아코디언 연주를 허락한다', 'Allow the accordion', 'アコーディオンを許す'], ['조용히 · 부상 중에만', 'quietly · surfaced only', '静かに・浮上中のみ'], C => { add(C, 0.04); return ['서툰 연주였지만 다들 따라 불렀습니다.', 'Clumsy playing, but everyone sang along.', '下手な演奏でしたが、皆が一緒に歌いました。']; } ],
+           [['조각을 붙여 본다', 'Try gluing it', '破片を貼り合わせる'], ['', '', ''], C => { add(C, 0.02); return ['붙인 레코드가 튀면서 돌아갑니다. 튀는 자리마다 다들 웃습니다.', 'The glued record skips. Everyone laughs at every skip.', '貼ったレコードが飛びながら回ります。飛ぶたびに皆が笑います。']; } ] ] },
+  ];
+
+  /* ── 사기의 흐름 ── */
+  function drift(C, dt, prev) {
+    if (day(C) > 10) add(C, -dt * 0.00025 * (day(C) > 20 ? 2 : 1));
+    if (prev && C.kills && C.kills.length > prev.k) add(C, 0.035 * (C.kills.length - prev.k));
+    if (prev && (C.hull || 100) < prev.hull - 2) add(C, -0.04);
+  }
+  /* 아주 낮은 사기 — 가끔 작은 사고 */
+  function mishap(C) {
+    if (get(C) > 0.22 || R() > 0.02) return;
+    const m = pick([['피곤한 조타수가 침로를 놓쳤습니다. 두 시간을 돌아왔습니다.', 'A tired helmsman let her wander off course. Two hours lost.', '疲れた操舵員が針路を外しました。二時間のロス。', C => { C.hours += 2; }],
+      ['당직 교대 중 실수로 해치를 늦게 닫았습니다. 물이 조금 들어왔습니다.', 'A hatch was shut late at watch change. Some water came in.', '当直交代で昇降口を閉めるのが遅れ、少し浸水しました。', C => { C.hull = clamp((C.hull || 100) - 1, 1, 100); }]]);
+    try { m[3](C); C.log.unshift({ h: C.hours, text: m[0], variants: { ko: m[0], en: m[1], ja: m[2] }, who: 'exec', kind: 'report' }); } catch (e) {}
+  }
+
+  /* ── 결정 카드 ── */
+  function build() {
+    if ($('epDec')) return;
+    const el = document.createElement('div'); el.id = 'epDec';
+    el.innerHTML = '<div class="db"><div class="who" id="epDcW"></div><h3 id="epDcT"></h3><div class="tx" id="epDcD"></div><div class="out" id="epDcO"></div><div class="ch" id="epDcC"></div>' +
+      '<div class="mo"><span id="epDcML"></span><span class="bar"><i id="epDcMB"></i></span><b id="epDcMV"></b></div></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { const b = e.target.closest('[data-c]'); if (!b || !cur) return; choose(+b.dataset.c); });
+  }
+  function moraleUI(C) { const m = get(C); $('epDcML').textContent = T('사기', 'Morale', '士気'); $('epDcMB').style.width = Math.round(m * 100) + '%'; $('epDcMB').style.background = color(m); $('epDcMV').textContent = word(m); }
+  function open(C, ev) {
+    build(); cur = { C, ev, done: false }; window.EP_PAUSE_V662 = true;
+    $('epDcW').textContent = tx(ev.who); $('epDcT').textContent = tx(ev.t); $('epDcD').textContent = tx(ev.d);
+    $('epDcO').classList.remove('on');
+    $('epDcC').innerHTML = ev.c.map((c, i) => '<button class="mini" data-c="' + i + '">' + tx(c[0]) + (tx(c[1]) ? '<small>' + tx(c[1]) + '</small>' : '') + '</button>').join('');
+    moraleUI(C); $('epDec').classList.add('on');
+  }
+  function choose(i) {
+    const s = cur; if (!s) return;
+    if (s.done) { $('epDec').classList.remove('on'); window.EP_PAUSE_V662 = false; cur = null; try { Campaign.save(); } catch (e) {} return; }
+    const c = s.ev.c[i], before = get(s.C); let out = null;
+    try { out = c[2](s.C); } catch (e) { out = ['…', '…', '…']; }
+    s.done = true;
+    $('epDcO').innerHTML = tx(out) + (Math.abs(get(s.C) - before) > 0.001 ? '<br><small style="color:var(--dim)">' + T('사기 ', 'Morale ', '士気 ') + (get(s.C) > before ? '▲' : '▼') + '</small>' : '');
+    $('epDcO').classList.add('on');
+    $('epDcC').innerHTML = '<button class="mini go" data-c="0">' + T('확인', 'OK', '了解') + '</button>';
+    moraleUI(s.C);
+    try { const t = tx(s.ev.t) + ' — ' + tx(c[0]) + '. ' + tx(out); s.C.log.unshift({ h: s.C.hours, text: s.ev.t[0] + ' — ' + c[0][0] + '. ' + out[0], variants: { ko: s.ev.t[0] + ' — ' + c[0][0] + '. ' + out[0], en: s.ev.t[1] + ' — ' + c[0][1] + '. ' + out[1], ja: s.ev.t[2] + ' — ' + c[0][2] + '。' + out[2] }, who: 'exec', kind: 'report' }); void t; } catch (e) {}
+  }
+  function pickEvent(C) {
+    const seen = C.decSeenV663 = C.decSeenV663 || [];
+    const pool = EV.filter(e => (!e.n || e.n === nat(C)) && !seen.includes(e.id) && (() => { try { return !e.when || e.when(C); } catch (x) { return false; } })());
+    if (!pool.length) return null;
+    let sum = pool.reduce((a, e) => a + e.w, 0), r = R() * sum; for (const e of pool) { r -= e.w; if (r <= 0) { seen.push(e.id); return e; } }
+    seen.push(pool[0].id); return pool[0];
+  }
+
+  /* ── 매 박자 ── */
+  let prev = null;
+  function wrap() {
+    const CP = window.Campaign; if (!CP || CP._v663) return;
+    const o = CP.advance;
+    CP.advance = function () {
+      const C0 = CP.state(), h0 = C0 ? C0.hours : 0, snap = C0 ? { k: (C0.kills || []).length, hull: C0.hull || 100 } : null;
+      const r = o.apply(this, arguments);
+      try {
+        const C = CP.state(); if (!C || C.status !== 'AT_SEA') return r;
+        const dt = Math.max(0, (C.hours || 0) - h0); if (dt <= 0) return r;
+        drift(C, dt, prev && prev.seed === C.seed ? prev : snap); prev = { seed: C.seed, k: (C.kills || []).length, hull: C.hull || 100 };
+        mishap(C);
+        if (C.nextDecV663 == null) C.nextDecV663 = C.hours + 60 + R() * 40;
+        const quiet = !C.pendingEncounter && !C.pendingChoice && (C.alert || 0) < 0.5 && !document.querySelector('.ov.on, #epMorse.on, #epNav.on, #epLb.on, #epDec.on');
+        if (C.hours >= C.nextDecV663 && quiet) {
+          C.nextDecV663 = C.hours + 100 + R() * 60;
+          const ev = pickEvent(C); if (ev) setTimeout(() => open(C, ev), 50);
+        }
+      } catch (e) {}
+      return r;
+    };
+    /* 전투에 사기를 얹는다 — 역할별 숙련 복사본에만 ±0.05 */
+    const ob = CP.beginEncounter;
+    if (ob && !ob._v663) { CP.beginEncounter = function () { const o2 = ob.apply(this, arguments);
+        try { const C = CP.state(), d = (get(C) - 0.6) * 0.12; if (o2 && o2.crewCareer && Math.abs(d) > 0.004) for (const k in o2.crewCareer) { const r = o2.crewCareer[k]; if (r && Number.isFinite(r.skill)) r.skill = clamp(r.skill + d, 0.3, 0.97); } } catch (e) {}
+        return o2; }; CP.beginEncounter._v663 = true; }
+    CP._v663 = true;
+  }
+  /* 월드 패널에 사기 한 줄 */
+  function panel() {
+    const C = window.Campaign && Campaign.state(), p = $('wPanel'); if (!p || !C || C.status !== 'AT_SEA') { const m = $('epMorale'); if (m) m.style.display = 'none'; return; }
+    let m = $('epMorale'); if (!m) { m = document.createElement('div'); m.id = 'epMorale'; p.insertBefore(m, p.firstChild); }
+    const v = get(C); m.style.display = '';
+    m.innerHTML = T('승조원 사기', 'Crew morale', '乗員士気') + ' <span class="bar"><i style="width:' + Math.round(v * 100) + '%;background:' + color(v) + '"></i></span> <b style="color:' + color(v) + '">' + word(v) + '</b>';
+  }
+  function init() { setInterval(() => { wrap(); panel(); }, 800);
+    window.EP_V663_DECIDE = { version: '6.63.0', open: (id) => { const C = Campaign.state(); const ev = EV.find(e => e.id === id) || pickEvent(C); if (ev) open(C, ev); }, choose, EV, state: () => cur }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
