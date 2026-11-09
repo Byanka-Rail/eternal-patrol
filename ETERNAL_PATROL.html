@@ -51947,7 +51947,7 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
       Object.assign(f, o); f.__capV668 = true;
       CP.resolveEncounter = f; wrapped = true;
     }
-    const sk = $('encSkip'); if (sk && !sk.__capV668) { sk.__capV668 = true; sk.addEventListener('click', () => { try { note('SKIP', { gap: 4000 }); } catch (e) {} }, true); }
+    const sk = $('encSkip'); if (sk && !sk.__capV668) { sk.__capV668 = true; sk.addEventListener('click', e => { if (!e.isTrusted) return; try { note('SKIP', { gap: 4000 }); } catch (err) {} }, true);   /* 사람이 누른 것만 — 추적이 끝나 저절로 넘어간 것은 회피가 아니다 */ }
     const tr = $('epTrack'); if (tr && !tr.__capV668) {
       tr.__capV668 = true;
       tr.addEventListener('click', e => { const b = e.target.closest('.act [data-a]'); if (!b) return;
