@@ -24674,7 +24674,7 @@ window.Learn = (function () {
         list.map(c=>{
           const spec=S.classSpec(c.id), feat=S.classFeatures?S.classFeatures(c.id):'';
           return '<div class="rec-card"><b>'+esc(c.ko)+'</b><small>'+esc((c.theater||[]).join(' / '))+'</small>'+
-            S.svg(spec,true,4)+'<small>'+esc(feat||'')+'</small></div>';
+            (window.EP_PAINTSIL?window.EP_PAINTSIL(spec,4,{compact:true,seed:5,range:900}):S.svg(spec,true,4))+'<small>'+esc(feat||'')+'</small></div>';
         }).join('') + '</div></details>';
     }
     return out;
@@ -43593,7 +43593,7 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
     } else {
       const spec = (vs.classId ? S.classSpec(vs.classId) : null) || S.typeSpec(vs.typeId);
       html += '<div class="epObs"><div class="h"><b>이번 관측에서 본 형태</b><span>' + esc(KO[vs.side] || '사선') + ' · 세부 ' + (vs.detail + 1) + '/5' +
-        (vs.range != null ? ' · ' + Math.round(vs.range / 10) * 10 + 'm' : '') + '</span></div>' + S.svg(spec, false, vs.detail) + '</div>';
+        (vs.range != null ? ' · ' + Math.round(vs.range / 10) * 10 + 'm' : '') + '</span></div>' + (window.EP_PAINTSIL ? window.EP_PAINTSIL(spec, vs.detail, { seed: String(c.id).length * 97 + (vs.classId ? vs.classId.length : 0), range: vs.range }) : S.svg(spec, false, vs.detail)) + '</div>';
     }
     const detail = vs ? vs.detail : 0;
     /* 문 — 이 세부 수준에서 무엇까지 갈리는가 */
@@ -43612,7 +43612,7 @@ body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
       const feats = gr.sig.map(k => WS().EV_KO ? WS().EV_KO[k] : k).filter(Boolean);
       const spec = S.typeSpec(gr.types[0]);
       return '<button type="button" class="epCand' + (on ? ' on' : '') + (merged ? ' merged' : '') + '" data-ep-pick="' + gr.sig.join(',') + '">' +
-        (gr.p > 0.01 ? '<span class="p">' + Math.round(gr.p * 100) + '%</span>' : '') + S.svg(spec, true, detail) +
+        (gr.p > 0.01 ? '<span class="p">' + Math.round(gr.p * 100) + '%</span>' : '') + (window.EP_PAINTSIL ? window.EP_PAINTSIL(spec, detail, { compact: true, seed: 11 }) : S.svg(spec, true, detail)) +
         '<b>' + esc(label) + '</b><small>' + (merged ? '이 거리에선 구분 불가' : esc(feats.slice(0, 2).join(' · ')) || '윤곽만') + '</small></button>';
     }).join('') + '</div>';
     /* 판정 — 기존 Identify 가 낸 것을 그대로 읽는다 */
@@ -53334,6 +53334,76 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   }
   function init() { setInterval(() => { try { offer(); button(); } catch (e) {} }, 900); window.EP_V676_SPECIAL = { version: '6.76.0', open, close, act, state: () => S, steer: (x, y) => { if (S) { S.b.tx = x; S.b.ty = y; } } }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v671-paintsil-script">
+/* ══════════ V6.71 — 함종 대조판도 칠한 배로 ══════════
+   대조판(이번 관측에서 본 형태 · 후보)과 함형 도감은 아직 v6.27 의 흰 납작 실루엣이었다.
+   잠망경과 같은 도장 엔진(EP_SHIPPAINT)으로 작은 그림을 칠해 붙인다.
+   도형·세부 단계(1/5…5/5)는 그대로 — 보이는 것만 그린다. 실패하면 예전 SVG. */
+(function EP_V671_PAINTSIL(){
+  'use strict';
+  const cache = new Map(), MAX = 120;
+  const SKY = { clear: [[118, 138, 152], [150, 170, 181]], night: [[14, 20, 28], [26, 36, 46]] };
+  function theater() {
+    try { const C = window.Campaign && window.Campaign.state && window.Campaign.state(); if (C && C.theater) return C.theater; } catch (e) {}
+    try { const g = window.UBOAT && window.UBOAT.state && window.UBOAT.state(); if (g && g.theaterId) return g.theaterId; } catch (e) {}
+    return 'ATLANTIC';
+  }
+  function hashOf(spec) {
+    if (spec.__h671) return spec.__h671;
+    const t = JSON.stringify(spec); let h = 2166136261;
+    for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); }
+    try { Object.defineProperty(spec, '__h671', { value: (h >>> 0).toString(36) }); } catch (e) {}
+    return (h >>> 0).toString(36);
+  }
+  function paintSil(spec, detail, o) {
+    const S = window.Sil, PNT = window.EP_SHIPPAINT;
+    if (!S || !spec) return '';
+    o = o || {};
+    if (!PNT || !PNT.enabled || typeof document === 'undefined') return S.svg(spec, !!o.compact, detail);
+    const lim = detail == null ? 4 : detail;
+    const th = o.theater || theater();
+    const key = [hashOf(spec), lim, th, o.seed || 0, o.compact ? 1 : 0, Math.round((o.range || 0) / 500), o.night ? 1 : 0].join('|');
+    let url = cache.get(key);
+    if (!url) {
+      try {
+        const A = S.ART, k = o.compact ? 3 : 4;
+        const TOP = 9, BOT = 66, W = A.w * k, H = (BOT - TOP) * k;
+        const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        const ctx = cv.getContext('2d');
+        const sky = o.night ? SKY.night : SKY.clear, wl = (A.water - TOP) * k;
+        /* 하늘 — 위는 짙고 수평선이 밝다 */
+        const gs = ctx.createLinearGradient(0, 0, 0, wl);
+        gs.addColorStop(0, 'rgb(' + sky[0] + ')'); gs.addColorStop(1, 'rgb(' + sky[1] + ')');
+        ctx.fillStyle = gs; ctx.fillRect(0, 0, W, wl);
+        /* 바다 */
+        const gw = ctx.createLinearGradient(0, wl, 0, H);
+        gw.addColorStop(0, o.night ? 'rgb(12,18,24)' : 'rgb(44,62,72)'); gw.addColorStop(1, o.night ? 'rgb(6,9,12)' : 'rgb(22,32,40)');
+        ctx.fillStyle = gw; ctx.fillRect(0, wl, W, H - wl);
+        const ok = S.canvas(ctx, spec, {
+          x: W / 2, waterlineY: wl, width: A.w * k, height: (A.water - A.top) * k,
+          detail: lim, color: '#cfd8df',
+          paint: { seed: o.seed || 7, theater: th, range: o.range || 1800, vis: 1, wx: 'clear',
+                   night: o.night ? 0.95 : 0, dusk: 0, time: 0, speed: 0, sea: 1, hor: sky[1] },
+        });
+        if (!ok) return S.svg(spec, !!o.compact, detail);
+        /* 수평선 한 줄 */
+        ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(0, wl, W, Math.max(1, k * 0.4));
+        url = cv.toDataURL('image/png');
+        if (cache.size > MAX) cache.clear();
+        cache.set(key, url);
+      } catch (e) { return S.svg(spec, !!o.compact, detail); }
+    }
+    return '<img class="epPaintSil" alt="" src="' + url + '">';
+  }
+  window.EP_PAINTSIL = paintSil;
+  const st = document.createElement('style'); st.id = 'ep-v671-paintsil-style';
+  st.textContent =
+    '.epObs img.epPaintSil{display:block;width:100%;height:auto;aspect-ratio:220/57;object-fit:contain;border-radius:6px;margin:4px 0 4px}' +
+    '.epCand img.epPaintSil{display:block;width:100%;height:auto;aspect-ratio:220/57;border-radius:5px;margin:14px 0 2px}' +
+    '.rec-card img.epPaintSil{display:block;width:100%;height:auto;aspect-ratio:220/57;border-radius:5px;margin:4px 0}';
+  (document.head || document.documentElement).appendChild(st);
 })();
 </script>
 </body>
