@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.50.1 Binocular Horizon</title>
-<script id="ep-build">window.EP_BUILD='6.50.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.51.0 Bridge Deck</title>
+<script id="ep-build">window.EP_BUILD='6.51.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -47857,6 +47857,111 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
   }
   function init() { addEncButton(); setInterval(() => { addEncButton(); syncEncButton(); }, 400); window.EP_V648_TRACK = { version: '6.48.0', state: () => S, begin, finish }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v651-voyage-style">
+#epRouteEta{ margin-top:6px; padding:7px 9px; border-radius:8px; background:color-mix(in srgb, var(--sky) 7%, transparent); font-size:12px; line-height:1.55; color:var(--ink); display:none; }
+#epRouteEta.on{ display:block; }
+#epRouteEta b{ color:var(--sky); font-weight:600; font-variant-numeric:tabular-nums; }
+#epRouteEta .warn{ color:var(--amber); }
+</style>
+<script id="ep-v651-voyage-script">
+/* ══════════ V6.51 항해 ══════════
+   ① 함교에서 보는 우리 배 — 앞갑판이 화면 아래로 뻗고, 파도에 따라 들렸다 내려앉는다. 이물의 그물절단기,
+      앞으로 뻗은 점핑 와이어, 갑판포(Ⅶ형·가토급) 또는 격납고와 사출기(I-15형). 달리는 동안 이물에서 흰 물결이
+      갈라지고, 파도가 높으면 물보라가 갑판을 덮는다.
+   ② 경로를 찍으면 거리 · 예상 시간 · 도착 시각 · 연료 소모를 바로 보여 준다(지금 속력 기준). */
+(function EP_V651_VOYAGE(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  let spray = [], lastNow = 0;
+
+  /* ── ① 앞갑판 ── */
+  function deck(c, W, H, env) {
+    if (!c || !c.canvas || c.canvas.id !== 'cvVoyageBridge' || !env) return;
+    const C = window.Campaign && Campaign.state(); if (!C || !C.surfaced) return;
+    const now = performance.now() / 1000, dt = Math.min(0.1, now - (lastNow || now)); lastNow = now;
+    const sea = clamp(+C.seaState || 1, 0, 6), moving = C.navMode === 'ROUTE';
+    const night = (function(){ const h = ((C.hours % 24) + 24) % 24; if (h < 5 || h >= 20) return 1; if (h < 7) return 1 - (h - 5) / 2; if (h >= 18) return (h - 18) / 2; return 0; })();
+    const pitch = Math.sin(now * (0.55 + sea * 0.05)) * (2 + sea * 3.2) + Math.sin(now * 1.37) * sea * 0.8;   /* px — 이물이 들렸다 내려앉는다 */
+    const roll = Math.sin(now * 0.43 + 1) * (0.3 + sea * 0.45) * Math.PI / 180;
+    const baseY = env.baseY, bowY = baseY + (H - baseY) * 0.30 + pitch, botY = H + 4;
+    const isI = /I15|I_15|B1/.test(String(C.boatId)) || C.theater === 'EASTPAC', isGato = /GATO/.test(String(C.boatId)) || C.theater === 'PACIFIC';
+    const lit = night > 0.6 ? 0.12 : night > 0.05 ? 0.35 : 0.75;
+    const steel = c => 'rgb(' + c.map(v => Math.round(v * lit + 6)).join(',') + ')';
+    c.save(); c.translate(W / 2, botY); c.rotate(roll); c.translate(-W / 2, -botY);
+    /* 선체 바깥 — 아래로 넓어진다 */
+    const halfB = W * 0.47, halfT = W * 0.012;
+    let g = c.createLinearGradient(0, bowY, 0, botY); g.addColorStop(0, steel([70, 76, 78])); g.addColorStop(1, steel([38, 42, 44]));
+    c.fillStyle = g; c.beginPath(); c.moveTo(W / 2 - halfT, bowY); c.lineTo(W / 2 + halfT, bowY); c.lineTo(W / 2 + halfB, botY); c.lineTo(W / 2 - halfB, botY); c.closePath(); c.fill();
+    /* 갑판 — 나무 판자 */
+    const dB = W * 0.30, dT = W * 0.006;
+    g = c.createLinearGradient(0, bowY, 0, botY); g.addColorStop(0, steel([96, 88, 72])); g.addColorStop(1, steel([62, 56, 46]));
+    c.fillStyle = g; c.beginPath(); c.moveTo(W / 2 - dT, bowY + 1); c.lineTo(W / 2 + dT, bowY + 1); c.lineTo(W / 2 + dB, botY); c.lineTo(W / 2 - dB, botY); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,' + (0.18 * lit + 0.05).toFixed(2) + ')'; c.lineWidth = 1;
+    for (let i = -6; i <= 6; i++) { c.beginPath(); c.moveTo(W / 2 + i * dT / 6, bowY + 1); c.lineTo(W / 2 + i * dB / 6, botY); c.stroke(); }
+    const yAt = f => bowY + (botY - bowY) * f, half = f => dT + (dB - dT) * f;
+    /* 갑판 가장자리의 배수구 줄 */
+    c.fillStyle = 'rgba(0,0,0,' + (0.25 * lit + 0.1).toFixed(2) + ')';
+    for (const sgn of [-1, 1]) for (let k = 2; k <= 9; k++) { const f = Math.pow(k / 10, 1.4), y = yAt(f), x = W / 2 + sgn * (half(f) + (halfB - dB) * f * 0.5); c.fillRect(x - 3 * f, y, 6 * f + 1, Math.max(1, 2 * f)); }
+    /* 그물절단기 · 점핑 와이어 */
+    c.strokeStyle = steel([24, 26, 28]); c.lineWidth = 2; c.beginPath(); c.moveTo(W / 2, bowY + 1); c.lineTo(W / 2, bowY - 14 - pitch * 0.1); c.stroke();
+    c.lineWidth = 1.2; for (let k = 0; k < 4; k++) { const y = bowY - 3 - k * 3; c.beginPath(); c.moveTo(W / 2, y); c.lineTo(W / 2 + 3, y + 2); c.stroke(); }
+    c.strokeStyle = 'rgba(20,22,24,' + (0.35 + 0.2 * lit).toFixed(2) + ')'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(W / 2, bowY - 14 - pitch * 0.1); c.lineTo(W / 2 + 14, -10); c.stroke();   /* 점핑 와이어 — 함교 쪽으로 */
+    /* 갑판포 · 또는 격납고와 사출기 */
+    const gf = isGato ? 0.62 : 0.46, gy = yAt(gf), gs = gf * 1.6;
+    if (isI) {
+      c.fillStyle = steel([58, 62, 64]); c.beginPath(); c.ellipse(W / 2, yAt(0.92), half(0.92) * 0.55, 40, 0, Math.PI, 0); c.fill();
+      c.strokeStyle = steel([30, 32, 34]); c.lineWidth = 3; for (const sgn of [-1, 1]) { c.beginPath(); c.moveTo(W / 2 + sgn * 6, yAt(0.05)); c.lineTo(W / 2 + sgn * half(0.8) * 0.18, yAt(0.8)); c.stroke(); }
+    } else {
+      c.fillStyle = steel([44, 48, 50]); c.fillRect(W / 2 - 16 * gs, gy - 6 * gs, 32 * gs, 9 * gs);
+      c.fillStyle = steel([52, 56, 58]); c.fillRect(W / 2 - 9 * gs, gy - 16 * gs, 18 * gs, 12 * gs);
+      c.strokeStyle = steel([34, 36, 38]); c.lineWidth = 4.5 * gs; c.lineCap = 'round'; c.beginPath(); c.moveTo(W / 2, gy - 11 * gs); c.lineTo(W / 2 + 2 * gs, gy - 11 * gs - 70 * gs * 0.55); c.stroke();
+      c.lineWidth = 2 * gs; c.beginPath(); c.moveTo(W / 2 - 7 * gs, gy - 4 * gs); c.lineTo(W / 2 - 7 * gs, gy + 10 * gs); c.moveTo(W / 2 + 7 * gs, gy - 4 * gs); c.lineTo(W / 2 + 7 * gs, gy + 10 * gs); c.stroke(); c.lineCap = 'butt';
+    }
+    /* 이물 물결 — 달리는 동안 */
+    if (moving) { const sp = clamp((Campaign.speedFor ? Campaign.speedFor(Campaign.speedMode()) : 10) / 17, 0.3, 1.2);
+      c.fillStyle = 'rgba(232,238,240,' + ((0.45 + 0.3 * sp) * (lit + 0.25)).toFixed(3) + ')';
+      for (const sgn of [-1, 1]) { c.beginPath(); c.moveTo(W / 2, bowY + 2); for (let k = 0; k <= 10; k++) { const f = k / 10, y = bowY + 2 + f * 34, x = W / 2 + sgn * (halfT + (halfB - halfT) * (y - bowY) / (botY - bowY) + 4 + f * 26 * sp + Math.sin(now * 9 + k) * 1.5); c.lineTo(x, y); }
+        for (let k = 10; k >= 0; k--) { const f = k / 10, y = bowY + 2 + f * 34, x = W / 2 + sgn * (halfT + (halfB - halfT) * (y - bowY) / (botY - bowY) + 1); c.lineTo(x, y); } c.closePath(); c.fill(); }
+      /* 물보라 — 이물이 파도에 박힐 때 */
+      const dip = Math.cos(now * (0.55 + sea * 0.05));
+      if (sea >= 2.5 && dip < -0.92 && Math.random() < 0.5) for (let i = 0; i < 14 + sea * 6; i++) spray.push({ x: W / 2 + rnd(-30, 30), y: bowY, vx: rnd(-90, 90), vy: rnd(-260, -120) * (0.6 + sea * 0.12), r: rnd(1, 3.5), t: 0, life: rnd(0.6, 1.2) });
+    }
+    c.restore();
+    spray = spray.filter(p => (p.t += dt) < p.life);
+    for (const p of spray) { p.vy += 420 * dt; p.x += p.vx * dt; p.y += p.vy * dt; const a = 1 - p.t / p.life;
+      c.fillStyle = 'rgba(236,242,244,' + (0.7 * a * (lit + 0.3)).toFixed(3) + ')'; c.beginPath(); c.arc(p.x, p.y, p.r, 0, 6.283); c.fill(); }
+  }
+  function hook() {
+    const OV = window.ObservationVisuals; if (!OV || OV.__voy651) return !!OV;
+    const of = OV.paintForeground;
+    OV.paintForeground = function (c, W, H, env) { const r = of ? of.apply(this, arguments) : undefined; try { deck(c, W, H, env); } catch (e) {} return r; };
+    OV.__voy651 = true; return true;
+  }
+
+  /* ── ② 경로의 시간 · 연료 ── */
+  function routeEta() {
+    const C = window.Campaign && Campaign.state(), note = $('wNote'); if (!note) return;
+    let el = $('epRouteEta'); if (!el) { el = document.createElement('div'); el.id = 'epRouteEta'; note.after(el); }
+    if (!C || !C.route || !C.route.length) { el.classList.remove('on'); return; }
+    const TH = window.THEATERS, t = TH && TH.THEATERS[C.theater]; if (!t) return;
+    let x = C.x, y = C.y, cells = 0; for (const p of C.route) { if (p.reached) continue; cells += Math.hypot(p.x - x, p.y - y); x = p.x; y = p.y; }
+    const nm = cells * t.grid.nmPerCell, mode = Campaign.speedMode ? Campaign.speedMode() : 'CRUISE';
+    const kn = C.surfaced === false ? 4 : (Campaign.speedFor ? Campaign.speedFor(mode) : 10);
+    const hours = nm / Math.max(1, kn), burn = C.surfaced === false ? 0.15 : ({ ECO: 0.7, CRUISE: 1.0, FLANK: 2.3 })[mode] || 1;
+    let fuelUse = 0; try { fuelUse = burn * hours / (TH.BOATS[C.boatId].fuelDays * 24); } catch (e) {}
+    const arr = C.hours + hours, d = Math.floor(arr / 24) + 1, hh = Math.floor(((arr % 24) + 24) % 24);
+    const left = (C.fuel || 0) - fuelUse;
+    el.innerHTML = '경로 <b>' + Math.round(nm).toLocaleString('ko-KR') + '해리</b> · ' + kn.toFixed(0) + '노트로 <b>' + (hours >= 48 ? (hours / 24).toFixed(1) + '일' : hours.toFixed(0) + '시간') + '</b> · 도착 <b>' + d + '일 ' + String(hh).padStart(2, '0') + '시</b>' + (hh >= 20 || hh < 5 ? '(밤)' : '') +
+      '<br>연료 약 <b>' + Math.round(fuelUse * 100) + '%</b> 소모 → 도착 때 <b' + (left < 0.3 ? ' class="warn"' : '') + '>' + Math.max(0, Math.round(left * 100)) + '%</b>' + (left < 0.3 ? ' <span class="warn">— 돌아갈 연료가 빠듯합니다</span>' : '');
+    el.classList.add('on');
+  }
+  function loop() { if (!window.ObservationVisuals || !window.ObservationVisuals.__voy651) hook(); try { routeEta(); } catch (e) {} }
+  setTimeout(() => { loop(); setInterval(loop, 500); }, 600);
+  window.EP_V651_VOYAGE = { version: '6.51.0' };
 })();
 </script>
 </body>
