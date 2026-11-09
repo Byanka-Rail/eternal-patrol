@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.60.0 Morse Key</title>
-<script id="ep-build">window.EP_BUILD='6.60.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.61.0 Sextant</title>
+<script id="ep-build">window.EP_BUILD='6.61.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -49590,6 +49590,8 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
     if (s.dfAt && !hadDF && R() > r.df) s.dfAt = null;
     else if (!s.dfAt && r.df > 1 && R() < (r.df - 1) * 0.35) s.dfAt = { at: s.t + 0.3 + R() * 0.5, x: s.boat.x, y: s.boat.y };
     if (s.pack) s.pack.q = clamp(s.pack.q + (r.q - 0.75) * 0.3, 0.05, 0.95);
+    /* v6.61 — 우리 위치가 불확실하면 보고한 선단 위치도 그만큼 틀린다 */
+    try { const ne = window.EP_V661_NAV ? EP_V661_NAV.err(s.C) : 0; if (s.pack && ne > 5) s.pack.q = clamp(s.pack.q - Math.min(0.3, (ne - 5) / 80), 0.05, 0.95); } catch (e) {}
     try { s.msgs.unshift({ who: T('통신사', 'Radioman', '通信士'), text: r.q < 0.6 ? T('사령부가 위치를 다시 물어 옵니다. 전문이 깨져서 들어갔습니다.', 'HQ is asking for the position again. The signal went out garbled.', '司令部が位置を問い返しています。電文が崩れて届きました。')
       : r.df < 0.8 ? T('짧게 끊었습니다. 저쪽 방향탐지기도 잡을 틈이 없었을 겁니다.', 'Kept it short. Their direction-finders had no time to fix us.', '短く切りました。向こうの方探も捉える暇はなかったはずです。')
       : T('수신 확인. 조금 길게 나갔습니다.', 'Receipt acknowledged. It ran a bit long.', '受信確認。少し長く出ました。'), t: s.t }); } catch (e) {}
@@ -49617,6 +49619,217 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   }
   setInterval(nameBoats, 300);
   window.EP_V660_MORSE = { version: '6.60.0', open: () => { const s = trk(); const b = document.querySelector('#epTrack [data-a="REPORT"]'); if (s && b) open(s, b); }, state: () => G, input, finish, MORSE };
+})();
+</script>
+
+<style id="ep-v661-nav-style">
+/* ══════════ V6.61 천측 — 육분의 ══════════ */
+#epNavBtn{ display:none; }
+#epNavBtn.on{ display:block; }
+#epNavBtn.want{ border-color:var(--amber,#e8bc68) !important; color:var(--amber,#e8bc68) !important; animation:epNavPulse 2.4s ease-in-out infinite; }
+@keyframes epNavPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(232,188,104,0); } 50%{ box-shadow:0 0 0 4px rgba(232,188,104,.25); } }
+#epNav{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; background:rgba(2,8,12,.74); }
+#epNav.on{ display:flex; }
+#epNav .nb{ width:min(94vw,430px); background:var(--panel,#0e1a22); border:1px solid var(--steel,#355); border-radius:12px; padding:12px; box-shadow:0 10px 40px rgba(0,0,0,.5); color:var(--ink,#dfe); }
+#epNav h3{ margin:0 0 3px; font-size:15px; letter-spacing:.1em; color:var(--amber,#e8bc68); display:flex; justify-content:space-between; align-items:baseline; }
+#epNav h3 small{ font-size:11px; letter-spacing:0; color:var(--dim,#8aa); font-weight:500; }
+#epNav .why{ font-size:12px; color:var(--dim,#8aa); line-height:1.5; margin-bottom:8px; }
+#epNav canvas{ display:block; width:100%; height:auto; aspect-ratio:4/3; border-radius:50%/42%; background:#000; touch-action:none; cursor:ns-resize; box-shadow:inset 0 0 0 3px #3b3122, 0 0 0 2px #1b150c; }
+#epNav .row{ display:grid; grid-template-columns:1fr 2fr 1fr; gap:8px; margin-top:10px; }
+#epNav .mark{ font-weight:700; letter-spacing:.08em; }
+#epNav .sights{ display:flex; gap:6px; justify-content:center; margin-top:8px; font-size:12px; color:var(--dim,#8aa); font-variant-numeric:tabular-nums; }
+#epNav .sights span{ padding:2px 8px; border:1px solid var(--steel,#355); border-radius:10px; }
+#epNav .sights span.ok{ border-color:var(--green,#3dffa0); color:var(--green,#3dffa0); }
+#epNav .res{ display:none; font-size:13px; line-height:1.55; text-align:center; padding:8px; border-radius:8px; background:rgba(255,255,255,.04); margin-top:8px; }
+#epNav .res.on{ display:block; }
+</style>
+<script id="ep-v661-nav-script">
+/* ══════════ V6.61 천측 항법 — 육분의 미니게임 ══════════
+   · 추측 위치 오차(마일)가 항해한 거리와 시간에 따라 쌓인다. 거친 바다 · 잠항이면 더 빨리.
+   · 새벽 · 황혼(별과 수평선이 함께 보일 때)이나 정오(해)에, 부상해 있고 하늘이 보이면 월드맵에 「천측」이 뜬다.
+   · 육분의 — 위아래로 끌어 별(해)을 수평선에 내려놓고, 배가 흔들리는 틈에 「측정」. 세 번.
+   · 세 위치선이 만드는 삼각형이 작을수록 오차가 줄어든다.
+   · 효과: 지도에 불확실 원 · 접촉 보고의 정확도(늑대떼가 선단을 찾는 정도) · 초계 보고서의 항해 평가.
+   · 육분의를 쥐는 동안 항해 시계는 멈춘다. */
+(function EP_V661_NAV(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const hod = C => ((C.hours % 24) + 24) % 24;
+  const STARS = [['베가', 'Vega', 'ベガ'], ['카펠라', 'Capella', 'カペラ'], ['아크투루스', 'Arcturus', 'アークトゥルス'], ['알데바란', 'Aldebaran', 'アルデバラン'],
+    ['북극성', 'Polaris', '北極星'], ['데네브', 'Deneb', 'デネブ'], ['레굴루스', 'Regulus', 'レグルス'], ['알타이르', 'Altair', 'アルタイル'], ['리겔', 'Rigel', 'リゲル'], ['스피카', 'Spica', 'スピカ']];
+  let S = null, raf = 0, paused = false;
+
+  function nav(C) { if (!C.navV661) C.navV661 = { err: 1.5, last: C.hours || 0, fixes: 0, fixAt: -99, best: 99 }; return C.navV661; }
+  function err(C) { return C ? nav(C).err : 0; }
+  function window_(C) {
+    const h = hod(C);
+    if ((h >= 4.6 && h < 6.6) || (h >= 18 && h < 20.2)) return 'STAR';
+    if (h >= 11.2 && h < 12.8) return 'SUN';
+    return null;
+  }
+  function canSight(C) {
+    if (!C || C.status !== 'AT_SEA' || !C.surfaced || C.pendingEncounter || C.pendingChoice) return null;
+    if (['fog', 'gale'].includes(C.weather) || (C.seaState || 1) > 4.6) return null;
+    return window_(C);
+  }
+
+  /* ── 오차가 쌓인다 + 육분의 쥐는 동안 시계 멈춤 ── */
+  function wrap() {
+    const CP = window.Campaign; if (!CP || CP._v661) return !!(CP && CP._v661);
+    const orig = CP.advance;
+    CP.advance = function () {
+      if (paused) return { events: [], stopped: false };
+      const C0 = CP.state(), h0 = C0 ? C0.hours : 0;
+      const r = orig.apply(this, arguments);
+      try {
+        const C = CP.state(); if (C && C.status === 'AT_SEA') {
+          const N = nav(C), dt = Math.max(0, (C.hours || 0) - h0);
+          if (dt > 0) { const kn = C.surfaced ? (C.speedKn || 8) : Math.min(C.speedKn || 4, 6), sea = 1 + Math.max(0, (C.seaState || 1) - 2) * 0.35;
+            N.err = clamp(N.err + dt * (kn * 0.035 + 0.12) * sea * (C.surfaced ? 1 : 1.25), 0, 60); }
+        }
+      } catch (e) {}
+      return r;
+    };
+    CP._v661 = true; return true;
+  }
+
+  /* ── 지도 — 불확실 원 ── */
+  function wrapDraw() {
+    const F = window.EP_FLEET; if (!F || F._v661) return;
+    const d0 = F.draw;
+    F.draw = function (c, sc, C, wpx, LBL) {
+      try {
+        const N = C && C.navV661, th = window.THEATERS && THEATERS.THEATERS[C.theater];
+        if (N && th && C.status === 'AT_SEA' && N.err > 2) {
+          const p = wpx(sc, C.x, C.y), q = wpx(sc, C.x + N.err / th.grid.nmPerCell, C.y), r = Math.abs(q[0] - p[0]);
+          if (r > 6) { c.save(); c.setLineDash([3, 4]); c.strokeStyle = N.err > 15 ? 'rgba(255,176,32,.55)' : 'rgba(143,208,255,.35)'; c.lineWidth = 1.2;
+            c.beginPath(); c.arc(p[0], p[1], r, 0, 7); c.stroke(); c.setLineDash([]);
+            c.fillStyle = N.err > 15 ? 'rgba(255,176,32,.05)' : 'rgba(143,208,255,.04)'; c.fill(); c.restore();
+            if (LBL && LBL.add && sc.z > 0.9) LBL.add({ x: p[0] + r * 0.72, y: p[1] - r * 0.72, lines: ['±' + Math.round(N.err) + T('마일', 'nm', '浬')], color: N.err > 15 ? 'rgba(255,176,32,.8)' : 'rgba(143,208,255,.7)', font: '9px system-ui', pri: 1, gap: 2 }); }
+          else if (N.err > 8 && LBL && LBL.add) LBL.add({ x: p[0], y: p[1] + 16, lines: ['±' + Math.round(N.err) + T('마일', 'nm', '浬')], color: N.err > 15 ? 'rgba(255,176,32,.85)' : 'rgba(143,208,255,.75)', font: '9px system-ui', pri: 3, gap: 4 });
+        }
+      } catch (e) {}
+      return d0.apply(this, arguments);
+    };
+    F._v661 = true;
+  }
+
+  /* ── 월드맵 단추 ── */
+  function button() {
+    let b = $('epNavBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epNavBtn'; b.title = T('천측', 'Star sight', '天測'); b.textContent = '✶';
+      b.addEventListener('click', () => open()); z.appendChild(b); }
+    const C = window.Campaign && Campaign.state(), w = canSight(C), N = C && C.navV661;
+    b.classList.toggle('on', !!w); b.classList.toggle('want', !!w && !!N && N.err > 8);
+    if (w) b.textContent = w === 'SUN' ? '☉' : '✶';
+    /* 항해사가 먼저 말을 건다 — 황혼이 열리고 오차가 클 때 한 번 */
+    if (w && N && N.err > 10 && N.askedAt !== Math.floor(C.hours / 12)) { N.askedAt = Math.floor(C.hours / 12);
+      try { const t = T('항해사: ' + (w === 'SUN' ? '정오입니다. 해 높이를 재면 위도가 나옵니다.' : '별과 수평선이 같이 보입니다. 지금 천측하면 위치를 잡을 수 있습니다.') + ' (±' + Math.round(N.err) + '마일)',
+          'Navigator: ' + (w === 'SUN' ? 'Local noon. A sun sight gives us latitude.' : 'Stars and horizon both visible. A fix now would pin us down.') + ' (±' + Math.round(N.err) + ' nm)',
+          '航海長：' + (w === 'SUN' ? '正午です。太陽高度を測れば緯度が出ます。' : '星と水平線が両方見えます。今なら天測で位置が取れます。') + '（±' + Math.round(N.err) + '浬）');
+        const tip = $('wTip'); if (tip) { tip.textContent = t; tip.classList.add('on'); clearTimeout(tip._v661); tip._v661 = setTimeout(() => tip.classList.remove('on'), 4200); } } catch (e) {} }
+  }
+
+  /* ── 육분의 ── */
+  function build() {
+    if ($('epNav')) return;
+    const el = document.createElement('div'); el.id = 'epNav';
+    el.innerHTML = '<div class="nb"><h3><span id="epNvT"></span><small id="epNvErr"></small></h3><div class="why" id="epNvW"></div><canvas id="epNvCv" width="560" height="420"></canvas>' +
+      '<div class="sights" id="epNvS"></div><div class="res" id="epNvRes"></div>' +
+      '<div class="row"><button class="mini" id="epNvX"></button><button class="mini go mark" id="epNvMark"></button><button class="mini" id="epNvAuto"></button></div></div>';
+    document.body.appendChild(el);
+    const cv = $('epNvCv'); let last = null;
+    cv.addEventListener('pointerdown', e => { if (!S || S.end) return; last = e.clientY; cv.setPointerCapture && cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => { if (last == null || !S || S.end) return; const k = cv.height / cv.getBoundingClientRect().height; S.star += (e.clientY - last) * k * 0.55; last = e.clientY; });
+    const up = () => { last = null; }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    $('epNvMark').addEventListener('click', mark);
+    $('epNvX').addEventListener('click', () => close());
+    $('epNvAuto').addEventListener('click', () => { if (!S) return; if (S.end) { close(); return; } auto(); });
+  }
+  function open() {
+    const C = window.Campaign && Campaign.state(), w = canSight(C); if (!w) return;
+    build(); paused = true;
+    const sea = C.seaState || 1;
+    S = { C, w, i: 0, miss: [], end: false, t0: performance.now(), amp: 5 + sea * 9, per: 2.6 + R() * 1.4, ph: R() * 6.28, ph2: R() * 6.28,
+      bodies: w === 'SUN' ? [['해', 'Sun', '太陽']] : STARS.slice().sort(() => R() - 0.5).slice(0, 3), need: w === 'SUN' ? 2 : 3 };
+    if (w === 'SUN') S.bodies = [S.bodies[0], S.bodies[0]];
+    next();
+    $('epNvT').textContent = T('천측', 'CELESTIAL FIX', '天測');
+    $('epNvW').innerHTML = T('위아래로 끌어 ' + (w === 'SUN' ? '해의 아랫가장자리' : '별') + '를 수평선에 내려놓고, 배가 흔들리는 틈에 <b>측정</b>.',
+      'Drag up/down to bring the ' + (w === 'SUN' ? "sun's lower limb" : 'star') + ' down onto the horizon, then <b>Mark</b> as the boat rolls.',
+      '上下にドラッグして' + (w === 'SUN' ? '太陽の下縁' : '星') + 'を水平線に下ろし、艦の揺れの合間に<b>測定</b>。');
+    $('epNvMark').textContent = T('측정', 'MARK', '測定'); $('epNvX').textContent = T('그만', 'Stop', 'やめる'); $('epNvAuto').textContent = T('항해사', 'Navigator', '航海長');
+    $('epNvRes').classList.remove('on'); $('epNvMark').disabled = false; $('epNvMark').style.visibility = ''; $('epNvAuto').style.display = '';
+    $('epNav').classList.add('on'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+  }
+  function next() { S.star = (R() < 0.5 ? -1 : 1) * (60 + R() * 70); S.drift = (R() - 0.5) * 6; S.tw = R() * 6.28; }
+  function horizonY(t) { return Math.sin(t * 6.283 / S.per + S.ph) * S.amp + Math.sin(t * 6.283 / (S.per * 0.37) + S.ph2) * S.amp * 0.28; }
+  function loop() {
+    if (!S) return; const cv = $('epNvCv'), c = cv.getContext('2d'), W = cv.width, H = cv.height, t = (performance.now() - S.t0) / 1000;
+    const sun = S.w === 'SUN', tw = S.C ? hod(S.C) : 6, dawn = tw < 12;
+    const hy = H * 0.56 + horizonY(t);
+    S.star += S.drift * 0.016;                                                    /* 별은 천천히 떠오르거나 진다 */
+    const sy = hy - 2 + S.star;
+    /* 하늘 */
+    const g = c.createLinearGradient(0, 0, 0, hy);
+    if (sun) { g.addColorStop(0, '#2c6aa8'); g.addColorStop(1, '#a9cbe6'); }
+    else { g.addColorStop(0, '#0b1631'); g.addColorStop(0.7, dawn ? '#3a4f74' : '#4a3d62'); g.addColorStop(1, dawn ? '#c9a27a' : '#d08a5c'); }
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    /* 바다 */
+    const sg = c.createLinearGradient(0, hy, 0, H); sg.addColorStop(0, sun ? '#2f5d7d' : '#1c2a3a'); sg.addColorStop(1, sun ? '#14324a' : '#070d16');
+    c.fillStyle = sg; c.fillRect(0, hy, W, H - hy);
+    c.strokeStyle = sun ? 'rgba(220,240,255,.75)' : 'rgba(240,220,190,.75)'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, hy); c.lineTo(W, hy); c.stroke();
+    for (let i = 0; i < 9; i++) { const yy = hy + 10 + i * i * 4.2; c.strokeStyle = 'rgba(255,255,255,' + (0.06 - i * 0.005) + ')'; c.lineWidth = 1; c.beginPath();
+      for (let x = 0; x <= W; x += 14) c.lineTo(x, yy + Math.sin(x * 0.03 + t * 1.3 + i) * (1 + i * 0.4)); c.stroke(); }
+    /* 육분의 반쪽 거울 — 왼쪽은 하늘 그대로, 오른쪽 반은 거울에 비친 별 */
+    c.fillStyle = 'rgba(255,255,255,.04)'; c.fillRect(W / 2, 0, W / 2, H);
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.beginPath(); c.moveTo(W / 2, 0); c.lineTo(W / 2, H); c.stroke();
+    /* 천체 */
+    const sx = W * 0.62;
+    if (sun) { c.fillStyle = '#fff6d0'; c.shadowColor = '#ffe9a0'; c.shadowBlur = 22; c.beginPath(); c.arc(sx, sy - 16, 16, 0, 7); c.fill(); c.shadowBlur = 0; }
+    else { const tw2 = 0.8 + 0.2 * Math.sin(t * 9 + S.tw); c.fillStyle = 'rgba(255,255,255,' + tw2 + ')'; c.shadowColor = '#cfe6ff'; c.shadowBlur = 12; c.beginPath(); c.arc(sx, sy, 3.6, 0, 7); c.fill(); c.shadowBlur = 0;
+      c.strokeStyle = 'rgba(220,235,255,.35)'; c.beginPath(); c.moveTo(sx - 10, sy); c.lineTo(sx + 10, sy); c.moveTo(sx, sy - 10); c.lineTo(sx, sy + 10); c.stroke(); }
+    /* 경통 그늘 */
+    const vg = c.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.85)'); c.fillStyle = vg; c.fillRect(0, 0, W, H);
+    /* 이름 */
+    const bd = S.bodies[Math.min(S.i, S.bodies.length - 1)]; c.fillStyle = 'rgba(255,255,255,.75)'; c.font = '600 20px system-ui'; c.textAlign = 'center';
+    c.fillText((LANG() === 'en' ? bd[1] : LANG() === 'ja' ? bd[2] : bd[0]) + '  ' + Math.min(S.i + 1, S.need) + '/' + S.need, W / 2, 34);
+    S.cur = Math.abs(sy - hy - (sun ? -0 : 0)); S.hy = hy; S.sy = sy;
+    $('epNvErr').textContent = T('추측 오차 ±', 'DR error ±', '推測誤差 ±') + Math.round(S.C.navV661.err) + T('마일', ' nm', '浬');
+    $('epNvS').innerHTML = S.miss.map((m, i) => '<span class="ok">' + (i + 1) + ': ' + (m * 0.5).toFixed(1) + '′</span>').join('') + (S.miss.length < S.need ? '<span>' + (S.miss.length + 1) + ': —</span>' : '');
+    raf = requestAnimationFrame(loop);
+  }
+  function mark() {
+    if (!S || S.end) return;
+    S.miss.push(Math.min(80, S.cur)); try { navigator.vibrate && navigator.vibrate(25); } catch (e) {}
+    try { window.Snd && Snd.event && Snd.event('chart', {}); } catch (e) {}
+    S.i++; if (S.i >= S.need) finish(); else next();
+  }
+  function auto() { while (S.miss.length < S.need) S.miss.push(6 + R() * 10); S.auto = true; finish(); }
+  function finish() {
+    S.end = true;
+    const C = S.C, N = nav(C), avg = S.miss.reduce((a, b) => a + b, 0) / S.miss.length;
+    const fix = clamp(0.8 + avg * 0.5 * (S.w === 'SUN' ? 1.6 : 1), 0.8, 40);       /* 1px ≈ 0.5′ ≈ 0.5마일 · 해는 위도만 → 더 넓다 */
+    const before = N.err; N.err = Math.min(N.err, fix); N.fixes++; N.fixAt = C.hours; N.best = Math.min(N.best, fix);
+    const good = fix < 3, ok = fix < 8;
+    $('epNvRes').innerHTML = (good ? T('위치선 세 개가 작은 삼각형 하나로 모입니다.', 'Three lines meet in one small triangle.', '三本の位置線が小さな三角形に収まります。')
+      : ok ? T('삼각형이 조금 큽니다. 그래도 쓸 만합니다.', 'The triangle is a bit large, but usable.', '三角形はやや大きいが、使えます。')
+      : T('삼각형이 너무 큽니다. 다음 황혼에 다시 재는 게 좋겠습니다.', 'Triangle too large. Better shoot again at the next twilight.', '三角形が大きすぎます。次の薄明にもう一度測るべきです。')) +
+      '<br><small>' + T('추측 오차 ', 'DR error ', '推測誤差 ') + '±' + Math.round(before) + ' → ±' + N.err.toFixed(1) + T('마일', ' nm', '浬') + (S.auto ? T(' · 항해사', ' · navigator', '・航海長') : '') + '</small>';
+    $('epNvRes').classList.add('on'); $('epNvMark').style.visibility = 'hidden'; $('epNvAuto').textContent = T('확인', 'OK', '了解'); $('epNvX').style.visibility = 'hidden';
+    try { C.log.unshift({ h: C.hours, text: '천측 — 추측 오차 ±' + Math.round(before) + '마일 → ±' + N.err.toFixed(1) + '마일.', variants: { ko: '천측 — 추측 오차 ±' + Math.round(before) + '마일 → ±' + N.err.toFixed(1) + '마일.', en: 'Celestial fix — DR error ±' + Math.round(before) + ' → ±' + N.err.toFixed(1) + ' nm.', ja: '天測 — 推測誤差 ±' + Math.round(before) + ' → ±' + N.err.toFixed(1) + '浬。' }, who: 'nav', kind: 'report' }); } catch (e) {}
+  }
+  function close() {
+    cancelAnimationFrame(raf); raf = 0; paused = false; S = null;
+    const el = $('epNav'); if (el) el.classList.remove('on'); const x = $('epNvX'); if (x) x.style.visibility = '';
+    try { WorldView.render(); } catch (e) {}
+  }
+  function init() { setInterval(() => { wrap(); wrapDraw(); button(); }, 700); window.EP_V661_NAV = { version: '6.61.0', err, nav, open, close, canSight, state: () => S, mark, auto }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 
