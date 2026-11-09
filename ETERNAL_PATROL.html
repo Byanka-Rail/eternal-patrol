@@ -50402,7 +50402,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
     build(); window.EP_PAUSE_V662 = true;
     S = { mode, e, i: 0, end: false, list: mode === 'ENC' ? contactsFor(e) : [mk(pick(['WHALE', 'WHALE', 'FISHING', 'MERCHANT', 'MERCHANT', 'CORVETTE', 'TANKER']))] };
     $('epHyT').textContent = T('청음 분석', 'HYDROPHONE ANALYSIS', '聴音分析');
-    $('epHyB').textContent = S.list.length + T('개 소리', ' sounds', 'つの音');
+    $('epHyB').textContent = S.list.length + T('개 소리', S.list.length === 1 ? ' sound' : ' sounds', 'つの音');
     $('epHyW').textContent = mode === 'ENC' ? T('들리는 소리를 하나씩 듣고 무엇인지 고르십시오. 박자(축 회전수)와 음역을 보십시오. 다 맞히면 접근이 조금 쉬워집니다.', 'Listen to each sound and say what it is. Watch the beat (shaft rate) and the pitch band. Get them all right and the approach gets easier.', '一つずつ聴いて何か選んでください。拍（軸回転数）と音域を見ます。全問正解なら接近が少し楽になります。')
       : T('청음수: 먼 소리가 하나 있습니다. 함장님도 들어 보시겠습니까?', 'Sonar: one faint sound out there. Want to listen, sir?', '聴音員：遠くに音が一つあります。艦長もお聴きになりますか？');
     $('epHyPlay').textContent = '▶ ' + T('듣기', 'Listen', '聴く'); $('epHyTap').textContent = T('박자 세기 (두드리기)', 'Count beat (tap)', '拍を数える（叩く）');
