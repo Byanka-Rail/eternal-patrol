@@ -52458,5 +52458,233 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<script id="ep-v672-enigma-script">
+/* ══════════ V6.72 암호 전문 — 회전자를 맞춰 푼다 ══════════
+   사령부의 선단 보고 가운데 일부는 「우선 · 암호」로 온다. 풀기 전에는 해도에 선단이 나타나지 않는다.
+   · 오늘의 열쇠표(회전자 순서 · 기본 위치 · 플러그 세 쌍)대로 기계를 맞춘다.
+   · ① 기본 위치에서 머리의 지시자 세 글자를 치면 이번 전문의 열쇠가 램프에 뜬다.
+     ② 회전자를 그 열쇠에 맞추고 본문을 치면 평문이 나온다 — 해군의 실제 절차를 줄인 것이다.
+   · 기계는 진짜 회전자 기계다(회전자 I~V, 반사판 B, 이중 진행, 플러그보드). 하나라도 틀리면 글자 범벅이 나온다.
+   · 시도마다 15분. 손대지 않으면 통신사가 몇 시간 뒤 풀어 주지만, 그때는 위치가 오래된 정보다.
+   · 독일 보트는 에니그마 M4(그리스 회전자 β·A 고정 — M3 와 같게 돈다), 미군은 ECM Mark II, 일본은 97식 인자기로 부른다.
+   한 · 영 · 일. */
+(function EP_V672_ENIGMA() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ci = ch => ch.charCodeAt(0) - 65, ch = i => A[((i % 26) + 26) % 26];
+
+  /* ── 기계 ── */
+  const ROT = { I: ['EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q'], II: ['AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E'], III: ['BDFHJLCPRTXVZNYEIWGAKMUSQO', 'V'], IV: ['ESOVPZJAYQUIRHXLNFTGKDCMWB', 'J'], V: ['VZBRGITYUPSDNHLXAWMJQOFECK', 'Z'] };
+  const NAMES = ['I', 'II', 'III', 'IV', 'V'], REF = 'YRUHQSLDPXNGOKMIEBFZCWVJAT';
+  function machine(order, pos, pairs) {
+    const plug = {}; for (const p of pairs) { if (p.length === 2) { plug[p[0]] = p[1]; plug[p[1]] = p[0]; } }
+    const P = pos.map(ci);
+    const fw = order.map(n => ROT[n][0]), nt = order.map(n => ci(ROT[n][1]));
+    const inv = fw.map(w => { const o = []; for (let i = 0; i < 26; i++) o[ci(w[i])] = i; return o; });
+    const pass = (c, k, back) => { const sh = P[k]; return back ? (inv[k][(c + sh) % 26] - sh + 26) % 26 : (ci(fw[k][(c + sh) % 26]) - sh + 26) % 26; };
+    return {
+      pos: () => P.map(ch).join(''),
+      key(letter) {
+        /* 이중 진행 — 가운데가 자기 홈에 있으면 가운데와 왼쪽이 함께 돈다 */
+        if (P[1] === nt[1]) { P[1] = (P[1] + 1) % 26; P[0] = (P[0] + 1) % 26; }
+        else if (P[2] === nt[2]) P[1] = (P[1] + 1) % 26;
+        P[2] = (P[2] + 1) % 26;
+        let c = ci(plug[letter] || letter);
+        c = pass(c, 2); c = pass(c, 1); c = pass(c, 0);
+        c = ci(REF[c]);
+        c = pass(c, 0, true); c = pass(c, 1, true); c = pass(c, 2, true);
+        const o = ch(c); return plug[o] || o;
+      }
+    };
+  }
+  const run = (order, pos, pairs, text) => { const m = machine(order, pos.split(''), pairs); return text.split('').map(x => m.key(x)).join(''); };
+
+  /* ── 오늘의 열쇠 · 전문 ── */
+  function hash(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function dayIso(C) { try { return EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24); } catch (e) { return 'D' + Math.floor((C.hours || 0) / 24); } }
+  function dayKey(C, iso) {
+    const r = rng(hash((C.theater || '') + '|' + iso + '|' + (C.boatId || '')));
+    const ns = NAMES.slice(); const order = []; for (let i = 0; i < 3; i++) order.push(ns.splice(Math.floor(r() * ns.length), 1)[0]);
+    const pos = [0, 1, 2].map(() => A[Math.floor(r() * 26)]).join('');
+    const pool = A.split(''); const pairs = []; for (let i = 0; i < 3; i++) { const a = pool.splice(Math.floor(r() * pool.length), 1)[0], b = pool.splice(Math.floor(r() * pool.length), 1)[0]; pairs.push(a + b); }
+    return { order, pos, pairs, iso };
+  }
+  const NUM = { DE: ['NULL', 'EINS', 'ZWO', 'DREI', 'VIER', 'FUENF', 'SECHS', 'SIEBEN', 'ACHT', 'NEUN'], US: ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'], JP: ['REI', 'ICHI', 'NI', 'SAN', 'YON', 'GO', 'ROKU', 'NANA', 'HACHI', 'KYU'] };
+  function natOf(th) { return th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE'; }
+  const spell = (nat, s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '').split('').map(c => /\d/.test(c) ? NUM[nat][+c] : c).join('');
+  function plainOf(nat, r) {
+    const g = spell(nat, r.grid || 'XX'), k = spell(nat, String(r.course).padStart(3, '0')), v = spell(nat, r.speedKn), n = spell(nat, r.size);
+    if (nat === 'DE') return 'GELEITZUGQU' + g + 'KURS' + k + 'FAHRT' + v + 'STAERKE' + n + 'ANGREIFEN';
+    if (nat === 'US') return 'ENEMYCONVOYSQ' + g + 'COURSE' + k + 'SPEED' + v + 'SHIPS' + n + 'ATTACK';
+    return 'TEKISENDANKUIKI' + g + 'HOKO' + k + 'SOKU' + v + 'SEKISU' + n + 'KOGEKISEYO';
+  }
+  const MACH = { DE: ['에니그마 M4', 'Enigma M4', 'エニグマM4'], US: ['ECM Mark II', 'ECM Mark II', 'ECMマークII'], JP: ['97식 인자기', 'Type 97 machine', '九七式印字機'] };
+
+  /* ── 새 보고 가운데 일부를 암호 전문으로 ── */
+  function watchReports() {
+    const C = CS(); if (!C || !Array.isArray(C.reports) || C.status !== 'AT_SEA') return;
+    C.encSeenV672 = C.encSeenV672 || [];
+    for (const r of C.reports) {
+      if (C.encSeenV672.includes(r.id)) continue;
+      C.encSeenV672.push(r.id); if (C.encSeenV672.length > 40) C.encSeenV672.shift();
+      if (C.hours - (r.at || 0) > 1 || R() > 0.4 || C.reports.some(x => x.encV672 && x !== r)) continue;
+      encrypt(C, r);
+    }
+    /* 손대지 않으면 통신사가 풀어 준다 — 늦게 */
+    for (const r of C.reports) if (r.encV672 && C.hours >= r.encV672.autoAt) { reveal(C, r, false); }
+  }
+  function encrypt(C, r) {
+    {
+      const nat = natOf(C.theater), iso = dayIso(C), K = dayKey(C, iso);
+      const mk = [0, 1, 2].map(() => A[Math.floor(R() * 26)]).join('');
+      const plain = plainOf(nat, r);
+      r.encV672 = { iso, nat, ind: run(K.order, K.pos, K.pairs, mk), mk, body: run(K.order, mk, K.pairs, plain), plain, at: C.hours, autoAt: C.hours + 4 + R() * 4, tries: 0 };
+      /* 방금 찍힌 「무전 — 그리드…」 줄을 암호 수신으로 바꾼다 */
+      try { const L = C.log.find(l => l.kind === 'report' && l.text && l.text.indexOf(r.grid) >= 0 && Math.abs((l.h || 0) - (r.at || 0)) < 0.6);
+        if (L) { const ko = '무전 — 우선 · 암호 전문 수신. 풀어야 내용을 압니다.', en = 'Radio — priority signal received, enciphered. We must break it out to read it.', ja = '無電 — 優先・暗号電文受信。解読しないと内容は分かりません。';
+          L.text = ko; L.variants = { ko, en, ja }; } } catch (e) {}
+      snd('radio');
+    }
+  }
+  function reveal(C, r, manual) {
+    const e = r.encV672; if (!e) return; r.encV672 = null;
+    if (manual) { r.at = C.hours - 0.3; r.strength = Math.max(r.strength || 0, 1); }
+    const ko = (manual ? '해독 — ' : '통신사가 늦게 풀었습니다 — ') + r.grid + ' 에 선단. 침로 ' + String(r.course).padStart(3, '0') + '도, 약 ' + r.speedKn + '노트, ' + r.size + '척.';
+    const en = (manual ? 'Deciphered — ' : 'The radioman broke it out, late — ') + 'convoy in ' + r.grid + ', course ' + String(r.course).padStart(3, '0') + ', about ' + r.speedKn + ' kn, ' + r.size + ' ships.';
+    const ja = (manual ? '解読 — ' : '通信士が遅れて解読 — ') + r.grid + 'に船団。針路' + String(r.course).padStart(3, '0') + '度、約' + r.speedKn + 'ノット、' + r.size + '隻。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e2) {}
+    try { Campaign.save(); } catch (e2) {}
+  }
+  function wrapTracks() {
+    const CP = window.Campaign; if (!CP || !CP.tracks || CP.tracks.__encV672) return;
+    const o = CP.tracks;
+    const f = function () { const C = CP.state(), list = o.apply(this, arguments) || []; if (!C || !C.reports) return list; return list.filter(t => { const r = C.reports.find(z => z.id === t.id); return !(r && r.encV672); }); };
+    Object.assign(f, o); f.__encV672 = true; CP.tracks = f;
+  }
+  function pending(C) { return C && Array.isArray(C.reports) ? C.reports.find(r => r.encV672) : null; }
+
+  /* ── 화면 ── */
+  let S = null;
+  function open() {
+    const C = CS(), r = pending(C); if (!r) return false;
+    const e = r.encV672, K = dayKey(C, e.iso);
+    S = { C, r, e, K, order: ['I', 'II', 'III'], pos: ['A', 'A', 'A'], pairs: [], pend: null, step: 1, lamp: '', out: '', anim: null };
+    build(); window.EP_PAUSE_V662 = true; $('epEng').classList.add('on'); render(); return true;
+  }
+  function close() { if (S && S.anim) clearInterval(S.anim); S = null; $('epEng').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function typeOut(text, done) {
+    if (S.anim) clearInterval(S.anim);
+    const m = machine(S.order, S.pos.slice(), S.pairs), src = text.split(''); let i = 0; S.out = '';
+    S.busy = true; render();
+    S.anim = setInterval(() => {
+      if (!S) return;
+      const o = m.key(src[i]); S.out += o; S.lamp = o; S.pos = m.pos().split(''); i++;
+      if (i % 2 === 0) snd('uibeep');
+      render(true);
+      if (i >= src.length) { clearInterval(S.anim); S.anim = null; S.busy = false; setTimeout(() => { if (S) { S.lamp = ''; done(S.out); } }, 250); }
+    }, text.length > 10 ? 55 : 160);
+  }
+  function act(a) {
+    if (!S || S.busy) return;
+    const C = S.C, e = S.e;
+    if (a === 'IND') {
+      typeOut(e.ind, out => { S.key3 = out; S.step = 2; render();
+        say(T('램프: 「' + out + '」 — 이것이 이번 전문의 열쇠입니다. 회전자를 ' + out + ' 에 맞추십시오.', 'Lamps: "' + out + '" — that is this message\'s key. Set the rotors to ' + out + '.', 'ランプ：「' + out + '」 — これが本電文の鍵です。ローターを' + out + 'に合わせてください。')); });
+    } else if (a === 'BODY') {
+      e.tries++; C.hours = (C.hours || 0) + 0.25;
+      typeOut(e.body, out => {
+        if (out === e.plain) { S.step = 3; S.ok = true; snd('taskdone'); reveal(C, S.r, true); render();
+          try { if (window.EP_MORALE) EP_MORALE.add(C, 0.005); } catch (x) {} }
+        else { S.ok = false; snd('uireject'); render();
+          say(T('글자 범벅입니다. 열쇠표와 다른 데가 있습니다 — 회전자 순서, 플러그, 기본 위치를 다시 보십시오.', 'Gibberish. Something differs from the key sheet — check rotor order, plugs and ground setting.', '文字がめちゃくちゃです。鍵表と違う所があります — ローター順、プラグ、基本位置を確認してください。')); }
+      });
+    } else if (a === 'RESET') { S.step = 1; S.out = ''; S.key3 = null; S.pos = S.K.pos.split('').map(() => 'A'); render(); }
+  }
+  let sayLine = '';
+  function say(t) { sayLine = t; const el = $('epEngSay'); if (el) el.textContent = t; }
+  const groups = s => s.replace(/(.{5})/g, '$1 ').trim();
+  function render(fast) {
+    if (!S) return; const K = S.K, e = S.e;
+    if (!fast) {
+      $('epEngT').textContent = T(MACH[e.nat][0], MACH[e.nat][1], MACH[e.nat][2]) + ' — ' + T('전문 해독', 'deciphering', '電文解読');
+      $('epEngSheet').innerHTML = '<b>' + T('열쇠표', 'Key sheet', '鍵表') + ' · ' + e.iso + '</b>' +
+        '<span>' + T('회전자', 'Rotors', 'ローター') + ' <em>' + K.order.join(' · ') + '</em></span>' +
+        '<span>' + T('기본 위치', 'Ground setting', '基本位置') + ' <em>' + K.pos.split('').join(' ') + '</em></span>' +
+        '<span>' + T('플러그', 'Plugs', 'プラグ') + ' <em>' + K.pairs.join(' ') + '</em></span>' +
+        (e.nat === 'DE' ? '<small>' + T('그리스 회전자 β · A, 얇은 반사판 B (고정)', 'Greek rotor β at A, thin reflector B (fixed)', 'ギリシャ・ローターβ・A、薄型反射板B（固定）') + '</small>' : '');
+      $('epEngMsg').innerHTML = '<small>' + T('지시자', 'Indicator', '指標') + '</small><b>' + e.ind + '</b> <small>' + T('본문', 'Text', '本文') + '</small><code>' + groups(e.body) + '</code>';
+    }
+    $('epEngRot').innerHTML = [0, 1, 2].map(k => '<div class="rt"><button class="mini nm" data-o="' + k + '">' + S.order[k] + '</button><button class="mini" data-u="' + k + '">▲</button><div class="win">' + S.pos[k] + '</div><button class="mini" data-d="' + k + '">▼</button></div>').join('');
+    const pc = ['#e8a24a', '#7fc8ff', '#9fe0a8', '#e58fd0', '#f3e27a'];
+    $('epEngPlug').innerHTML = A.split('').map(L => { const i = S.pairs.findIndex(p => p.includes(L)); return '<button class="mini' + (S.pend === L ? ' pend' : '') + '" data-p="' + L + '"' + (i >= 0 ? ' style="background:' + pc[i % pc.length] + ';color:#081016"' : '') + '>' + L + '</button>'; }).join('');
+    $('epEngOut').innerHTML = (S.lamp ? '<span class="lamp">' + S.lamp + '</span>' : '') + '<code>' + groups(S.out) + '</code>';
+    const btn = $('epEngGo');
+    if (S.step === 1) { btn.innerHTML = T('① 지시자 치기', '① Key the indicator', '① 指標を打つ') + '<small>' + T('기본 위치에서', 'at the ground setting', '基本位置で') + '</small>'; btn.dataset.a = 'IND'; }
+    else if (S.step === 2) { btn.innerHTML = T('② 본문 치기', '② Key the text', '② 本文を打つ') + '<small>' + T('회전자를 ' + (S.key3 || '') + ' 에 맞춘 뒤 · 15분', 'after setting rotors to ' + (S.key3 || '') + ' · 15 min', 'ローターを' + (S.key3 || '') + 'に合わせて・15分') + '</small>'; btn.dataset.a = 'BODY'; }
+    else { btn.innerHTML = T('닫기', 'Close', '閉じる'); btn.dataset.a = 'CLOSE'; }
+    btn.disabled = !!S.busy;
+    if (S.step === 3 && S.ok && !fast) {
+      const r = S.r;
+      say(T('해독 — ' + r.grid + ' 에 선단. 침로 ' + String(r.course).padStart(3, '0') + '도, ' + r.speedKn + '노트, ' + r.size + '척. 해도에 올렸습니다.', 'Deciphered — convoy in ' + r.grid + ', course ' + String(r.course).padStart(3, '0') + ', ' + r.speedKn + ' kn, ' + r.size + ' ships. Plotted on the chart.', '解読 — ' + r.grid + 'に船団。針路' + String(r.course).padStart(3, '0') + '度、' + r.speedKn + 'ノット、' + r.size + '隻。海図に記入しました。'));
+    } else if (!fast && S.step === 1 && !S.out) say(T('열쇠표대로 회전자 순서 · 플러그 · 기본 위치를 맞추고 지시자를 치십시오.', 'Set rotor order, plugs and ground setting from the key sheet, then key the indicator.', '鍵表どおりにローター順・プラグ・基本位置を合わせ、指標を打ってください。'));
+  }
+  function build() {
+    if ($('epEng')) return;
+    const st = document.createElement('style'); st.id = 'ep-v672-enigma-style';
+    st.textContent = '#epEng{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epEng.on{display:flex}' +
+      '#epEng .bx{width:min(96vw,440px);max-height:96vh;overflow:auto;background:#151310;border:1px solid #8a7550;border-radius:12px;padding:10px;color:#efe6d2;box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epEng h3{margin:0 0 7px;font-size:14px;letter-spacing:.06em;color:#e8c068}#epEng .sheet{background:#efe6cf;color:#2b2418;border-radius:6px;padding:7px 9px;font-size:12px;display:grid;gap:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}' +
+      '#epEng .sheet b{font-size:12px}#epEng .sheet em{font-style:normal;font-family:ui-monospace,monospace;font-weight:700;letter-spacing:.08em;margin-left:6px}#epEng .sheet small{color:#6b5d44}' +
+      '#epEng .msg{margin:7px 0;font-size:12px;line-height:1.5}#epEng .msg small{color:#a8987a;margin-right:4px}#epEng .msg b{font-family:ui-monospace,monospace;letter-spacing:.12em;color:#e8c068;margin-right:8px}#epEng code,#epEng .out code{font-family:ui-monospace,monospace;letter-spacing:.08em;word-break:break-all;color:#efe6d2}' +
+      '#epEng .rot{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0}#epEng .rt{display:grid;gap:4px;justify-items:stretch}#epEng .rt .nm{font-weight:700;letter-spacing:.06em;border-color:#8a7550}' +
+      '#epEng .win{text-align:center;font:700 26px ui-monospace,monospace;background:#0b0a08;border:2px solid #8a7550;border-radius:8px;padding:6px 0;color:#f6efe0}' +
+      '#epEng .plug{display:grid;grid-template-columns:repeat(13,1fr);gap:3px;margin:6px 0}#epEng .plug button{padding:5px 0;font:600 11px ui-monospace,monospace;min-width:0}#epEng .plug button.pend{outline:2px solid #e8c068}' +
+      '#epEng .out{min-height:44px;background:#0b0a08;border-radius:8px;padding:7px;font-size:12px;margin:6px 0;position:relative}#epEng .lamp{position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;background:radial-gradient(#fff6c8,#e8b440 60%,#7a5a10);color:#2b1d02;font:700 15px/30px ui-monospace,monospace;text-align:center;box-shadow:0 0 16px #f0c050}' +
+      '#epEng .say{font-size:12.5px;line-height:1.45;min-height:36px;color:#efe6d2}#epEng .ctl{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:6px;margin-top:6px}#epEng .ctl button small{display:block;font-size:10px;opacity:.7}' +
+      '#epEngBtn{display:none}#epEngBtn.on{display:block}#epEngBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epEng';
+    el.innerHTML = '<div class="bx"><h3 id="epEngT"></h3><div class="sheet" id="epEngSheet"></div><div class="msg" id="epEngMsg"></div><div class="rot" id="epEngRot"></div><div class="plug" id="epEngPlug"></div>' +
+      '<div class="out" id="epEngOut"></div><div class="say" id="epEngSay"></div><div class="ctl"><button class="mini go" id="epEngGo"></button><button class="mini" id="epEngReset"></button><button class="mini" id="epEngClose"></button></div></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('button'); if (!b || !S || S.busy) return;
+      if (b.dataset.o != null) { const k = +b.dataset.o; S.order[k] = NAMES[(NAMES.indexOf(S.order[k]) + 1) % 5]; snd('uibeep'); render(); return; }
+      if (b.dataset.u != null) { const k = +b.dataset.u; S.pos[k] = ch(ci(S.pos[k]) + 1); render(); return; }
+      if (b.dataset.d != null) { const k = +b.dataset.d; S.pos[k] = ch(ci(S.pos[k]) - 1); render(); return; }
+      if (b.dataset.p) { const L = b.dataset.p, i = S.pairs.findIndex(p => p.includes(L));
+        if (i >= 0) { S.pairs.splice(i, 1); S.pend = null; }
+        else if (!S.pend) S.pend = L;
+        else if (S.pend === L) S.pend = null;
+        else { if (S.pairs.length < 10) S.pairs.push(S.pend + L); S.pend = null; }
+        render(); return; }
+      if (b.id === 'epEngGo') { if (b.dataset.a === 'CLOSE') close(); else act(b.dataset.a); return; }
+      if (b.id === 'epEngReset') { act('RESET'); return; }
+      if (b.id === 'epEngClose') { close(); return; }
+    });
+    labels();
+  }
+  function labels() {
+    $('epEngReset').innerHTML = T('처음부터', 'Start over', '最初から') + '<small>' + T('①로', 'back to ①', '①へ') + '</small>';
+    $('epEngClose').innerHTML = T('나중에', 'Later', '後で') + '<small>' + T('통신사가 늦게 푼다', 'radioman will, late', '通信士が遅れて解読') + '</small>';
+  }
+  function button() {
+    let b = $('epEngBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epEngBtn'; b.textContent = '✉'; b.title = T('암호 전문', 'Cipher signal', '暗号電文'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), p = C && C.status === 'AT_SEA' && pending(C);
+    b.classList.toggle('on', !!p); b.classList.toggle('want', !!p);
+  }
+  function init() { setInterval(() => { try { wrapTracks(); watchReports(); button(); } catch (e) {} }, 700);
+    window.EP_V672_ENIGMA = { version: '6.72.0', open, close, state: () => S, machine, run, dayKey, act, encrypt: r => { const C = CS(); if (C && r) encrypt(C, r); }, test: () => run(['I', 'II', 'III'], 'AAA', [], 'AAAAA') }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
 </body>
 </html>
