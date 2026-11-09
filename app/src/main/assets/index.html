@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.44.2 Missions Review</title>
-<script id="ep-build">window.EP_BUILD='6.44.2';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.44.3 Quiet Selection</title>
+<script id="ep-build">window.EP_BUILD='6.44.3';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -1087,6 +1087,12 @@
   .citem .cid{ font-size:13px; color:var(--green); width:34px; }
   .citem .cb{ font-size:14px; font-variant-numeric:tabular-nums; width:52px; }
   .citem .cm{ flex:1; font-size:10.5px; color:var(--dim); line-height:1.5; }
+  /* v6.44.3 — 세부 정보는 행 끝의 › 로 부른다. 늘 같은 자리에 있어 고를 때 아무것도 새로 생기지 않는다. */
+  .citem .cdet{ flex:0 0 auto; align-self:stretch; width:36px; min-height:36px; margin:-8px -9px -8px 0;
+                padding:0; border:0; border-left:1px solid var(--steel); border-radius:0 6px 6px 0;
+                background:transparent; color:var(--dim); font-size:20px; line-height:1; }
+  .citem .cdet:active{ background:var(--panel2); color:var(--ink); }
+  .citem.sel .cdet{ color:var(--green); border-left-color:rgba(80,200,140,.35); }
   .bar{ height:4px; background:var(--sunk); border-radius:2px; overflow:hidden; margin-top:3px; }
   .bar i{ display:block; height:100%; background:var(--green); }
 
@@ -1099,7 +1105,7 @@
   .sel-detail{ font-size:11.5px; line-height:1.75; color:var(--dim); }
   .sel-detail .sl{ margin-bottom:2px; }
   .sel-detail b{ color:var(--ink); font-weight:normal; font-variant-numeric:tabular-nums; }
-  #selQuickActs{ display:none; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; margin-top:7px; }
+  #selQuickActs{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:5px; margin-top:7px; }
   #selQuickActs.on{ display:grid; }
   #selQuickActs button{ min-width:0; min-height:44px; padding:5px 4px; font-size:11px;
                         white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2114,7 +2120,10 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div><label>시야 내 표적</label><div class="val" id="periTgt" style="font-size:12px">—</div></div>
 <div><label>노출도</label><div class="val" id="periExp">0%</div></div>
 </div>
-<button class="go" id="btnObserve" style="margin-top:7px;width:100%">관측 기록</button>
+<div class="row" id="periObsRow" style="margin-top:7px">
+<button class="go" id="btnObserve" style="flex:2 1 0;min-width:0">관측 기록</button>
+<button class="mini" id="btnPeriIdent" style="flex:1 1 0;min-width:0;min-height:44px">함종 판단</button>
+</div>
 <div class="ordline" style="margin-top:7px">
 <span>다음 권장 관측</span><b id="periNext">—</b>
 <span>잠망경 방위조종</span><b id="periAuto">수동</b>
@@ -2166,6 +2175,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div aria-label="선택 접촉 바로가기" id="selQuickActs">
 <button class="mini" id="btnSelHydro">집중 청음</button>
 <button class="mini" id="btnSelPeri">잠망경 조준</button>
+<button class="mini" id="btnSelDetail">세부 정보</button>
 <button class="mini go" id="btnSelAttack">사격 제원</button>
 </div>
 </div>
@@ -2442,7 +2452,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div class="cp-note" id="tsNote">위험이 생기면 배율은 저절로 내려갑니다. 저절로 올라가지는 않습니다.</div>
 </div>
 </div>
-<!-- ═══ 접촉 상세 — 고른 대상 아래에 붙는다 ═══
+<!-- ═══ 접촉 상세 — v6.44.3: 고르기만 해서는 뜨지 않는다. 부를 때만 펼쳐진다 ═══
        화면을 찾아 옮겨 다니는 대신, 대상을 고르면 할 수 있는 일이 나타난다. -->
 <div id="sheet">
 <div id="sheetGrip"></div>
@@ -25340,7 +25350,7 @@ window.UBOAT_LEARNING = (function () {
         { text: '수상기모함은 항공모함과 헷갈리기 쉬웠다. 갈라 보는 곳은 **함미** 였다 — 크레인과 작업 갑판이 있으면 수상기모함이다.', src: ['S28'] },
         { text: '전과 보고에 적은 함명이 뒤에 틀린 것으로 밝혀지는 일은 흔했다. 격침 확인은 전후 문서 대조로 이루어졌다.', src: ['S27'] },
       ],
-      game: '**접촉 시트의 세부 정보**가 이 일을 한다. 청음 특성·거리 범위·추정 속력·대형 안의 자리는 승조원이 자동으로 적고, 플레이어는 **잠망경에서 실제로 보인 실루엣 특징만** 고른다. 그러면 후보 함종 서넛과 신뢰도가 나온다. 한 단서만으로는 확정되지 않고, 서로 맞지 않는 증거가 있으면 「판단 경고」가 뜬다. 관측 한 번으로 함명이 나오는 일은 이제 없다 — 함급 추정은 **근거리 측면 관측**을 해야 겨우 열리고, 정확한 함명은 이 자리에서 알 수 없다. 틀렸다는 팝업도 없다. 새 증거가 들어오면 조용히 다시 셀 뿐이다.',
+      game: '**접촉의 세부 정보**(잠망경의 「함종 판단」 · 청음 목록의 › · 해도 「선택 접촉」의 세부 정보)가 이 일을 한다. 청음 특성·거리 범위·추정 속력·대형 안의 자리는 승조원이 자동으로 적고, 플레이어는 **잠망경에서 실제로 보인 실루엣 특징만** 고른다. 그러면 후보 함종 서넛과 신뢰도가 나온다. 한 단서만으로는 확정되지 않고, 서로 맞지 않는 증거가 있으면 「판단 경고」가 뜬다. 관측 한 번으로 함명이 나오는 일은 이제 없다 — 함급 추정은 **근거리 측면 관측**을 해야 겨우 열리고, 정확한 함명은 이 자리에서 알 수 없다. 틀렸다는 팝업도 없다. 새 증거가 들어오면 조용히 다시 셀 뿐이다.',
       simplified: [
         '실루엣 특징을 27가지로 줄였다. 실제 도감은 훨씬 세밀하다.',
         '판정은 규칙 기반 가중치다. 실제 식별은 경험과 기억에 크게 기댔다.',
@@ -30156,7 +30166,15 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     if (!t) return flash('시야 안에 표적이 없습니다.');
     const r = U.observe(t.id);
     flash(r.ok ? (r.note || '관측 완료') : r.err);
-    if (r.ok) ui.sel = t.id;
+    /* 껍데기와 엔진의 선택을 함께 옮긴다 — 함종 판단이 엉뚱한 접촉을 열지 않게 */
+    if (r.ok) selectContact(t.id);
+  });
+  /* v6.44.3 — 방금 본 배의 함종 판단은 잠망경 화면에서 바로 부른다(고를 때 저절로 올라오던 띠 대신) */
+  $('btnPeriIdent').addEventListener('click', () => {
+    const t = periTarget();
+    const id = ui.sel || (t && t.id) || null;
+    if (!id) return flash(LL('먼저 접촉을 고르거나 관측하십시오.', 'Select or observe a contact first.', '先に接触を選ぶか観測してください。'));
+    openContactDetail(id, true);
   });
 
   /* ── 어뢰 ── */
@@ -33736,6 +33754,12 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
         LL('전체 보기', 'Show all', '全て表示') + ' — ' + g.contacts.length + LL('개 접촉', ' contacts', '接触');
     }
     const list = solo ? g.contacts.filter(c => c.id === solo) : g.contacts;
+    /* v6.44.3 — 손가락이 닿아 있는 동안에는 목록을 갈아 끼우지 않는다(행 안의 › 를 놓치지 않게) */
+    if (!box.dataset.holdBound) {
+      box.dataset.holdBound = '1';
+      box.addEventListener('pointerdown', () => { ui.cHold = performance.now() + 450; }, { passive: true });
+    }
+    if (performance.now() < (ui.cHold || 0)) return;
     /* 매 프레임 innerHTML 을 새로 쓰면 목록이 초당 60번 사라졌다 다시 생긴다.
        폰에서는 그 사이에 손가락이 닿아 눌림이 통째로 날아가기도 한다.
        내용이 실제로 달라졌을 때만 다시 쓴다. */
@@ -33769,10 +33793,14 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
              '<div class="cid">' + c.id + '</div>' +
              '<div class="cb">' + c.bearing.toFixed(0).padStart(3, '0') + '°' + berr + '</div>' +
              '<div class="cm">' + known + ' · ' + sol + focusTxt +
-             '<div class="bar"><i style="width:' + Math.round(c.strength * 100) + '%"></i></div></div></div>';
+             '<div class="bar"><i style="width:' + Math.round(c.strength * 100) + '%"></i></div></div>' +
+             '<button type="button" class="cdet" aria-label="' + LL('세부 정보', 'Details', '詳細') + '">›</button></div>';
     }).join('');
-    box.querySelectorAll('.citem').forEach(el => el.addEventListener('click', () => {
+    box.querySelectorAll('.citem').forEach(el => el.addEventListener('click', ev => {
       const id = el.dataset.c;
+      ui.cHold = 0;
+      /* › — 고른 채로 세부 정보를 펼친다. 하나만 보기·선택 풀기와는 섞지 않는다. */
+      if (ev && ev.target && ev.target.closest && ev.target.closest('.cdet')) { openContactDetail(id, false); renderContacts(); return; }
       /* ── 같은 것을 또 누르면 **전부** 풀린다 ──
          예전에는 「하나만 보기」만 풀리고 아래에 뜬 상세 시트는 그대로 남았다.
          눌러서 생긴 것은 다시 누르면 없어져야 한다. */
@@ -37579,14 +37607,21 @@ window.Lang.add('ja', {
   $('sheetTop').addEventListener('click', () => setSheetOpen(!sheetOpen));
   /* ✕ 는 시트를 **닫는다** — 접는 것은 「접기」 띠가 한다. 둘이 같은 일을 하면
      펼친 사람이 이것을 없애는 길을 못 찾는다(실제로 그랬다). */
+  /* v6.44.3 — 시트는 이제 **부를 때만** 열린다. 닫는다고 고른 표적까지 풀 까닭이 없다. */
   $('sheetClose').addEventListener('click', e => {
     e.stopPropagation();
     setSheetOpen(false);
-    ui.solo = null;
-    selectContact(null);
-    renderContacts();
   });
   window.openSheet = setSheetOpen;
+  /* 세부 정보로 가는 길은 하나로 모은다 — 고르기와 펼치기는 별개의 일이다 */
+  function openContactDetail(id, toMatch) {
+    const g = U.state(); if (!g || !id || !g.contacts.some(c => c.id === id)) return;
+    if (ui.sel !== id) selectContact(id);
+    setSheetOpen(true);
+    renderSheet();
+    if (toMatch) { const a = $('sheetActs'), f = a && a.lastElementChild; if (f) f.click(); }
+  }
+  window.openContactDetail = openContactDetail;
   /* 접촉 고르기는 한 곳으로 모은다 — 껍데기의 선택과 엔진의 선택이 어긋나지 않게 한다 */
   function selectContact(id) {
     ui.sel = id;
@@ -37687,16 +37722,17 @@ window.Lang.add('ja', {
     $('sheetLine').textContent = bits.join(' · ');
     /* 행동 — 지금 할 수 있는 것만 */
     const acts = [];
-    acts.push([LL('잠망경 관측','Periscope observation','潜望鏡観測'), 'obs', () => { showPane('peri'); setPeriBrg(Math.round(c.bearing)); }]);
+    /* v6.44.3 — 다른 화면으로 가는 행동은 시트를 닫고 간다(불러낸 것은 할 일을 마치면 물러난다) */
+    acts.push([LL('잠망경 관측','Periscope observation','潜望鏡観測'), 'obs', () => { setSheetOpen(false); showPane('peri'); setPeriBrg(Math.round(c.bearing)); }]);
     acts.push([((hydroFocusState().manual && hydroFocusState().contactId === c.id) ? LL('집중 해제','Release focus','集中解除') : LL('집중 청음','Focused listening','集中聴音')), '', () => {
       if (hydroFocusState().manual && hydroFocusState().contactId === c.id) hydroFocusClear();
       else hydroFocusStart(c.id, true);
       renderSheet(); renderContacts();
     }]);
     if (c.solutionConfidence > 0.35)
-      acts.push([LL('공격 준비','Attack setup','攻撃準備'), 'go', () => { showPane('attack'); }]);
+      acts.push([LL('공격 준비','Attack setup','攻撃準備'), 'go', () => { setSheetOpen(false); showPane('attack'); }]);
     else
-      acts.push([LL('해법 잡기','Build solution','諸元作成'), '', () => { U.solution(c.id); showPane('attack'); }]);
+      acts.push([LL('해법 잡기','Build solution','諸元作成'), '', () => { U.solution(c.id); setSheetOpen(false); showPane('attack'); }]);
     acts.push([LL('추적','Track','追尾'), '', () => { selectContact(c.id); setPeriBrg(Math.round(c.bearing)); }]);
     /* ── 함종 판단으로 가는 길 ──
        판단 체크리스트는 이 시트 안에 있는데, 「세부 정보」를 눌러야만 나온다.
@@ -37710,7 +37746,8 @@ window.Lang.add('ja', {
       });
     }]);
     const box = $('sheetActs');
-    const key = window.Lang.get() + '|' + acts.map(a => a[0]).join('|');
+    /* 표적이 바뀌면 단추도 새로 단다 — 같은 이름표라도 붙잡은 접촉(c)이 다르다 */
+    const key = window.Lang.get() + '|' + c.id + '|' + acts.map(a => a[0]).join('|');
     if (box.dataset.key !== key) {
       box.dataset.key = key;
       box.innerHTML = '';
@@ -37849,9 +37886,13 @@ window.Lang.add('ja', {
     $('btnSelHydro').textContent = LL('집중 청음', 'Focus listening', '集中聴音');
     $('btnSelPeri').textContent = LL('잠망경 조준', 'Aim periscope', '潜望鏡照準');
     $('btnSelAttack').textContent = LL('사격 제원', 'Firing solution', '射撃諸元');
+    $('btnSelDetail').textContent = LL('세부 정보', 'Details', '詳細');
     acts.classList.add('on');
   }
 
+  $('btnSelDetail').addEventListener('click', () => {
+    const c = selectedContact(); if (c) openContactDetail(c.id, false);
+  });
   $('btnSelHydro').addEventListener('click', () => {
     const c = selectedContact(); if (!c) return;
     showPane('hydro');
@@ -39775,6 +39816,8 @@ window.Lang.add('ja', {
         $('btnPeriMag').disabled = surfaceView;
         if (surfaceView) $('btnPeriMag').textContent = LL('함교 광각 · 180°', 'Bridge wide view · 180°', '艦橋広角・180°'); else syncPeriMag();
         $('btnObserve').textContent = surfaceView ? LL('함교 관측 기록', 'Record bridge observation', '艦橋観測を記録') : L('관측 기록');
+        { const pi = $('btnPeriIdent'); if (pi) { const can = !!(ui.sel || t);
+            pi.textContent = LL('함종 판단', 'Classify', '艦種判断'); pi.classList.toggle('off', !can); } }
         const returnDepth = Math.round(ui.obsReturnDepth || 30);
         $('btnObsDive').textContent = LL('잠항 ' + returnDepth + 'm', 'Dive to ' + returnDepth + ' m', returnDepth + 'mへ潜航');
         const pdNow = U.getDepthPreset('PERISCOPE') || 14;
@@ -43301,6 +43344,9 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
 #sheet.open #sheetLine{ white-space:normal; }
 /* 공격 탭에서는 띠도 접어 둔다 — 접촉은 칩과 표적판으로 고른다 */
 body[data-ep-pane="attack"] #sheet.on:not(.open){ display:none; }
+/* v6.44.3 — 고르기만 해서는 아무것도 올라오지 않는다. 띠는 어느 탭에서도 뜨지 않고,
+   세부 정보는 부를 때만 펼쳐진다(청음 목록의 › · 해도 「선택 접촉」의 세부 정보 · 잠망경의 함종 판단). */
+#sheet.on:not(.open){ display:none !important; }
 
 /* ── 실루엣 대조 ── */
 #decModeBar, #decChecks{ display:none !important; }
