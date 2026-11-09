@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.65.0 Flak</title>
-<script id="ep-build">window.EP_BUILD='6.65.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.66.0 War Diary</title>
+<script id="ep-build">window.EP_BUILD='6.66.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -50089,7 +50089,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   let cur = null;
 
   /* ── 사기 ── */
-  function get(C) { if (C.moraleV663 == null) C.moraleV663 = 0.62; return C.moraleV663; }
+  function get(C) { if (C.moraleV663 == null) { let m0 = 0.62; try { const w = window.War && War.state && War.state(); if (w && w.nextMoraleV666 != null && C.status === 'AT_SEA') { m0 = w.nextMoraleV666; w.nextMoraleV666 = null; War.save && War.save(); } } catch (e) {} C.moraleV663 = m0; } return C.moraleV663; }   /* v6.66 — 휴가 건의가 다음 초계 첫 사기로 */
   function add(C, d) { C.moraleV663 = clamp(get(C) + d, 0, 1); return C.moraleV663; }
   function word(m) { return m >= 0.8 ? T('높음', 'high', '高い') : m >= 0.6 ? T('좋음', 'good', '良好') : m >= 0.4 ? T('보통', 'fair', '普通') : m >= 0.22 ? T('낮음', 'low', '低い') : T('바닥', 'broken', 'どん底'); }
   function color(m) { return m >= 0.6 ? 'var(--green,#3dffa0)' : m >= 0.4 ? 'var(--sky,#8fd0ff)' : m >= 0.22 ? 'var(--amber,#e8bc68)' : 'var(--red,#f55)'; }
@@ -50674,6 +50674,148 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
     cv.addEventListener('pointerdown', e => { if (!S) return; const r = cv.getBoundingClientRect(), k = cv.width / r.width; fireAt((e.clientX - r.left) * k, (e.clientY - r.top) * k); });
   }
   function init() { setInterval(wrap, 700); window.EP_V665_AA = { version: '6.65.0', open: () => open(Campaign.state()), state: () => S, fireAt, close, planePos }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+
+<style id="ep-v666-ktb-style">
+/* ══════════ V6.66 초계 보고서(전투 일지) ══════════ */
+#epKtb{ position:fixed; inset:0; z-index:9200; display:none; align-items:center; justify-content:center; background:rgba(2,8,12,.8); }
+#epKtb.on{ display:flex; }
+#epKtb .kb{ width:min(94vw,440px); max-height:94vh; overflow:auto; background:#e9e3d2; color:#1d1a14; border-radius:6px; padding:14px 14px 12px; box-shadow:0 12px 40px rgba(0,0,0,.6);
+  background-image:repeating-linear-gradient(0deg, rgba(0,0,0,.035) 0 1px, transparent 1px 22px); font-family:ui-monospace,"Courier New",monospace; }
+#epKtb .hd{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #1d1a14; padding-bottom:4px; margin-bottom:8px; }
+#epKtb .hd b{ font-size:15px; letter-spacing:.14em; }
+#epKtb .hd small{ font-size:11px; }
+#epKtb .doc{ font-size:12.5px; line-height:1.65; white-space:pre-wrap; min-height:4em; }
+#epKtb .q{ margin-top:10px; border-top:1px dashed #6b6352; padding-top:8px; font-family:system-ui; }
+#epKtb .q .t{ font-size:12px; font-weight:700; letter-spacing:.06em; margin-bottom:5px; }
+#epKtb .q .o{ display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+#epKtb .q button{ background:#f6f1e3; color:#1d1a14; border:1.5px solid #1d1a14; border-radius:3px; padding:7px 8px; font-size:12.5px; text-align:left; }
+#epKtb .q button small{ display:block; font-size:10.5px; opacity:.7; }
+#epKtb .q button.sel{ background:#1d1a14; color:#f6f1e3; }
+#epKtb .ft{ display:grid; grid-template-columns:1fr; gap:6px; margin-top:12px; font-family:system-ui; }
+#epKtb .ft button{ background:#7a1c14; color:#fff; border:0; border-radius:3px; padding:10px; font-weight:700; letter-spacing:.1em; }
+#epKtb .ft button:disabled{ opacity:.4; }
+#epKtb .stamp{ display:none; margin:12px auto 0; width:max-content; max-width:100%; padding:6px 12px; border:3px double #a01e14; color:#a01e14; transform:rotate(-4deg); font-weight:700; letter-spacing:.12em; text-align:center; font-size:13px; }
+#epKtb .stamp.on{ display:block; }
+#epKtb .stamp small{ display:block; font-size:11px; letter-spacing:0; font-weight:600; margin-top:3px; }
+</style>
+<script id="ep-v666-ktb-script">
+/* ══════════ V6.66 초계 보고서 — 전투 일지를 쓴다 ══════════
+   초계가 끝나면(결과 화면이 열릴 때) 함장이 사령부에 낼 일지를 마무리한다.
+   · 사실은 자동으로 적힌다: 기간 · 격침(이름 확인된 것) · 천측 · 구명정 · 항공기 · 사기.
+   · 함장이 고르는 것: 미확인 격침을 크게 잡을지 / 구조 사실을 적을지 / 맺음말의 어조 / 승조원 건의.
+   · 크게 잡으면 당장 명성이 오르지만, 전후 확인에서 드러날 수 있다(다음 초계들의 보고에서 판정).
+     정직한 보고가 쌓이면 사령부의 신뢰가 오른다. 신뢰가 낮으면 기백 있는 맺음말이 역효과를 낸다.
+   · 결과 화면 표에 「보고서」 줄로 남는다. 한 · 영 · 일. */
+(function EP_V666_KTB(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const nat = th => th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE';
+  let snap = null, K = null, doneKey = null;
+
+  /* ── 항해 중 요약을 계속 떠 둔다(초계가 끝나면 상태가 바뀌므로) ── */
+  function keep() {
+    const C = window.Campaign && Campaign.state(); if (!C || !C.theater) return;
+    if (C.status !== 'AT_SEA' && snap && snap.key === key(C)) return;
+    const kills = (C.kills || []).map(k => ({ name: k.name, tons: Math.round(k.tons || 0), conf: !!k.confirmedV662, escort: !!k.escort }));
+    snap = { key: key(C), th: C.theater, boat: C.boatId, days: Math.max(1, Math.round((C.hours || 0) / 24)), kills, aided: C.aidedV662 || 0, breach: C.laconiaBreachV662 || 0,
+      planes: C.planesDownV665 || 0, fixes: C.navV661 ? C.navV661.fixes : 0, navErr: C.navV661 ? C.navV661.err : null, morale: C.moraleV663 == null ? 0.62 : C.moraleV663, pad: C.padV663 || 0, hull: Math.round(C.hull || 0) };
+  }
+  function key(C) { if (!C.ktbIdV666) C.ktbIdV666 = Date.now().toString(36) + Math.random().toString(36).slice(2, 7); return C.ktbIdV666; }   /* 초계마다 하나 */
+
+  function watch() {
+    keep();
+    const ov = $('ovPatrol'); if (!ov || !ov.classList.contains('on') || !snap || doneKey === snap.key || $('epKtb') && $('epKtb').classList.contains('on')) return;
+    doneKey = snap.key; open(snap);
+  }
+  function W() { try { return window.War && War.state ? War.state() : null; } catch (e) { return null; } }
+
+  function open(s) {
+    build();
+    const w = W(), unconf = s.kills.filter(k => !k.conf && !k.escort), conf = s.kills.filter(k => k.conf), tons = s.kills.reduce((a, k) => a + k.tons, 0);
+    K = { s, w, unconf, conf, tons, pick: {}, done: false };
+    const n = nat(s.th);
+    $('epKtbT').textContent = n === 'DE' ? 'KRIEGSTAGEBUCH' : n === 'US' ? 'PATROL REPORT' : '戦闘詳報';
+    $('epKtbH').textContent = T('초계 ', 'Patrol ', '哨戒 ') + s.days + T('일', ' days', '日');
+    const L = [];
+    L.push(T('격침 ', 'Sunk ', '撃沈 ') + s.kills.length + T('척 · ', ' ships · ', '隻・') + tons.toLocaleString() + T('톤', ' t', 'トン') + (s.kills.length ? T(' (이름 확인 ', ' (named ', '（船名確認 ') + conf.length + ')' : ''));
+    for (const k of s.kills.slice(0, 6)) L.push('  · ' + (k.conf ? k.name : T('미확인 ', 'unidentified ', '未確認 ') + (k.escort ? T('호위함', 'escort', '護衛艦') : T('상선', 'merchant', '商船'))) + ' — ' + k.tons.toLocaleString() + T('톤', ' t', 'トン'));
+    if (s.fixes) L.push(T('천측 ', 'Celestial fixes ', '天測 ') + s.fixes + T('회 · 최종 오차 ±', ' · final error ±', '回・最終誤差 ±') + (s.navErr != null ? s.navErr.toFixed(1) : '?') + T('마일', ' nm', '浬'));
+    if (s.aided) L.push(T('구명정에 물과 식량 전달 ', 'Water and food given to lifeboats ', '救命艇に水と食糧 ') + s.aided + T('회', 'x', '回'));
+    if (s.planes) L.push(T('대공 사격으로 항공기 격추 ', 'Aircraft shot down by AA ', '対空射撃で撃墜 ') + s.planes);
+    L.push(T('선체 ', 'Hull ', '船体 ') + s.hull + '% · ' + T('승조원 사기 ', 'crew morale ', '乗員士気 ') + (window.EP_MORALE ? EP_MORALE.word(s.morale) : Math.round(s.morale * 100)));
+    K.text = L.join('\n'); type($('epKtbDoc'), K.text);
+    /* 고를 것 */
+    const Q = [];
+    if (unconf.length) Q.push({ id: 'PAD', t: T('미확인 격침 ' + unconf.length + '척의 톤수', 'Tonnage of ' + unconf.length + ' unidentified sinkings', '未確認撃沈' + unconf.length + '隻のトン数'),
+      o: [['HONEST', T('추정대로 적는다', 'Log as estimated', '推定どおり記す'), T('신뢰 +', 'trust +', '信頼 +')], ['PAD', T('크게 잡아 적는다 (+40%)', 'Round it up (+40%)', '多めに記す（+40%）'), T('명성 지금 + · 드러날 수 있다', 'fame now + · may come out', '名声 今+・露見の恐れ')]] });
+    if (s.breach) Q.push({ id: 'BREACH', t: T('구조 금지 명령 위반 ' + s.breach + '회', 'Rescue-ban breaches: ' + s.breach, '救助禁止命令違反 ' + s.breach + '回'),
+      o: [['WRITE', T('사실대로 적는다', 'Write it down', '事実どおり記す'), T('질책 · 신뢰 +', 'reprimand · trust +', '叱責・信頼 +')], ['OMIT', T('적지 않는다', 'Leave it out', '記さない'), T('드러나면 큰 질책', 'worse if it comes out', '露見すれば重い叱責')]] });
+    if (s.pad) Q.push({ id: 'FUEL', t: T('초계 중 연료를 부풀려 보고함', 'Fuel state padded during patrol', '哨戒中に燃料を多めに報告'),
+      o: [['FIX', T('정정한다', 'Correct it', '訂正する'), T('신뢰 +', 'trust +', '信頼 +')], ['KEEP', T('그대로 둔다', 'Let it stand', 'そのままにする'), '']] });
+    Q.push({ id: 'TONE', t: T('맺음말', 'Closing remarks', '結び'), o: [['PLAIN', T('간결하게', 'Plain and brief', '簡潔に'), T('사실만', 'facts only', '事実のみ')], ['BOLD', T('기백 있게', 'With spirit', '気迫を込めて'), T('신뢰 높으면 +, 낮으면 −', '+ if trusted, − if not', '信頼高ければ+、低ければ−')]] });
+    Q.push({ id: 'REC', t: T('승조원에 대한 건의', 'Recommendation for the crew', '乗員に関する具申'), o: [['LEAVE', T('전원 휴가 건의', 'Leave for all hands', '全員休暇を具申'), T('다음 초계 사기 +', 'next patrol morale +', '次回士気 +')], ['MEDAL', T('고참 훈장 추천', 'Medals for the old hands', '古参に勲章推薦'), T('숙련 +', 'skill +', '練度 +')]] });
+    K.Q = Q;
+    $('epKtbQ').innerHTML = Q.map(q => '<div class="q" data-q="' + q.id + '"><div class="t">' + q.t + '</div><div class="o">' + q.o.map(o => '<button data-v="' + o[0] + '">' + o[1] + (o[2] ? '<small>' + o[2] + '</small>' : '') + '</button>').join('') + '</div></div>').join('');
+    $('epKtbGo').textContent = T('사령부에 제출', 'Submit to HQ', '司令部へ提出'); $('epKtbGo').disabled = true; $('epKtbGo').style.display = '';
+    $('epKtbStamp').classList.remove('on'); $('epKtbOk').style.display = 'none';
+    $('epKtb').classList.add('on');
+  }
+  function type(el, text) { el.textContent = ''; let i = 0; clearInterval(el._ty); el._ty = setInterval(() => { i += 3; el.textContent = text.slice(0, i); if (i >= text.length) clearInterval(el._ty); }, 16); }
+  function submit() {
+    if (!K || K.done) return; K.done = true;
+    const w = K.w, s = K.s, p = K.pick; let dP = 0; const notes = [];
+    const trust0 = w ? (w.reportTrustV666 == null ? 0.7 : w.reportTrustV666) : 0.7; let trust = trust0;
+    /* 지난 초계들의 과장이 드러나는가 */
+    if (w && Array.isArray(w.padPendingV666)) {
+      const keep = [];
+      for (const it of w.padPendingV666) { if (R() < (it.kind === 'OMIT' ? 0.25 : 0.35)) { const pen = it.kind === 'OMIT' ? 4 : 2 + Math.ceil(it.tons / 8000); dP -= pen; trust -= it.kind === 'OMIT' ? 0.2 : 0.15;
+          notes.push(it.kind === 'OMIT' ? T('지난 초계의 구조 사실이 드러났다 −' + pen, 'An earlier rescue came to light −' + pen, '以前の救助が露見 −' + pen) : T('지난 보고의 과장이 전후 확인에서 드러났다 −' + pen, 'Earlier inflated claims exposed −' + pen, '以前の誇張が戦後確認で露見 −' + pen)); }
+        else if (--it.ttl > 0) keep.push(it); }
+      w.padPendingV666 = keep;
+    }
+    let honest = true;
+    if (p.PAD === 'PAD') { const extra = Math.round(K.unconf.reduce((a, k) => a + k.tons, 0) * 0.4), g = Math.max(1, Math.ceil(extra / 6000)); dP += g; honest = false; notes.push(T('보고 톤수 +' + extra.toLocaleString() + ' · 명성 +' + g, 'Claimed +' + extra.toLocaleString() + ' t · fame +' + g, '報告トン数 +' + extra.toLocaleString() + '・名声 +' + g));
+      if (w) (w.padPendingV666 = w.padPendingV666 || []).push({ kind: 'PAD', tons: extra, ttl: 3 }); }
+    if (p.BREACH === 'WRITE') { dP -= 2; trust += 0.05; notes.push(T('구조 사실 기재 — 질책 −2', 'Rescue reported — reprimand −2', '救助を記載 — 叱責 −2')); }
+    if (p.BREACH === 'OMIT') { honest = false; if (w) (w.padPendingV666 = w.padPendingV666 || []).push({ kind: 'OMIT', tons: 0, ttl: 4 }); }
+    if (p.FUEL === 'FIX') trust += 0.03; if (p.FUEL === 'KEEP') honest = false;
+    if (p.TONE === 'BOLD') { const g = trust >= 0.6 ? 1 : -1; dP += g; notes.push(g > 0 ? T('기백 있는 맺음말 — 사령부가 좋아함 +1', 'Spirited closing well received +1', '気迫ある結び — 好評 +1') : T('기백 있는 맺음말 — 「또 과장인가」 −1', 'Spirited closing — "more bluster?" −1', '気迫ある結び —「また誇張か」−1')); }
+    const confB = Math.floor(K.conf.length / 2); if (confB) { dP += confB; notes.push(T('이름 확인된 격침 — 신뢰할 만한 보고 +' + confB, 'Named sinkings — credible report +' + confB, '船名確認済み — 信頼できる報告 +' + confB)); }
+    if (s.fixes >= 2 && s.navErr != null && s.navErr < 5) { dP += 1; notes.push(T('항해 기록 정확 +1', 'Precise navigation log +1', '航海記録正確 +1')); }
+    if (s.planes) { const g = Math.min(2, s.planes); dP += g; notes.push(T('항공기 격추 +' + g, 'Aircraft downed +' + g, '航空機撃墜 +' + g)); }
+    if (honest) trust += 0.04;
+    trust = clamp(trust, 0.1, 1);
+    if (w) { w.reportTrustV666 = trust; if (w.captain) w.captain.prestige = Math.max(0, (w.captain.prestige || 0) + dP);
+      if (p.REC === 'LEAVE') w.nextMoraleV666 = 0.7; if (p.REC === 'MEDAL') { try { for (const k in (w.crewCareer || {})) { const r = w.crewCareer[k]; if (r && Number.isFinite(r.skill)) r.skill = clamp(r.skill + 0.004, 0.45, 0.95); } } catch (e) {} }
+      try { War.save(); } catch (e) {} }
+    const verdict = trust >= 0.8 ? T('신뢰함', 'TRUSTED', '信頼') : trust >= 0.55 ? T('검토 완료', 'REVIEWED', '査閲済') : T('과장 의심', 'DOUBTFUL', '誇張の疑い');
+    $('epKtbStamp').innerHTML = verdict + '<small>' + T('명성 ', 'Fame ', '名声 ') + (dP >= 0 ? '+' : '') + dP + ' · ' + T('신뢰 ', 'trust ', '信頼 ') + Math.round(trust * 100) + '</small>';
+    $('epKtbStamp').classList.add('on'); setTimeout(() => { try { $('epKtbStamp').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} }, 60); $('epKtbGo').style.display = 'none'; $('epKtbOk').style.display = ''; $('epKtbOk').textContent = T('확인', 'OK', '了解');
+    if (notes.length) { const el = $('epKtbDoc'); clearInterval(el._ty); el.textContent = K.text + '\n\n' + T('— 사령부 검토 —', '— HQ review —', '— 司令部査閲 —') + '\n' + notes.map(n => '  · ' + n).join('\n'); }
+    /* 결과 표에 한 줄 */
+    try { const tb = $('patrolTable'); if (tb) tb.insertAdjacentHTML('beforeend', '<tr><td>' + T('보고서', 'Report', '報告書') + '</td><td>' + verdict + ' · ' + T('명성 ', 'fame ', '名声 ') + (dP >= 0 ? '+' : '') + dP + '</td></tr>'); } catch (e) {}
+  }
+  function build() {
+    if ($('epKtb')) return;
+    const el = document.createElement('div'); el.id = 'epKtb';
+    el.innerHTML = '<div class="kb"><div class="hd"><b id="epKtbT"></b><small id="epKtbH"></small></div><div class="doc" id="epKtbDoc"></div><div id="epKtbQ"></div>' +
+      '<div class="stamp" id="epKtbStamp"></div><div class="ft"><button id="epKtbGo"></button><button id="epKtbOk" style="background:#1d1a14"></button></div></div>';
+    document.body.appendChild(el);
+    $('epKtbQ').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (!b || !K || K.done) return; const q = b.closest('[data-q]').dataset.q; K.pick[q] = b.dataset.v;
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('sel', x === b)); $('epKtbGo').disabled = !K.Q.every(x => K.pick[x.id]); });
+    $('epKtbGo').addEventListener('click', submit);
+    $('epKtbOk').addEventListener('click', () => { $('epKtb').classList.remove('on'); K = null; });
+  }
+  /* 다음 초계의 첫 사기 — 휴가 건의 */
+  function carryMorale() { const C = window.Campaign && Campaign.state(), w = W(); if (!C || !w || C.status !== 'AT_SEA' || C.moraleV663 != null || w.nextMoraleV666 == null) return; C.moraleV663 = w.nextMoraleV666; w.nextMoraleV666 = null; try { War.save(); } catch (e) {} }
+  function init() { setInterval(() => { watch(); carryMorale(); }, 600); window.EP_V666_KTB = { version: '6.66.0', open: () => { keep(); if (snap) open(snap); }, submit, state: () => K, snap: () => snap }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
