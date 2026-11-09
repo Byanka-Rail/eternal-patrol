@@ -52686,5 +52686,163 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<script id="ep-v673-maint-script">
+/* ══════════ V6.73 어뢰 정비 — 며칠마다 꺼내 본다 ══════════
+   실제 유보트는 며칠마다 발사관의 어뢰를 꺼내 기름을 치고 심도장치와 신관을 시험했다.
+   1939~40년 「어뢰 위기」 — 깊게 달리고 터지지 않는 어뢰 — 의 절반은 정비와 시험의 문제였다.
+   · 정비 상태(%)는 초계 내내 조금씩 떨어진다(거친 바다면 더 빨리). 지도 위 ⚙ 단추가 깜박이면 때가 됐다.
+   · 한 발씩: 심도장치 바늘이 흔들리는 동안 표시선에 올 때 「조정」을 누른다 — 세 번(심도 · 자이로 · 신관).
+   · 잘 맞출수록 그 어뢰의 점수가 높고, 정비 상태가 오른다. 한 발에 한 시간.
+   · 정비 상태는 전투의 어뢰 「로트 품질」이 된다 — 낮으면 깊게 달리고 불발이 늘고, 높으면 줄어든다.
+   한 · 영 · 일. */
+(function EP_V673_MAINT() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const STEPS = [
+    { n: ['심도장치', 'Depth gear', '深度装置'], d: ['수압 시험 — 바늘이 설정 심도에 올 때', 'pressure test — when the needle hits the set depth', '水圧試験 — 針が設定深度に来た時'] },
+    { n: ['자이로', 'Gyro', 'ジャイロ'], d: ['방향 맞춤 — 바늘이 0에 올 때', 'alignment — when the needle hits zero', '方向合わせ — 針が0に来た時'] },
+    { n: ['신관', 'Pistol', '信管'], d: ['격발 시험 — 바늘이 표시선에 올 때', 'firing test — when the needle hits the mark', '撃発試験 — 針が標線に来た時'] }
+  ];
+  let S = null, raf = 0;
+
+  function level(C) { if (C.torpMaintV673 == null) C.torpMaintV673 = 0.85; return C.torpMaintV673; }
+  /* 초계 시간이 흐르면 떨어진다 */
+  let lastH = null;
+  function decay() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA') { lastH = null; return; }
+    level(C); const h = C.hours || 0;
+    if (lastH != null && h > lastH) { const sea = C.seaState == null ? 1 : C.seaState; C.torpMaintV673 = clamp(C.torpMaintV673 - (h - lastH) / 24 * (0.05 + Math.max(0, sea - 2) * 0.015), 0.15, 1); }
+    lastH = h;
+  }
+  function open() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA') return false;
+    const n = Math.max(1, Math.min(5, (C.torpLoaded != null ? C.torpLoaded : 4) || 4));
+    S = { C, n, i: 0, step: 0, ph: R() * 6, sp: 1.6 + R() * 0.6, scores: [], cur: [], lv0: level(C), msg: '', busy: false, target: 0.3 + R() * 0.4 };
+    build(); window.EP_PAUSE_V662 = true; $('epMt').classList.add('on'); labels(); render(); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop); return true;
+  }
+  function close() {
+    const s = S; if (!s) return; cancelAnimationFrame(raf); raf = 0;
+    const C = s.C, done = s.scores.length;
+    if (done) {
+      const avg = s.scores.reduce((a, b) => a + b, 0) / done;
+      const gain = done / s.n * (0.12 + avg * 0.3);
+      C.torpMaintV673 = clamp(level(C) + gain, 0.15, 1); C.hours = (C.hours || 0) + done;
+      const ko = '어뢰 정비 ' + done + '발 — 정비 상태 ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%.';
+      const en = 'Torpedo maintenance, ' + done + ' fish — condition ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%.';
+      const ja = '魚雷整備 ' + done + '本 — 整備状態 ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%。';
+      try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'weap', kind: 'report' }); } catch (e) {}
+    }
+    S = null; $('epMt').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {}
+  }
+  function needle(s, t) { return 0.5 + 0.46 * Math.sin(t * s.sp + s.ph) * (0.85 + 0.15 * Math.sin(t * 0.7 + s.ph * 2)); }
+  function tap() {
+    const s = S; if (!s || s.busy || s.i >= s.n) return;
+    const v = needle(s, s.t), err = Math.abs(v - s.target), sc = clamp(1 - err / 0.18, 0, 1);
+    s.cur.push(sc); s.flash = { sc, t: 0 }; snd(sc > 0.7 ? 'uibeep' : 'uireject');
+    s.msg = sc > 0.85 ? T('딱 맞았습니다.', 'Spot on.', 'ぴったりです。') : sc > 0.5 ? T('조금 어긋났지만 쓸 만합니다.', 'A touch off, but serviceable.', '少しずれたが使える。') : T('빗나갔습니다 — 바늘을 보고 다시.', 'Missed — watch the needle.', '外れた — 針をよく見て。');
+    s.step++; s.target = 0.25 + R() * 0.5; s.sp = 1.6 + R() * 0.9 + s.i * 0.15; s.ph = R() * 6;
+    if (s.step >= STEPS.length) {
+      const q = s.cur.reduce((a, b) => a + b, 0) / s.cur.length; s.scores.push(q); s.cur = []; s.step = 0; s.i++;
+      s.msg = T((s.i) + '번 어뢰 — ' + stars(q) + ' 다시 관에 넣습니다.', 'Fish ' + s.i + ' — ' + stars(q) + ' back in the tube.', s.i + '番魚雷 — ' + stars(q) + ' 発射管へ戻す。');
+      snd('taskdone');
+    }
+    render();
+  }
+  const stars = q => '★★★'.slice(0, q > 0.8 ? 3 : q > 0.5 ? 2 : 1) + '☆☆☆'.slice(0, 3 - (q > 0.8 ? 3 : q > 0.5 ? 2 : 1));
+  function loop(now) {
+    if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; S.t = (S.t || 0) + dt;
+    if (S.flash) { S.flash.t += dt; if (S.flash.t > 0.6) S.flash = null; }
+    draw(); raf = requestAnimationFrame(loop);
+  }
+  function draw() {
+    const cv = $('epMtCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(150, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = '#0d1418'; c.fillRect(0, 0, W, H);
+    /* 어뢰 — 옆에서. 지금 보는 부분이 밝다 */
+    const ty = 26, L = W * 0.86, x0 = (W - L) / 2, rr = 8;
+    const secs = [[0, 0.16, 'warhead'], [0.16, 0.22, 'pistol'], [0.22, 0.44, 'depth'], [0.44, 0.84, 'motor'], [0.84, 1, 'tail']];
+    const hi = S.i < S.n ? ['depth', 'motor', 'pistol'][S.step] : null;
+    for (const [a, b, id] of secs) { c.fillStyle = id === hi ? '#7a6a48' : '#2c3338'; c.fillRect(x0 + L * a, ty - rr, L * (b - a), rr * 2); }
+    c.fillStyle = '#2c3338'; c.beginPath(); c.arc(x0, ty, rr, Math.PI / 2, Math.PI * 1.5); c.fill();
+    c.fillStyle = '#8f9aa1'; c.fillRect(x0 + L + 1, ty - 9, 2, 18); c.fillRect(x0 + L + 5, ty - 7, 2, 14);
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.strokeRect(x0 - rr, ty - rr, L + rr, rr * 2);
+    /* 계기 — 반원 다이얼 */
+    const cx = W / 2, cy = H - 14, rad = Math.min(W * 0.36, H - 52);
+    c.strokeStyle = 'rgba(220,230,235,.35)'; c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, rad, Math.PI, 0); c.stroke();
+    for (let k = 0; k <= 10; k++) { const a = Math.PI + k / 10 * Math.PI; c.beginPath(); c.moveTo(cx + Math.cos(a) * rad * 0.9, cy + Math.sin(a) * rad * 0.9); c.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); c.stroke(); }
+    if (S.i < S.n) {
+      const ta = Math.PI + S.target * Math.PI, w = 0.18 * Math.PI;
+      c.strokeStyle = 'rgba(120,220,140,.55)'; c.lineWidth = 8; c.beginPath(); c.arc(cx, cy, rad * 0.95, ta - w * 0.35, ta + w * 0.35); c.stroke();
+      c.strokeStyle = '#e8c068'; c.lineWidth = 3; c.beginPath(); c.moveTo(cx + Math.cos(ta) * rad * 0.78, cy + Math.sin(ta) * rad * 0.78); c.lineTo(cx + Math.cos(ta) * rad * 1.04, cy + Math.sin(ta) * rad * 1.04); c.stroke();
+      const v = needle(S, S.t || 0), na = Math.PI + v * Math.PI;
+      c.strokeStyle = '#f2f5f7'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(na) * rad * 0.92, cy + Math.sin(na) * rad * 0.92); c.stroke();
+      c.fillStyle = '#f2f5f7'; c.beginPath(); c.arc(cx, cy, 5, 0, 6.283); c.fill();
+    }
+    if (S.flash) { const a = 1 - S.flash.t / 0.6; c.fillStyle = (S.flash.sc > 0.7 ? 'rgba(120,230,150,' : S.flash.sc > 0.4 ? 'rgba(232,192,104,' : 'rgba(255,120,100,') + (a * 0.25).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+  }
+  function render() {
+    if (!S) return; const s = S;
+    const done = s.i >= s.n;
+    $('epMtHd').innerHTML = '<span>' + T('어뢰 ', 'Fish ', '魚雷 ') + '<b>' + Math.min(s.i + 1, s.n) + '/' + s.n + '</b></span><span>' + (done ? '' : T(STEPS[s.step].n[0], STEPS[s.step].n[1], STEPS[s.step].n[2]) + ' · ' + (s.step + 1) + '/3') + '</span><span>' + T('정비 상태 ', 'Condition ', '整備状態 ') + '<b>' + Math.round(level(s.C) * 100) + '%</b></span>';
+    $('epMtDo').textContent = done ? T('모두 끝났습니다.', 'All done.', '全て完了。') : T(STEPS[s.step].d[0], STEPS[s.step].d[1], STEPS[s.step].d[2]);
+    $('epMtMsg').textContent = s.msg || T('바늘이 흔들립니다. 노란 표시선에 올 때 누르십시오.', 'The needle swings. Press when it is on the yellow mark.', '針が揺れます。黄色の標線に来た時に押してください。');
+    $('epMtStars').textContent = s.scores.map(stars).join('  ');
+    $('epMtTap').disabled = done; $('epMtTap').style.display = done ? 'none' : '';
+  }
+  function labels() {
+    $('epMtT').textContent = T('어뢰 정비', 'TORPEDO MAINTENANCE', '魚雷整備');
+    $('epMtTap').innerHTML = T('조정!', 'Set!', '調整！');
+    $('epMtEnd').innerHTML = T('마침', 'Finish', '終了') + '<small>' + T('한 발에 한 시간', 'one hour per fish', '一本一時間') + '</small>';
+  }
+  function build() {
+    if ($('epMt')) return;
+    const st = document.createElement('style'); st.id = 'ep-v673-maint-style';
+    st.textContent = '#epMt{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epMt.on{display:flex}' +
+      '#epMt .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--amber,#e0b060);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epMt h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:var(--amber,#e0b060)}#epMt .hd{display:flex;justify-content:space-between;font-size:12px;color:var(--dim,#8aa);margin-bottom:6px}#epMt .hd b{color:var(--ink,#dfe)}' +
+      '#epMt canvas{display:block;width:100%;aspect-ratio:16/10;border-radius:8px}#epMt .do{font-size:12.5px;color:#9fd4ff;margin:7px 2px 2px}#epMt .msg{font-size:12.5px;min-height:34px;margin:2px 2px;line-height:1.4}#epMt .stars{font-size:14px;color:var(--amber,#e0b060);letter-spacing:.06em;min-height:18px}' +
+      '#epMt .ctl{display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-top:6px}#epMt .ctl .tap{font-size:19px;padding:14px 0}#epMt .ctl button small{display:block;font-size:10px;opacity:.7}' +
+      '#epMtBtn{display:none}#epMtBtn.on{display:block}#epMtBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epMt';
+    el.innerHTML = '<div class="bx"><h3 id="epMtT"></h3><div class="hd" id="epMtHd"></div><canvas id="epMtCv"></canvas><div class="do" id="epMtDo"></div><div class="msg" id="epMtMsg"></div><div class="stars" id="epMtStars"></div>' +
+      '<div class="ctl"><button class="mini go tap" id="epMtTap"></button><button class="mini" id="epMtEnd"></button></div></div>';
+    document.body.appendChild(el);
+    $('epMtTap').addEventListener('pointerdown', e => { e.preventDefault(); tap(); });
+    $('epMtEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epMtBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epMtBtn'; b.textContent = '⚙'; b.title = T('어뢰 정비', 'Torpedo maintenance', '魚雷整備'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), at = C && C.status === 'AT_SEA', lv = at ? level(C) : 1;
+    b.classList.toggle('on', !!at); b.classList.toggle('want', !!at && lv < 0.6);
+  }
+  /* ── 전투로 — 정비 상태가 그 판 어뢰의 로트 품질이 된다 ── */
+  let wrapped = false;
+  function wrap() {
+    const U = window.UBOAT; if (wrapped || !U || !U.newGame) return;
+    const o = U.newGame;
+    const f = function () {
+      const r = o.apply(this, arguments);
+      try { const C = CS(), g = U.state(); if (C && C.status === 'IN_ACTION' && g && C.torpMaintV673 != null) {
+        const m = clamp(C.torpMaintV673, 0, 1); g._torpBatchQuality = {};
+        for (const t of (U.torpedoTypes ? U.torpedoTypes() : [])) g._torpBatchQuality[t.id] = clamp(0.12 + m * 0.8 + (R() - 0.5) * 0.12, 0, 1);
+      } } catch (e) {}
+      return r;
+    };
+    Object.assign(f, o); U.newGame = f; wrapped = true;
+  }
+  function init() { setInterval(() => { try { wrap(); decay(); button(); } catch (e) {} }, 700); window.EP_V673_MAINT = { version: '6.73.0', open, close, tap, state: () => S, level: () => { const C = CS(); return C ? level(C) : null; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
 </body>
 </html>
