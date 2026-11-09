@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.47.0 Night Lights</title>
-<script id="ep-build">window.EP_BUILD='6.47.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.48.0 Shadowing</title>
+<script id="ep-build">window.EP_BUILD='6.48.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -47301,6 +47301,371 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     const n = $('epFxNote'); if (n) n.textContent = lv === 'low' ? '폭발·연기만 — 렌즈의 물·오로라·지도 불빛·격침 표시를 끕니다. 폰이 뜨거울 때.' : lv === 'high' ? '입자를 더 많이 — 파편·연기·조명탄이 늘어납니다. 최신 폰 권장.' : '기본값.'; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addOption, { once: true }); else addOption();
   setTimeout(addOption, 1500);
+})();
+</script>
+<style id="ep-v648-track-style">
+/* ══════════ V6.48 추적 — 항해와 전투 사이 ══════════ */
+#epTrack{ position:fixed; inset:0; z-index:520; display:none; flex-direction:column; background:#05090c; color:var(--ink);
+  padding-top:env(safe-area-inset-top, 0px); padding-bottom:env(safe-area-inset-bottom, 0px); }
+#epTrack.on{ display:flex; }
+#epTrack .hd{ flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--steel); }
+#epTrack .hd b{ font-size:15px; letter-spacing:.06em; color:var(--amber); }
+#epTrack .hd .clk{ font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink); }
+#epTrack .hd .sp{ flex:1 1 auto; }
+#epTrack .hd button{ min-height:34px; padding:0 10px; font-size:12px; }
+#epTrack .st{ flex:0 0 auto; display:grid; grid-template-columns:repeat(4, 1fr); gap:1px; background:var(--steel); border-bottom:1px solid var(--steel); }
+#epTrack .st div{ background:#0a1116; padding:5px 7px; min-width:0; }
+#epTrack .st small{ display:block; font-size:10.5px; color:var(--dim); white-space:nowrap; }
+#epTrack .st span{ display:block; font-size:13.5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#epTrack .st .bad{ color:var(--red); } #epTrack .st .warn{ color:var(--amber); } #epTrack .st .good{ color:var(--green); }
+#epTrkPlot{ flex:1 1 auto; min-height:0; width:100%; display:block; touch-action:none; }
+#epTrkHzn{ flex:0 0 auto; width:100%; height:64px; display:block; border-top:1px solid var(--steel); border-bottom:1px solid var(--steel); }
+#epTrack .msg{ flex:0 0 auto; min-height:38px; padding:6px 10px; font-size:12.5px; line-height:1.45; color:var(--ink); }
+#epTrack .msg i{ font-style:normal; color:var(--dim); margin-right:6px; }
+#epTrack .ctl{ flex:0 0 auto; display:grid; gap:6px; padding:6px 8px 8px; }
+#epTrack .seg{ display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; }
+#epTrack .act{ display:grid; grid-template-columns:repeat(4, 1fr); gap:5px; }
+#epTrack .ctl button{ min-height:44px; font-size:12.5px; padding:2px 4px; line-height:1.25; }
+#epTrack .ctl button small{ display:block; font-size:10.5px; color:var(--dim); font-weight:400; }
+#epTrack .ctl button.go small{ color:inherit; opacity:.75; }
+#encTrack small{ display:block; font-size:11px; color:var(--dim); font-weight:400; margin-top:2px; }
+</style>
+<script id="ep-v648-track-script">
+/* ══════════ V6.48 추적 1단계 ══════════
+   조우하면 바로 싸우거나 흘려보내는 것 말고, **따라붙어 자리를 만들 수** 있다(선택).
+   실제 유보트 전의 가장 긴 부분 — 낮에는 수평선 너머에서 연기만 보며 따라가고, 밤에 앞으로 돌아 들어간다.
+   · 선단은 지그재그로 간다. 보이는 동안은 추정이 좁혀지고, 놓치면 오차가 시간에 따라 커진다.
+   · 보는 거리(연기는 낮에 20km 넘게, 밤에는 몇 km)와 들키는 거리(호위 견시·레이더)가 낮밤·날씨·전황으로 바뀐다.
+   · 너무 붙으면 호위함 하나가 떨어져 나와 쫓아온다. 가까이 오면 잠항해야 하고, 잠항하면 따라가기 어렵다.
+   · 앞지르기 — 들키지 않을 만큼 옆으로 벌려 달려 선단 앞에 선다. 연료를 많이 먹는다.
+   · 교전 개시 — 지금 선 자리(앞·옆·뒤), 밤낮, 들켰는지, 추정이 얼마나 좋은지가 전투의 시작 자리와 처음 해법이 된다.
+   전투 규칙은 바꾸지 않는다. 전술 판에 넘기는 시작 조건(시작 자리·접근 판정·처음 해법·밤)만 추적 결과로 채운다. */
+(function EP_V648_TRACK(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const d2r = Math.PI / 180, KN = 1.852;            /* 1노트 = 시속 1.852km */
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const norm = a => ((a % 360) + 360) % 360;
+  const relA = (a, b) => { let d = norm(a - b); if (d > 180) d -= 360; return d; };
+  const hyp = Math.hypot;
+  const TH = () => window.THEATERS;
+  const SPEEDS = { DIVE: { kn: 3.5, ko: '잠항', burn: 0.15 }, ECO: { kn: 10, ko: '경제', burn: 0.7 }, CRUISE: { kn: 13, ko: '순항', burn: 1.0 }, FLANK: { kn: 17, ko: '전속', burn: 2.3 } };
+  let S = null, timer = null, lastNow = 0;
+
+  /* ── 낮밤 — 초계 지도와 같은 곡선 ── */
+  const nightOf = h => { h = ((h % 24) + 24) % 24; if (h < 5 || h >= 20) return 1; if (h < 7) return 1 - (h - 5) / 2; if (h >= 18) return (h - 18) / 2; return 0; };
+  function visOf(id) { const W = (TH() && TH().WEATHERS) || []; const w = W.find(x => x.id === id); return w ? w.vis : 0.8; }
+
+  /* ── 시작 ── */
+  function begin() {
+    const C = window.Campaign && Campaign.state(); const e = C && C.pendingEncounter; if (!e) return;
+    const vis = visOf(e.weather), h0 = C.hours, night = nightOf(h0);
+    const see = seeRange({ vis, night, dive: false, moon: 1 });
+    const brg = norm((e.course || 90) + (Math.random() < 0.5 ? 1 : -1) * rnd(55, 110));        /* 선단에서 본 우리 쪽 — 옆이나 비스듬히 앞 */
+    const d0 = clamp(see * rnd(0.7, 0.9), 6, 26);
+    const cx = -Math.sin(brg * d2r) * d0, cy = -Math.cos(brg * d2r) * d0;   /* 우리 = (0,0) */
+    S = {
+      e, C, h0, t: 0, vis, moon: rnd(0.65, 1.35), era: clamp(C.escalation != null ? C.escalation : 0.5, 0, 1),
+      esc: e.escorts || 0, merchants: e.ships || 0,
+      boat: { x: 0, y: 0, hdg: norm(brg + 180), speed: 'CRUISE', trail: [] },
+      cv: { x: cx, y: cy, base: e.course || 90, crs: e.course || 90, kn: e.speedKn || 8, legT: rnd(0.3, 0.6), legOff: 0 },
+      est: { x: cx + rnd(-1.5, 1.5), y: cy + rnd(-1.5, 1.5), crs: norm((e.course || 90) + rnd(-25, 25)), kn: (e.speedKn || 8) + rnd(-2, 2), unc: 3, seenAt: 0, conf: 0.15, sightings: 0 },
+      wp: null, mode: 'SHADOW', ts: 1, fuel0: C.fuel, burned: 0,
+      detectedAt: -99, chaser: null, lost: false, msgs: [], ahead: false,
+    };
+    say('부장', '선단을 놓치지 않게 붙습니다. 연기 끝을 수평선에 걸어 두고 따라가겠습니다.');
+    build(); $('epTrack').classList.add('on'); $('ovEnc').classList.remove('on');
+    lastNow = performance.now(); clearInterval(timer); timer = setInterval(tick, 100);
+    render();
+  }
+
+  /* ── 거리 ── */
+  function seeRange(o) {   /* 우리가 선단을 보는 거리(km) */
+    if (o.dive) return 9;                                         /* 청음 — 방위 위주 */
+    const day = 23 * o.vis, nite = 6.5 * o.vis * o.moon;
+    return Math.max(2.5, day * (1 - o.night) + nite * o.night);
+  }
+  function detRange(o) {   /* 호위 고리에서 우리를 알아보는 거리(km) */
+    if (o.dive) return 1.0;
+    const radar = o.era > 0.55 ? (o.era - 0.55) / 0.45 * 5 * (o.esc > 0 ? 1 : 0) : 0;
+    const day = 9 * o.vis, nite = 2.2 * o.vis * o.moon;
+    return day * (1 - o.night) + (nite + radar) * o.night + (o.night > 0.5 ? radar * 0 : 0);
+  }
+  const SCREEN = () => (S.esc > 0 ? 2.6 : 0.6);   /* 호위 고리 반경 */
+
+  /* ── 한 걸음(dt 시간) ── */
+  function step(dt) {
+    const s = S, b = s.boat, cv = s.cv, est = s.est;
+    s.t += dt;
+    const hr = s.h0 + s.t, night = nightOf(hr), dive = b.speed === 'DIVE';
+    /* 선단 — 지그재그 */
+    cv.legT -= dt; if (cv.legT <= 0) { cv.legT = rnd(0.35, 0.75); cv.legOff = (cv.legOff > 0 ? -1 : 1) * rnd(15, 38); }
+    cv.crs = norm(cv.base + cv.legOff);
+    cv.x += Math.sin(cv.crs * d2r) * cv.kn * KN * dt; cv.y += Math.cos(cv.crs * d2r) * cv.kn * KN * dt;
+    /* 우리 — 자동 길잡이 또는 찍은 점으로 */
+    const tgt = steerTarget(night, dive);
+    if (tgt) { const dx = tgt.x - b.x, dy = tgt.y - b.y, dd = hyp(dx, dy);
+      if (dd > 0.2) { const want = norm(Math.atan2(dx, dy) / d2r), turn = clamp(relA(want, b.hdg), -90 * dt * 6, 90 * dt * 6); b.hdg = norm(b.hdg + turn); }
+      else if (s.mode === 'MANUAL') { s.wp = null; } }
+    const kn = SPEEDS[b.speed].kn;
+    b.x += Math.sin(b.hdg * d2r) * kn * KN * dt; b.y += Math.cos(b.hdg * d2r) * kn * KN * dt;
+    s.burned += SPEEDS[b.speed].burn * dt;
+    if (!b.trail.length || hyp(b.x - b.trail[b.trail.length - 1][0], b.y - b.trail[b.trail.length - 1][1]) > 0.8) { b.trail.push([b.x, b.y]); if (b.trail.length > 160) b.trail.shift(); }
+    /* 보이는가 */
+    const dist = hyp(cv.x - b.x, cv.y - b.y), see = seeRange({ vis: s.vis, night, dive, moon: s.moon });
+    est.x += Math.sin(est.crs * d2r) * est.kn * KN * dt; est.y += Math.cos(est.crs * d2r) * est.kn * KN * dt;
+    if (dist < see) {
+      const err = dive ? 1.4 : (0.4 + 0.6 * night);
+      const k = clamp(dt * 6, 0, 1);
+      est.x += (cv.x + rnd(-err, err) - est.x) * k; est.y += (cv.y + rnd(-err, err) - est.y) * k;
+      est.crs = norm(est.crs + relA(cv.base, est.crs) * clamp(dt * 1.2, 0, 1)); est.kn += (cv.kn - est.kn) * clamp(dt * 1.2, 0, 1);
+      est.unc = Math.max(err, est.unc - dt * 12); if (s.t - est.seenAt > 0.4) est.sightings++; est.seenAt = s.t;
+      est.conf = clamp(est.conf + dt * (dive ? 0.12 : 0.35), 0, 0.92);
+      if (s.lost) { s.lost = false; say('견시', '다시 잡았습니다 — ' + bearingWord(b, cv) + '에 연기!'); }
+    } else {
+      est.unc += dt * (0.9 + 0.12 * est.kn);
+      est.conf = clamp(est.conf - dt * 0.05, 0.05, 1);
+      if (!s.lost && est.unc > 14) { s.lost = true; say('항해사', '접촉을 잃었습니다. 추정 위치로 가 보겠습니다 — 오래 끌면 영영 놓칩니다.'); }
+      if (s.lost && est.unc > 40) { finish('LOST'); return; }
+    }
+    /* 들키는가 — 호위 고리 바깥으로 들키는 거리 안 */
+    const ring = SCREEN(), dr = detRange({ vis: s.vis, night, dive, moon: s.moon, era: s.era, esc: s.esc });
+    const gap = dist - ring;
+    if (gap < dr && !s.chaser && s.t - s.detectedAt > 1.2) {
+      const p = 0.9 * (1 - clamp(gap / dr, 0, 1)) * (s.esc > 0 ? 1 : 0.35);
+      if (Math.random() < p * dt * 4) detected(night);
+    }
+    if (gap < 0.8 && !dive) { if (s.t - s.detectedAt > 0.5) detected(night); }
+    /* 쫓아오는 호위함 */
+    if (s.chaser) chaserStep(dt, night, dive);
+    /* 앞에 섰는가 */
+    const fr = frame(b, est), ahead = fr.a > 6 && Math.abs(fr.s) < 9;
+    if (ahead && !s.ahead) { s.ahead = true; say('항해사', '선단 진로 앞에 섰습니다. 잠항해 기다리거나 교전을 여십시오.'); if (s.mode === 'ENDRUN') s.mode = 'HOLD'; }
+    if (!ahead && fr.a < 3) s.ahead = false;
+    if (s.t > 36) finish('TIMEOUT');
+  }
+  function frame(b, c) {   /* 선단(추정) 기준 — a: 앞(+)/뒤(-), s: 옆 */
+    const dx = b.x - c.x, dy = b.y - c.y, cs = Math.sin(c.crs * d2r), cc = Math.cos(c.crs * d2r);
+    return { a: dx * cs + dy * cc, s: dx * cc - dy * cs };
+  }
+  function fromFrame(c, a, sd) { const cs = Math.sin(c.crs * d2r), cc = Math.cos(c.crs * d2r); return { x: c.x + a * cs + sd * cc, y: c.y + a * cc - sd * cs }; }
+  function steerTarget(night, dive) {
+    const s = S, b = s.boat, est = s.est;
+    if (s.chaser && s.chaser.mode === 'CHASE' && !dive) {   /* 쫓기면 등지고 달아난다 */
+      const ch = s.chaser, away = norm(Math.atan2(b.x - ch.x, b.y - ch.y) / d2r); return { x: b.x + Math.sin(away * d2r) * 5, y: b.y + Math.cos(away * d2r) * 5 };
+    }
+    if (s.mode === 'MANUAL') return s.wp;
+    const fr = frame(b, est), side = fr.s >= 0 ? 1 : -1;
+    const dr = detRange({ vis: s.vis, night: nightOf(s.h0 + s.t), dive: false, moon: s.moon, era: s.era, esc: s.esc }), see = seeRange({ vis: s.vis, night: nightOf(s.h0 + s.t), dive, moon: s.moon });
+    const safe = SCREEN() + dr + 1.5;
+    if (s.mode === 'SHADOW') {
+      /* 보는 거리 안, 들킬 거리 밖. 밤에는 둘이 거의 겹친다 — 그때는 보이는 쪽을 택하고 위험을 무릅쓴다 */
+      const off = see * 0.85 >= safe ? Math.max(safe, Math.min(see * 0.8, safe + 10)) : Math.max(SCREEN() + 1, Math.min(see * 0.85, (safe + see * 0.85) / 2));
+      if (see * 0.85 < safe && !s._nightHint) { s._nightHint = true; say('부장', '밤에는 보이는 거리와 들키는 거리가 거의 같습니다. 붙어 있으면 들키고, 떨어지면 놓칩니다 — 앞으로 돌아가 기다리는 편이 낫습니다.'); }
+      return fromFrame(est, 1.5, side * off); }
+    if (s.mode === 'ENDRUN') { const off = Math.max(safe + 2, see * 0.75);
+      return fr.a < 6 ? fromFrame(est, Math.max(fr.a + 8, 0), side * off) : fromFrame(est, 11, side * Math.max(0, Math.abs(fr.s) - 4)); }
+    if (s.mode === 'HOLD') return fromFrame(est, dive ? 8 : Math.max(10, safe + 1), 0);   /* 물 위에서는 들킬 거리 밖에서, 잠항하면 진로 위에서 기다린다 */
+    return null;
+  }
+  function detected(night) {
+    const s = S; s.detectedAt = s.t;
+    if (s.esc > 0) {
+      const c = s.cv, b = s.boat, brg = Math.atan2(b.x - c.x, b.y - c.y);
+      s.chaser = { x: c.x + Math.sin(brg) * SCREEN(), y: c.y + Math.cos(brg) * SCREEN(), mode: 'CHASE', t: 0, lx: b.x, ly: b.y };
+      say('견시', night > 0.5 ? '호위함 하나가 대열에서 떨어져 이쪽으로 옵니다! 들킨 것 같습니다.' : '호위함이 연기를 뿜으며 이쪽으로 꺾습니다 — 들켰습니다!');
+    } else {
+      s.cv.base = norm(s.cv.base + (Math.random() < 0.5 ? 1 : -1) * rnd(50, 90)); s.cv.kn += 1;
+      say('견시', '표적이 침로를 크게 틉니다 — 이쪽을 본 것 같습니다.');
+    }
+  }
+  function chaserStep(dt, night, dive) {
+    const s = S, ch = s.chaser, b = s.boat; ch.t += dt;
+    const see = dive ? 0.9 : (8 * s.vis * (1 - night) + 2.6 * s.vis * night + (s.era > 0.55 ? (s.era - 0.55) / 0.45 * 4 * night : 0));
+    const d = hyp(b.x - ch.x, b.y - ch.y);
+    if (d < see) { ch.lx = b.x; ch.ly = b.y; ch.mode = 'CHASE'; } else if (ch.mode === 'CHASE') { ch.mode = 'SEARCH'; ch.st = 0; }
+    let tx, ty, kn = 16;
+    if (ch.mode === 'CHASE') { tx = ch.lx; ty = ch.ly; }
+    else if (ch.mode === 'SEARCH') { ch.st = (ch.st || 0) + dt; tx = ch.lx + Math.sin(ch.t * 3) * 2; ty = ch.ly + Math.cos(ch.t * 3) * 2; kn = 10; if (ch.st > 0.6) ch.mode = 'RETURN'; }
+    else { tx = s.cv.x; ty = s.cv.y; if (hyp(tx - ch.x, ty - ch.y) < SCREEN() + 0.5) { s.chaser = null; say('견시', '호위함이 대열로 돌아갑니다.'); return; } }
+    const dx = tx - ch.x, dy = ty - ch.y, dd = hyp(dx, dy) || 1, mv = Math.min(dd, kn * KN * dt); ch.x += dx / dd * mv; ch.y += dy / dd * mv;
+    if (!dive && d < 3.2 && ch.mode === 'CHASE') { b.speed = 'DIVE'; s.detectedAt = s.t; say('부장', '긴급 잠항! 놈이 너무 가깝다 — 내려가서 지나가게 둔다.'); try { window.Snd && Snd.event && Snd.event('divealarm', {}); } catch (e) {} }
+  }
+  function bearingWord(b, c) { const a = norm(Math.atan2(c.x - b.x, c.y - b.y) / d2r); return String(Math.round(a)).padStart(3, '0') + '°'; }
+
+  /* ── 매 박자 ── */
+  function tick() {
+    if (!S) return; const now = performance.now(), real = Math.min(0.3, (now - lastNow) / 1000); lastNow = now;
+    const hours = real * (S.ts === 0 ? 0 : S.ts === 1 ? 0.05 : 0.2);       /* ×1 = 실제 1초에 3분, ×4 = 12분 */
+    let left = hours; while (left > 1e-6 && S) { const d = Math.min(left, 0.02); step(d); left -= d; }
+    if (S) render();
+  }
+
+  /* ── 끝 ── */
+  function applyCampaign() {
+    const C = S.C, th = TH().THEATERS[C.theater], cellKm = th.grid.nmPerCell * KN;
+    C.hours += S.t;
+    try { const spec = TH().BOATS[C.boatId]; C.fuel = clamp(C.fuel - S.burned / (spec.fuelDays * 24), 0, 1); } catch (e) {}
+    let sgn = -1; try { const g0 = COASTLINES.toGeo(C.theater, C.x, C.y), g1 = COASTLINES.toGeo(C.theater, C.x, C.y + 1); if (g0 && g1) sgn = g1.lat > g0.lat ? 1 : -1; } catch (e) {}
+    C.x += S.boat.x / cellKm; C.y += sgn * S.boat.y / cellKm;
+    if (C.pendingEncounter) { C.pendingEncounter.x = C.x; C.pendingEncounter.y = C.y; }
+  }
+  function finish(why) {
+    if (!S) return; clearInterval(timer); timer = null;
+    const s = S; applyCampaign();
+    const log = t => { try { s.C.log.unshift({ h: s.C.hours, text: t, who: 'exec', kind: 'encounter' }); } catch (e) {} };
+    if (why === 'ATTACK') {
+      const night = nightOf(s.h0 + s.t), fr = frame(s.boat, s.cv), ang = Math.abs(Math.atan2(fr.s, fr.a) / d2r);
+      const aspect = ang < 55 ? 'AHEAD' : ang < 115 ? 'BEAM' : 'MIXED';
+      const recent = s.t - s.detectedAt < 2 || (s.chaser && s.chaser.mode !== 'RETURN');
+      let q = 0.48 + 0.24 * night + 0.18 * s.est.conf + (aspect === 'AHEAD' ? 0.1 : aspect === 'MIXED' ? -0.15 : 0) - (recent ? 0.35 : 0);
+      q = clamp(q, 0.05, 0.95);
+      const kind = recent ? 'DETECTED_EARLY' : (q > 0.7 && aspect !== 'MIXED' ? 'AMBUSH_READY' : 'CLOSE_SUCCESS');
+      const c = s.est.conf;
+      window.EP_TRACK_OVR = {
+        night: +night.toFixed(2), startAspect: aspect, startRange: aspect === 'AHEAD' ? 1.0 : aspect === 'BEAM' ? 1.2 : 1.6,
+        startSolution: [clamp(0.25 + 0.45 * c, 0.2, 0.75), clamp(0.4 + 0.45 * c, 0.3, 0.88)],
+        escortGrace: recent ? 120 : Math.round(300 * (0.8 + 0.6 * night)),
+        preCombat: { kind, quality: +q.toFixed(3), night: +night.toFixed(2), vis: s.vis, era: +s.era.toFixed(2), escorts: s.esc, tracked: true },
+      };
+      log('추적 ' + s.t.toFixed(1) + '시간 — ' + ({ AHEAD: '선단 앞', BEAM: '선단 옆', MIXED: '선단 뒤쪽' })[aspect] + '에서 ' + (night > 0.5 ? '밤' : '낮') + ' 공격' + (recent ? ' (들킨 채)' : '') + '.');
+      close(); const go = $('encGo'); if (go) go.click();
+    } else {
+      log(why === 'LOST' ? '추적 ' + s.t.toFixed(1) + '시간 끝에 접촉을 잃었다.' : why === 'TIMEOUT' ? '서른여섯 시간을 따라갔지만 자리를 만들지 못했다.' : '추적을 그만두고 선단을 보냈다.');
+      close(); const sk = $('encSkip'); if (sk) sk.click();
+    }
+  }
+  function close() { $('epTrack').classList.remove('on'); S = null; }
+
+  /* ── 승조원 한마디 ── */
+  function say(who, text) { if (!S) return; S.msgs.unshift({ who, text, t: S.t }); S.msgs.length = Math.min(S.msgs.length, 6); try { window.Snd && Snd.event && Snd.event('chart', {}); } catch (e) {} }
+
+  /* ── 화면 ── */
+  function build() {
+    if ($('epTrack')) return;
+    const el = document.createElement('div'); el.id = 'epTrack';
+    el.innerHTML = '<div class="hd"><b>추 적</b><span class="clk" id="epTrkClk"></span><span class="sp"></span><button class="mini" id="epTrkTs">×1</button></div>' +
+      '<div class="st"><div><small>선단까지</small><span id="epTrkD">—</span></div><div><small>추정</small><span id="epTrkE">—</span></div><div><small>들킬 위험</small><span id="epTrkR">—</span></div><div><small>자리</small><span id="epTrkA">—</span></div></div>' +
+      '<canvas id="epTrkPlot"></canvas><canvas id="epTrkHzn"></canvas><div class="msg" id="epTrkMsg"></div>' +
+      '<div class="ctl"><div class="seg" id="epTrkSpd"><button class="mini" data-s="DIVE">잠항<small>3.5kn</small></button><button class="mini" data-s="ECO">경제<small>10kn</small></button><button class="mini" data-s="CRUISE">순항<small>13kn</small></button><button class="mini" data-s="FLANK">전속<small>17kn · 연료↑</small></button></div>' +
+      '<div class="act"><button class="mini" data-a="SHADOW">따라붙기<small>옆에서 보며</small></button><button class="mini" data-a="ENDRUN">앞지르기<small>돌아서 앞으로</small></button><button class="mini go" data-a="ATTACK">교전 개시<small id="epTrkGoW"></small></button><button class="mini" data-a="QUIT">놓아준다<small>흘려보냄</small></button></div></div>';
+    document.body.appendChild(el);
+    $('epTrkSpd').addEventListener('click', e => { const b = e.target.closest('[data-s]'); if (!b || !S) return; S.boat.speed = b.dataset.s; render(); });
+    el.querySelector('.act').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || !S) return; const a = b.dataset.a;
+      if (a === 'ATTACK') { const why = attackBlock(); if (why) { say('부장', why); render(); return; } finish('ATTACK'); return; }
+      if (a === 'QUIT') { finish('QUIT'); return; }
+      S.mode = a; S.wp = null;
+      if (a === 'ENDRUN') { if (S.boat.speed !== 'FLANK') { S.boat.speed = 'FLANK'; } say('항해사', '수평선 밖으로 벌려 전속으로 앞지르겠습니다. 연료를 많이 먹습니다.'); }
+      if (a === 'SHADOW') say('항해사', '연기를 수평선에 걸어 두고 옆에서 따라갑니다.');
+      render(); });
+    $('epTrkTs').addEventListener('click', () => { if (!S) return; S.ts = S.ts === 1 ? 4 : S.ts === 4 ? 0 : 1; render(); });
+    $('epTrkPlot').addEventListener('click', e => { if (!S) return; const r = e.currentTarget.getBoundingClientRect(), v = S._view; if (!v) return;
+      const x = (e.clientX - r.left - v.cx) / v.k + v.ox, y = -(e.clientY - r.top - v.cy) / v.k + v.oy; S.wp = { x, y }; S.mode = 'MANUAL'; render(); });
+  }
+  function attackBlock() {
+    const s = S, d = hyp(s.cv.x - s.boat.x, s.cv.y - s.boat.y);
+    if (s.t - s.est.seenAt > 0.5) return '지금은 선단이 보이지 않습니다. 먼저 다시 찾아야 합니다.';
+    if (d > 16) return '아직 멉니다(' + d.toFixed(0) + 'km). 16km 안으로 붙어야 교전을 열 수 있습니다.';
+    return null;
+  }
+  function render() {
+    if (!S) return; const s = S, b = s.boat, est = s.est, hr = s.h0 + s.t, night = nightOf(hr), dive = b.speed === 'DIVE';
+    const hh = Math.floor(((hr % 24) + 24) % 24), mm = Math.floor((hr * 60) % 60);
+    $('epTrkClk').textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' · ' + (night > 0.75 ? '밤' : night > 0.05 ? '박명' : '낮') + ' · 추적 ' + s.t.toFixed(1) + 'h';
+    $('epTrkTs').textContent = s.ts === 0 ? '정지' : '×' + s.ts;
+    const dist = hyp(s.cv.x - b.x, s.cv.y - b.y), seen = s.t - est.seenAt < 0.1;
+    const dE = $('epTrkD'); dE.textContent = seen ? dist.toFixed(1) + 'km' : '약 ' + hyp(est.x - b.x, est.y - b.y).toFixed(0) + 'km?'; dE.className = seen ? 'good' : 'warn';
+    const eE = $('epTrkE'); eE.textContent = s.lost ? '잃음 ±' + est.unc.toFixed(0) + 'km' : (seen ? '보임' : '±' + est.unc.toFixed(1) + 'km') + ' · ' + Math.round(est.conf * 100) + '%'; eE.className = s.lost ? 'bad' : seen ? 'good' : 'warn';
+    const dr = detRange({ vis: s.vis, night, dive, moon: s.moon, era: s.era, esc: s.esc }), gap = dist - SCREEN(), risk = s.chaser ? 2 : gap < dr ? 1 : gap < dr * 1.4 ? 0.5 : 0;
+    const rE = $('epTrkR'); rE.textContent = s.chaser ? (s.chaser.mode === 'CHASE' ? '쫓기는 중' : s.chaser.mode === 'SEARCH' ? '수색 중' : '돌아감') : risk >= 1 ? '높음' : risk > 0 ? '주의' : '낮음'; rE.className = risk >= 1 ? 'bad' : risk > 0 ? 'warn' : 'good';
+    const fr = frame(b, est), ang = Math.abs(Math.atan2(fr.s, fr.a) / d2r);
+    const aE = $('epTrkA'); aE.textContent = ang < 55 ? '선단 앞' : ang < 115 ? '선단 옆' : '선단 뒤'; aE.className = ang < 55 ? 'good' : ang < 115 ? '' : 'warn';
+    document.querySelectorAll('#epTrkSpd [data-s]').forEach(x => x.classList.toggle('on', x.dataset.s === b.speed));
+    document.querySelectorAll('#epTrack .act [data-a]').forEach(x => x.classList.toggle('on', x.dataset.a === s.mode));
+    const blk = attackBlock(); const gw = $('epTrkGoW'); if (gw) gw.textContent = blk ? '아직' : (night > 0.5 ? '밤 · ' : '낮 · ') + (ang < 55 ? '앞에서' : ang < 115 ? '옆에서' : '뒤에서');
+    $('epTrkMsg').innerHTML = s.msgs.slice(0, 2).map(m => '<div><i>' + m.who + '</i>' + m.text + '</div>').join('');
+    drawPlot(night, dive, dr); drawHorizon(night, dive);
+  }
+  function fit(cv) { const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(10, r.width), H = Math.max(10, r.height);
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); return { c, W, H }; }
+  function drawPlot(night, dive, dr) {
+    const s = S, b = s.boat, est = s.est, cv = $('epTrkPlot'); const { c, W, H } = fit(cv);
+    const ox = (b.x + est.x) / 2, oy = (b.y + est.y) / 2, span = Math.max(hyp(est.x - b.x, est.y - b.y) + est.unc * 2 + 14, 30);
+    const k = Math.min(W, H) / span; s._view = { k, ox, oy, cx: W / 2, cy: H / 2 };
+    const P = (x, y) => [W / 2 + (x - ox) * k, H / 2 - (y - oy) * k];
+    c.fillStyle = '#06111a'; c.fillRect(0, 0, W, H);
+    /* 격자 5km */
+    c.strokeStyle = 'rgba(120,170,200,.07)'; c.lineWidth = 1; const g0x = Math.floor((ox - W / 2 / k) / 5) * 5, g0y = Math.floor((oy - H / 2 / k) / 5) * 5;
+    for (let x = g0x; x < ox + W / 2 / k; x += 5) { const [px] = P(x, 0); c.beginPath(); c.moveTo(px, 0); c.lineTo(px, H); c.stroke(); }
+    for (let y = g0y; y < oy + H / 2 / k; y += 5) { const [, py] = P(0, y); c.beginPath(); c.moveTo(0, py); c.lineTo(W, py); c.stroke(); }
+    if (night > 0.05) { c.fillStyle = 'rgba(0,0,10,' + (0.35 * night).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+    /* 들킬 거리 — 추정 선단 둘레 */
+    const [ex, ey] = P(est.x, est.y);
+    c.setLineDash([4, 5]); c.strokeStyle = 'rgba(255,106,90,.55)'; c.fillStyle = 'rgba(255,106,90,.06)'; c.beginPath(); c.arc(ex, ey, (SCREEN() + dr) * k, 0, 6.283); c.fill(); c.stroke();
+    /* 보는 거리 — 우리 둘레 */
+    const [bx, by] = P(b.x, b.y), see = seeRange({ vis: s.vis, night, dive, moon: s.moon });
+    c.strokeStyle = 'rgba(143,208,255,.35)'; c.beginPath(); c.arc(bx, by, see * k, 0, 6.283); c.stroke(); c.setLineDash([]);
+    /* 공격 자리 — 진로 앞 */
+    const ah = fromFrame(est, 10, 0), [ax, ay] = P(ah.x, ah.y);
+    c.strokeStyle = 'rgba(90,224,166,.55)'; c.setLineDash([3, 4]); c.beginPath(); c.arc(ax, ay, 3 * k, 0, 6.283); c.stroke(); c.setLineDash([]);
+    c.fillStyle = 'rgba(90,224,166,.8)'; c.font = '11px system-ui'; c.textAlign = 'center'; c.fillText('앞 자리', ax, ay - 3 * k - 4);
+    /* 추정 선단 */
+    c.fillStyle = 'rgba(240,176,64,.13)'; c.strokeStyle = 'rgba(240,176,64,.6)'; c.beginPath(); c.arc(ex, ey, Math.max(4, est.unc * k), 0, 6.283); c.fill(); c.stroke();
+    const L = 7 * k; c.strokeStyle = 'rgba(240,176,64,.9)'; c.lineWidth = 2; c.beginPath(); c.moveTo(ex, ey); c.lineTo(ex + Math.sin(est.crs * d2r) * L, ey - Math.cos(est.crs * d2r) * L); c.stroke(); c.lineWidth = 1;
+    c.fillStyle = '#f0b040'; c.beginPath(); c.arc(ex, ey, 4, 0, 6.283); c.fill();
+    c.fillStyle = 'rgba(240,176,64,.95)'; c.textAlign = 'left'; c.fillText((s.merchants > 1 ? '선단' : '표적') + ' ' + String(Math.round(est.crs)).padStart(3, '0') + '° ' + est.kn.toFixed(0) + 'kn', ex + 8, ey + 4);
+    /* 실제로 보이는 것 — 연기 */
+    if (s.t - est.seenAt < 0.1) { const [cx2, cy2] = P(s.cv.x, s.cv.y); c.fillStyle = 'rgba(220,220,210,.75)'; for (let i = 0; i < Math.min(9, 2 + s.merchants); i++) { const a = i * 2.4, r = 2 + (i % 3) * 3; c.beginPath(); c.arc(cx2 + Math.cos(a) * r, cy2 + Math.sin(a) * r, 2, 0, 6.283); c.fill(); } }
+    /* 쫓아오는 호위함 */
+    if (s.chaser) { const [hx, hy] = P(s.chaser.x, s.chaser.y); c.fillStyle = '#ff6a5a'; c.beginPath(); c.moveTo(hx, hy - 6); c.lineTo(hx + 6, hy); c.lineTo(hx, hy + 6); c.lineTo(hx - 6, hy); c.closePath(); c.fill(); c.fillText('호위함', hx + 9, hy + 4); }
+    /* 항적 · 찍은 점 · 우리 */
+    c.strokeStyle = 'rgba(90,224,166,.35)'; c.setLineDash([2, 4]); c.beginPath(); b.trail.forEach((p, i) => { const [px, py] = P(p[0], p[1]); if (i) c.lineTo(px, py); else c.moveTo(px, py); }); c.lineTo(bx, by); c.stroke(); c.setLineDash([]);
+    if (s.mode === 'MANUAL' && s.wp) { const [wx, wy] = P(s.wp.x, s.wp.y); c.strokeStyle = 'rgba(143,208,255,.7)'; c.beginPath(); c.moveTo(bx, by); c.lineTo(wx, wy); c.stroke(); c.beginPath(); c.arc(wx, wy, 5, 0, 6.283); c.stroke(); }
+    c.save(); c.translate(bx, by); c.rotate(b.hdg * d2r); c.fillStyle = dive ? '#5aa0e0' : '#5ae0a6'; c.beginPath(); c.moveTo(0, -9); c.lineTo(6, 7); c.lineTo(-6, 7); c.closePath(); c.fill(); c.restore();
+    c.fillStyle = 'rgba(207,219,228,.55)'; c.textAlign = 'left'; c.fillText('5km 격자 · 빈 바다를 누르면 그리로 · 붉은 고리 = 들킬 거리 · 푸른 고리 = 보는 거리', 8, H - 8);
+  }
+  function drawHorizon(night, dive) {
+    const s = S, b = s.boat, cv = $('epTrkHzn'); const { c, W, H } = fit(cv);
+    const hy = H * 0.62, gr = c.createLinearGradient(0, 0, 0, hy);
+    const sky = night > 0.5 ? ['#05070c', '#0b1220'] : night > 0.05 ? ['#2a2a3a', '#7a5a50'] : ['#5a7a92', '#b8c8d0'];
+    gr.addColorStop(0, sky[0]); gr.addColorStop(1, sky[1]); c.fillStyle = gr; c.fillRect(0, 0, W, hy);
+    c.fillStyle = night > 0.5 ? '#04080c' : '#2c4656'; c.fillRect(0, hy, W, H - hy);
+    if (dive) { c.fillStyle = 'rgba(0,10,20,.85)'; c.fillRect(0, 0, W, H); c.fillStyle = '#7d8d9a'; c.font = '12px system-ui'; c.textAlign = 'center'; c.fillText('잠항 중 — 청음으로만 듣는다', W / 2, H / 2 + 4); }
+    const px = brg => W / 2 + relA(brg, b.hdg) / 180 * (W / 2);
+    c.fillStyle = 'rgba(207,219,228,.6)'; c.font = '10px system-ui'; c.textAlign = 'center';
+    for (const [a, t] of [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'W']]) { const x = px(a); c.fillText(t, x, H - 4); }
+    c.fillStyle = 'rgba(90,224,166,.8)'; c.fillRect(W / 2 - 1, H - 14, 2, 6);
+    if (dive) return;
+    const cvv = s.cv, d = hyp(cvv.x - b.x, cvv.y - b.y), seen = s.t - s.est.seenAt < 0.1;
+    if (seen) { const x = px(norm(Math.atan2(cvv.x - b.x, cvv.y - b.y) / d2r)), sc = clamp(1 - d / 26, 0.15, 1);
+      const n = Math.min(8, 1 + s.merchants);
+      for (let i = 0; i < n; i++) { const xx = x + (i - n / 2) * 5 * sc;
+        if (night < 0.6) { for (let j = 0; j < 9; j++) { const yy = hy - 3 - j * 3.2 * (0.5 + sc), rr = 1.5 + j * 1.1 * (0.5 + sc), xs = xx + j * j * 0.35 * (0.6 + sc);
+            const g2 = c.createRadialGradient(xs, yy, 0, xs, yy, rr); g2.addColorStop(0, 'rgba(62,62,66,' + ((0.28 + 0.25 * sc) * (1 - j / 10) * (1 - night)).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(62,62,66,0)');
+            c.fillStyle = g2; c.beginPath(); c.arc(xs, yy, rr, 0, 6.283); c.fill(); } }
+        if (d < 15) { c.fillStyle = night > 0.5 ? 'rgba(0,0,0,.9)' : 'rgba(30,30,32,.9)'; c.fillRect(xx - 0.5, hy - 3 - 8 * sc, 1.2, 3 + 8 * sc); if (d < 9) c.fillRect(xx - 4 * sc, hy - 3 * sc, 8 * sc, 3 * sc); } } }
+    if (s.chaser && !dive) { const ch = s.chaser, dc = hyp(ch.x - b.x, ch.y - b.y); if (dc < 14) { const x = px(norm(Math.atan2(ch.x - b.x, ch.y - b.y) / d2r)), sc = clamp(1 - dc / 14, 0.2, 1);
+      c.fillStyle = 'rgba(10,10,12,.95)'; c.fillRect(x - 6 * sc, hy - 5 * sc, 12 * sc, 5 * sc); c.fillRect(x - 1, hy - 11 * sc, 2, 6 * sc); c.fillStyle = 'rgba(240,240,240,.6)'; c.fillRect(x - 9 * sc, hy - 1, 5 * sc, 1.5); } }
+  }
+
+  /* ── 조우 창에 「추적」 ── */
+  function addEncButton() {
+    const go = $('encGo'); if (!go || $('encTrack')) return;
+    const b = document.createElement('button'); b.id = 'encTrack'; b.style.cssText = 'width:100%;margin-top:7px';
+    b.innerHTML = '추적 — 따라붙어 자리를 만든다<small>밤까지 기다리거나 앞으로 돌아 들어간다</small>';
+    go.after(b); b.addEventListener('click', begin);
+    /* Campaign 이 넘기는 전투 설정 위에 추적 결과를 얹는다 */
+    if (window.Campaign && Campaign.beginEncounter && !Campaign.__trk648) { const ob = Campaign.beginEncounter; Campaign.__trk648 = true;
+      Campaign.beginEncounter = function () { const o = ob.apply(this, arguments); if (o && window.EP_TRACK_OVR) { Object.assign(o, window.EP_TRACK_OVR); window.EP_TRACK_OVR = null; } return o; }; }
+  }
+  function syncEncButton() {
+    const b = $('encTrack'); if (!b) return; const C = window.Campaign && Campaign.state(), e = C && C.pendingEncounter;
+    b.style.display = e && e.kind !== 'PATROL' && (e.ships || 0) > 0 ? '' : 'none';
+  }
+  function init() { addEncButton(); setInterval(() => { addEncButton(); syncEncButton(); }, 400); window.EP_V648_TRACK = { version: '6.48.0', state: () => S, begin, finish }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
