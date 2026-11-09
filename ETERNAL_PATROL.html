@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.67.0 Wardroom</title>
-<script id="ep-build">window.EP_BUILD='6.67.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.68.0 Character</title>
+<script id="ep-build">window.EP_BUILD='6.68.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -50068,6 +50068,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   function logLine(ko, en, ja) { try { S.C.log.unshift({ h: S.C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {} }
   function close() {
     if (!S) return; const C = S.C, K = S.kill;
+    try { if (window.EP_CAPT) EP_CAPT.lifeboat(S, laconia(C)); } catch (e) {}   /* v6.68 함장의 성향 */
     const parts = [];
     if (K.confirmedV662) parts.push(['배 이름 확인', 'name confirmed', '船名確認']);
     if (S.asked.AID) parts.push(['물과 빵을 줌', 'gave water and bread', '水とパンを渡した']);
@@ -50262,6 +50263,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
     if (s.done) { $('epDec').classList.remove('on'); window.EP_PAUSE_V662 = false; cur = null; try { Campaign.save(); } catch (e) {} return; }
     const c = s.ev.c[i], before = get(s.C); let out = null;
     try { out = c[2](s.C); } catch (e) { out = ['…', '…', '…']; }
+    try { if (window.EP_CAPT) EP_CAPT.decide(s.C, s.ev.id, i); } catch (e) {}   /* v6.68 함장의 성향 */
     s.done = true;
     $('epDcO').innerHTML = tx(out) + (Math.abs(get(s.C) - before) > 0.001 ? '<br><small style="color:var(--dim)">' + T('사기 ', 'Morale ', '士気 ') + (get(s.C) > before ? '▲' : '▼') + '</small>' : '');
     $('epDcO').classList.add('on');
@@ -50704,6 +50706,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   }
   function finish(kind) {
     if (!S || S.end) return; S.end = true; S.endT = now(); S.res = kind;
+    try { if (window.EP_CAPT) EP_CAPT.aa(S); } catch (e) {}   /* v6.68 함장의 성향 */
     const C = S.C;
     if (kind === 'DOWN') { if (window.EP_MORALE) EP_MORALE.add(C, 0.06); C.planesDownV665 = (C.planesDownV665 || 0) + 1; }
     if (kind === 'HIT' && window.EP_MORALE) EP_MORALE.add(C, -0.03);
@@ -50842,6 +50845,7 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   function submit() {
     if (!K || K.done) return; K.done = true;
     const w = K.w, s = K.s, p = K.pick; let dP = 0; const notes = [];
+    try { if (window.EP_CAPT) EP_CAPT.ktb(w, p); } catch (e) {}   /* v6.68 함장의 성향 — 초계 마감 */
     const trust0 = w ? (w.reportTrustV666 == null ? 0.7 : w.reportTrustV666) : 0.7; let trust = trust0;
     /* 지난 초계들의 과장이 드러나는가 */
     if (w && Array.isArray(w.padPendingV666)) {
@@ -51043,7 +51047,7 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   function answer(i) {
     if (!S) return; const D = S.D; $('epAftCh').innerHTML = '';
     let lines = [];
-    if (i >= 0) { const q = D.ask[i]; remember('AFA:' + S.cat + ':' + i); capSay(trT(q.c)); if (q.m && window.EP_MORALE) EP_MORALE.add(S.C, q.m);
+    if (i >= 0) { const q = D.ask[i]; remember('AFA:' + S.cat + ':' + i); try { if (window.EP_CAPT) EP_CAPT.aft(S.cat, i); } catch (e) {} capSay(trT(q.c)); if (q.m && window.EP_MORALE) EP_MORALE.add(S.C, q.m);
       lines = pick(q.r).map(r => W().line(S.C, r, S.ctx)); }
     const ci = pickFresh(D.close, 'AFZ:' + S.cat);
     lines = lines.concat(D.close[ci].map(r => W().line(S.C, r, S.ctx)));
@@ -51491,13 +51495,15 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
     }
 
     /* 2) 선 — 돛대·기중기·삭구 */
-    const mastCol = rgb(tone(L.mast, E, 0.62)), rigCol = rgb(tone(L.mast, E, 0.7), 0.6 + 0.35 * (1 - E.hz));
+    const mastCol = rgb(tone(L.mast, E, 0.45)), rigCol = rgb(tone(L.mast, E, 0.65), 0.6 + 0.35 * (1 - E.hz));
     for (const q of list) {
       if (q.t !== 'line') continue;
       const vert = Math.abs(q.x1 - q.x2) < 0.6, horiz = Math.abs(q.y1 - q.y2) < 0.6;
       const solidish = q.f === 'GUN' || q.f === 'CATAPULT' || q.f === 'AIRCRAFT';
-      ctx.strokeStyle = solidish ? rgb(gunCol) : (vert ? mastCol : rigCol);
-      ctx.lineWidth = solidish ? clamp(0.9 * sy, 1, 2.4) : vert ? clamp(0.8 * sy, 1, 2.0) : horiz ? clamp(0.6 * sy, 0.9, 1.5) : clamp(0.38 * sy, 0.7, 1.1);
+      /* 기울어진 돛대 선은 하역 붐(데릭) — 줄이 아니라 쇠기둥이다 */
+      const boom = !vert && !horiz && (q.f === 'MAST' || q.f === 'STERN_CRANE') && Math.hypot(q.x2 - q.x1, q.y2 - q.y1) > 8;
+      ctx.strokeStyle = solidish ? rgb(gunCol) : (vert || boom ? mastCol : rigCol);
+      ctx.lineWidth = solidish ? clamp(0.9 * sy, 1, 2.4) : vert ? clamp(1.0 * sy, 1.1, 2.2) : boom ? clamp(0.8 * sy, 1, 1.8) : horiz ? clamp(0.7 * sy, 0.9, 1.6) : clamp(0.4 * sy, 0.7, 1.1);
       ctx.beginPath(); ctx.moveTo(X(q.x1), Y(q.y1)); ctx.lineTo(X(q.x2), Y(q.y2)); ctx.stroke();
     }
     /* 큰 그림에만 — 앞 돛대 꼭대기에서 이물까지 버팀줄, 상선의 구명정 */
@@ -51605,6 +51611,373 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildOpt, { once: true }); else buildOpt();
 
   window.EP_SHIPPAINT = { version: '6.68.0', draw, livery, nationOf, get enabled() { return enabled; }, set enabled(v) { enabled = !!v; } };
+})();
+</script>
+<script id="ep-v668-captain-script">
+/* ══════════ V6.68 함장의 성향 — 선택이 쌓여 사람이 된다 ══════════
+   구명정 앞에서, 사관실에서, 보고서 앞에서, 잠망경 뒤에서 고른 것들이 다섯 갈래로 쌓인다.
+     자비 ↔ 냉혹 · 대담 ↔ 신중 · 원칙 ↔ 독자 · 정직 ↔ 허세 · 온정 ↔ 엄격
+   가장 두드러진 한두 갈래가 승조원들이 부르는 별명(「바다의 기사」, 「사냥꾼」, 「계산하는 자」 …)을 정한다.
+   · 별명이 바뀌면 부장이 일지에 알리고, 항해 중 승조원들이 함장의 성향을 두고 수군거린다.
+   · 작은 영향: 온정이 높으면 초계를 시작할 때 사기가 조금 높고, 정직이 높으면 보고서의 신뢰가 조금 오른다.
+   · 사령부 화면의 「함장」 칸에 성향 막대와 최근의 선택이 보인다.
+   · 초계가 끝날 때마다 조금씩 옅어진다 — 사람은 변한다. 함장이 바뀌면 처음부터. 한 · 영 · 일. */
+(function EP_V668_CAPTAIN() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const tx = a => Array.isArray(a) ? T(a[0], a[1], a[2]) : String(a || '');
+  const qt = n => LANG() === 'en' ? '\u201C' + n + '\u201D' : '「' + n + '」';
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const AX = ['humane', 'bold', 'book', 'honest', 'crew'];
+  const AXN = {
+    humane: [['자비', 'Mercy', '慈悲'], ['냉혹', 'Ruthless', '冷酷']],
+    bold: [['대담', 'Daring', '大胆'], ['신중', 'Caution', '慎重']],
+    book: [['원칙', 'By the book', '原則'], ['독자', 'Maverick', '独断']],
+    honest: [['정직', 'Honesty', '正直'], ['허세', 'Bravado', '虚勢']],
+    crew: [['온정', 'Warmth', '温情'], ['엄격', 'Strictness', '厳格']]
+  };
+
+  /* ── 선택 하나가 어디로 기우는가. 라벨이 있는 것은 「최근의 선택」에 남는다 ── */
+  const TAGS = {
+    /* 구명정 */
+    LB_AID: { d: { humane: 2.2, crew: 0.3 }, l: ['구명정에 물과 빵을 건넸다', 'Gave a lifeboat water and bread', '救命艇に水とパンを渡した'] },
+    LB_MED: { d: { humane: 1.6 }, l: ['구명정의 부상자를 치료했다', 'Treated the wounded in a lifeboat', '救命艇の負傷者を手当てした'] },
+    LB_BAN: { d: { book: -2.2, humane: 0.6 }, l: ['구조 금지 명령을 어기고 도왔다', 'Broke the rescue ban to help', '救助禁止命令を破って助けた'] },
+    LB_LEAVE: { d: { humane: -1.6, bold: 0.2 }, l: ['구명정을 그대로 두고 떠났다', 'Left a lifeboat to its fate', '救命艇をそのまま置いて去った'] },
+    LB_ORDER: { d: { book: 1.2, humane: -0.4 }, l: ['명령대로 구명정을 돕지 않았다', 'Obeyed orders and gave no help', '命令どおり救命艇を助けなかった'] },
+    LB_PRISONER: { d: { book: 0.8, humane: -0.3, bold: 0.3 }, l: ['생존자를 포로로 데려갔다', 'Took a survivor prisoner', '生存者を捕虜にした'] },
+    LB_DOG: { d: { crew: 1.0, humane: 0.5 }, l: ['물에 빠진 개를 데려왔다', 'Brought a dog aboard', '海の犬を連れて来た'] },
+    LB_RECORD: { d: { book: 0.5, honest: 0.4 } },
+    LB_LINGER: { d: { bold: 0.6 } },
+    /* 결정 사건 */
+    D_CREW_HARD: { d: { crew: -1.8, book: 1.0 }, l: ['승조원을 엄하게 다스렸다', 'Came down hard on the crew', '乗員を厳しく処した'] },
+    D_CREW_KIND: { d: { crew: 1.6 }, l: ['승조원 편에 섰다', 'Stood by the men', '乗員の側に立った'] },
+    D_CREW_GIVE: { d: { crew: 2.0 }, l: ['함장 몫을 승조원에게 내놓았다', 'Gave up the captain\'s share to the men', '艦長の分を乗員に出した'] },
+    D_CREW_IGNORE: { d: { crew: -1.0, book: -0.6 }, l: ['승조원 문제를 못 본 척했다', 'Looked the other way', '乗員の問題を見逃した'] },
+    D_RESCUE_MAN: { d: { crew: 2.2, humane: 1.0, bold: 0.6 }, l: ['빠진 견시를 찾으러 돌아갔다', 'Turned back for a man overboard', '落水者を探しに引き返した'] },
+    D_LEAVE_MAN: { d: { crew: -2.4, humane: -1.4, book: 0.4 }, l: ['빠진 견시를 두고 갔다', 'Left a man overboard', '落水者を置いて行った'] },
+    D_HONEST: { d: { honest: 2.2, book: 0.4 }, l: ['사령부에 정직하게 보고했다', 'Reported honestly to HQ', '司令部に正直に報告した'] },
+    D_PAD: { d: { honest: -2.4 }, l: ['사령부에 부풀려 보고했다', 'Padded a report to HQ', '司令部に水増し報告した'] },
+    D_TELL: { d: { honest: 1.4, crew: 0.8 }, l: ['나쁜 소식을 직접 전했다', 'Delivered bad news in person', '悪い知らせを直接伝えた'] },
+    D_HIDE: { d: { honest: -1.0, crew: -0.4 }, l: ['나쁜 소식을 서랍에 넣었다', 'Kept bad news in a drawer', '悪い知らせを引き出しにしまった'] },
+    D_SAFE: { d: { book: 0.8, bold: -0.6 } },
+    D_RISK: { d: { bold: 0.9, book: -0.5 } },
+    D_INSPECT: { d: { bold: 0.8, humane: 0.3 }, l: ['어선을 검문하고 어부들은 보냈다', 'Inspected a fishing boat and let them go', '漁船を臨検し漁師は帰した'] },
+    D_AVOID: { d: { bold: -0.8 } },
+    D_FAIR: { d: { book: 0.9, crew: 0.3 } },
+    D_LISTEN: { d: { crew: 1.4, book: -0.2 } },
+    D_THRIFT: { d: { book: 0.5, crew: -0.2 } },
+    D_FEAST: { d: { crew: 0.8, book: -0.2 } },
+    D_TRANSFER: { d: { crew: 1.2, humane: 0.4, bold: -0.6 }, l: ['아픈 수병을 위해 이송을 요청했다', 'Asked HQ to transfer a sick man', '病気の水兵の移送を要請した'] },
+    /* 보고서 */
+    K_HONEST: { d: { honest: 2.0 }, l: ['미확인 격침을 추정대로 적었다', 'Logged unconfirmed sinkings as estimated', '未確認撃沈を推定どおり記した'] },
+    K_PAD: { d: { honest: -3.0, bold: 0.3 }, l: ['보고서의 톤수를 크게 잡았다', 'Inflated the tonnage in the report', '報告書のトン数を水増しした'] },
+    K_WRITE: { d: { honest: 2.2, book: 0.8 }, l: ['구조 사실을 보고서에 적었다', 'Admitted the rescue in the report', '救助を報告書に記した'] },
+    K_OMIT: { d: { honest: -2.0, book: -0.6 }, l: ['구조 사실을 보고서에서 뺐다', 'Left the rescue out of the report', '救助を報告書から省いた'] },
+    K_FIX: { d: { honest: 1.0 } }, K_KEEP: { d: { honest: -1.0 } },
+    K_PLAIN: { d: { honest: 0.4, bold: -0.2 } }, K_BOLD: { d: { bold: 0.5, honest: -0.4 } },
+    K_LEAVE: { d: { crew: 1.2 } }, K_MEDAL: { d: { crew: 0.8, book: 0.3 } },
+    /* 대공 */
+    AA_FIGHT: { d: { bold: 1.6, book: -0.3 }, l: ['비행기와 갑판포로 맞섰다', 'Fought it out with an aircraft', '航空機と対空戦をした'] },
+    AA_DIVE: { d: { bold: -0.6, book: 0.6 } },
+    /* 추적 */
+    TR_REPORT: { d: { book: 1.0 }, l: ['선단을 발견하고 사령부에 보고했다', 'Reported a convoy to HQ', '船団を発見し司令部に報告した'] },
+    TR_SHADOW: { d: { book: 0.3, bold: -0.2 } },
+    TR_ENDRUN: { d: { bold: 0.5 } },
+    TR_QUIT: { d: { bold: -1.2 }, l: ['추적하던 선단을 놓아주었다', 'Let a convoy go', '追っていた船団を見逃した'] },
+    SKIP: { d: { bold: -1.0 }, l: ['교전을 피했다', 'Declined to engage', '交戦を避けた'] },
+    /* 전투 결과 */
+    B_ESCORT: { d: { bold: 2.0 }, l: ['호위함을 격침했다', 'Sank an escort', '護衛艦を撃沈した'] },
+    B_HAUL: { d: { bold: 0.9 }, l: ['한 번의 공격으로 여러 척을 잡았다', 'Sank several ships in one attack', '一度の攻撃で複数を撃沈した'] },
+    B_GUN: { d: { bold: 1.0, humane: -0.2 }, l: ['부상해서 갑판포로 싸웠다', 'Fought a surface gun action', '浮上して砲戦をした'] },
+    B_PRESS: { d: { bold: 0.8 } },
+    B_NOSHOT: { d: { bold: -1.0 } },
+    B_PRECISE: { d: { book: 0.6, bold: -0.1 } },
+    /* 사관실의 한마디 */
+    W_PRAISE: { d: { crew: 0.5 } }, W_CARE: { d: { crew: 0.6 } }, W_MOURN: { d: { humane: 0.8 } }, W_SURVIVORS: { d: { humane: 0.7 } },
+    W_HUMBLE: { d: { honest: 0.4, bold: -0.2 } }, W_READY: { d: { bold: 0.5 } }, W_RECORD: { d: { book: 0.5, honest: 0.2 } },
+    W_REPORT: { d: { honest: 0.6, book: 0.3 } }, W_VIGIL: { d: { book: 0.4, bold: -0.2 } }, W_COLD: { d: { humane: -0.6 } },
+    W_PRIDE: { d: { bold: 0.3, honest: -0.3 } }, W_RESPECT: { d: { humane: 0.4, book: 0.2 } }, W_BLAME_SELF: { d: { honest: 0.8, crew: 0.3 } },
+    W_PRESS: { d: { bold: 0.7 } }, W_CAUTION: { d: { bold: -0.6 } }, W_JOKE: { d: { crew: 0.4, book: -0.3 } }, W_ADAPT: { d: { book: -0.4, bold: 0.2 } },
+    W_FEAR: { d: { honest: 0.6, crew: 0.3 } }, W_GRIM: { d: { crew: -0.3, book: 0.3 } }, W_LISTEN: { d: { crew: 0.6, book: -0.2 } }
+  };
+  /* 결정 사건 — 선택지 순서대로 */
+  const DEC = {
+    appendix: ['D_RISK', 'D_TRANSFER'], birthday: ['D_FEAST', 'D_CREW_GIVE', 'D_CREW_HARD'], asleep: ['D_CREW_HARD', 'D_CREW_KIND'],
+    fight: ['D_FAIR', 'D_LISTEN', 'D_CREW_IGNORE'], diesel: ['D_SAFE', 'D_RISK'], news: ['D_TELL', 'D_HIDE'],
+    manoverboard: ['D_RESCUE_MAN', 'D_LEAVE_MAN'], fishing_boat: ['D_INSPECT', 'D_AVOID'], fresh_food: ['D_FEAST', 'D_THRIFT'],
+    promotion: ['D_CREW_KIND', 'D_THRIFT'], tobacco: ['D_CREW_GIVE', 'D_CREW_KIND'], hq_fuel: ['D_HONEST', 'D_PAD'], record_broken: ['D_FEAST', 'D_LISTEN']
+  };
+  /* 사관실 — 범주마다 함장의 한마디 순서대로 */
+  const AFT = {
+    PERFECT: ['W_PRAISE', 'W_MOURN', 'W_HUMBLE', 'W_CARE', 'W_READY', 'W_RECORD', 'W_CARE'],
+    CONVOY_HAUL: ['W_PRAISE', 'W_CARE', 'W_COLD', 'W_VIGIL', 'W_RECORD', 'W_PRIDE', 'W_CARE'],
+    TANKER: ['W_COLD', 'W_VIGIL', 'W_SURVIVORS', 'W_PRIDE', 'W_CARE', 'W_COLD'],
+    ESCORT_KILL: ['W_VIGIL', 'W_RESPECT', 'W_CARE', 'W_RECORD', 'W_CAUTION', 'W_PRAISE'],
+    QUICK: ['W_PRAISE', 'W_VIGIL', 'W_RECORD', 'W_CAUTION', 'W_RECORD', 'W_HUMBLE'],
+    DUDS: ['W_RECORD', 'W_ADAPT', 'W_CARE', 'W_RECORD', 'W_JOKE', 'W_REPORT', 'W_HUMBLE'],
+    ALL_MISS: ['W_RECORD', 'W_BLAME_SELF', 'W_PRESS', 'W_RECORD', 'W_PRAISE', 'W_CAUTION'],
+    NO_SHOT: ['W_CAUTION', 'W_HUMBLE', 'W_PRESS', 'W_CAUTION', 'W_CAUTION', 'W_PRAISE'],
+    LOST_CONTACT: ['W_PRESS', 'W_RECORD', 'W_CARE', 'W_CARE', 'W_CAUTION', 'W_CAUTION'],
+    GUN: ['W_CARE', 'W_CARE', 'W_VIGIL', 'W_PRAISE', 'W_CAUTION', 'W_RECORD'],
+    HUNTED: ['W_CARE', 'W_RECORD', 'W_FEAR', 'W_RECORD', 'W_CARE', 'W_PRAISE', 'W_RESPECT'],
+    DAMAGED: ['W_CAUTION', 'W_RECORD', 'W_PRAISE', 'W_JOKE', 'W_CAUTION', 'W_CARE', 'W_PRIDE'],
+    CLOSE_CALL: ['W_PRAISE', 'W_FEAR', 'W_GRIM', 'W_CARE', 'W_BLAME_SELF', 'W_LISTEN', 'W_CARE'],
+    LONG_FIGHT: ['W_CARE', 'W_RECORD', 'W_RECORD', 'W_PRAISE', 'W_CARE', 'W_LISTEN', 'W_VIGIL']
+  };
+
+  /* ── 별명 ── 가장 두드러진 두 갈래로 고른다. 없으면 한 갈래로. */
+  const ARCH = {
+    UNKNOWN: { n: ['아직 알려지지 않은 함장', 'Not Yet Known', 'まだ知られぬ艦長'], s: ['승조원들은 아직 함장을 지켜보는 중이다.', 'The crew are still sizing you up.', '乗員たちはまだ艦長を見定めている。'] },
+    STEADY: { n: ['침착한 함장', 'The Steady Hand', '沈着な艦長'], s: ['어느 쪽으로도 크게 기울지 않는다. 그게 장점이자 수수께끼다.', 'Leans no way in particular — a strength, and a puzzle.', 'どちらにも大きく傾かない。長所でもあり、謎でもある。'] },
+    'humane+': { n: ['자비로운 함장', 'The Merciful', '慈悲深き艦長'], s: ['격침한 배의 사람들까지 셈에 넣는다.', 'Counts the people from the ships he sinks, too.', '沈めた船の人々まで勘定に入れる。'] },
+    'humane-': { n: ['냉혹한 함장', 'The Ruthless', '冷酷な艦長'], s: ['물 위에 남은 것은 돌아보지 않는다.', 'Never looks back at what is left on the water.', '水面に残ったものは振り返らない。'] },
+    'bold+': { n: ['대담한 함장', 'The Daring', '大胆な艦長'], s: ['호위함 코앞까지 들어간다.', 'Goes right under the escorts\' noses.', '護衛艦の鼻先まで入り込む。'] },
+    'bold-': { n: ['신중한 함장', 'The Careful', '慎重な艦長'], s: ['확실하지 않으면 쏘지 않는다.', 'Does not fire unless it is certain.', '確実でなければ撃たない。'] },
+    'book+': { n: ['원칙주의자', 'By the Book', '原則主義者'], s: ['명령과 교범을 어기는 법이 없다.', 'Never strays from orders or the manual.', '命令と教範を破ることがない。'] },
+    'book-': { n: ['독자 노선', 'The Maverick', '独断の人'], s: ['명령보다 자기 판단을 믿는다.', 'Trusts his own judgement over orders.', '命令より自分の判断を信じる。'] },
+    'honest+': { n: ['정직한 함장', 'The Honest', '正直な艦長'], s: ['보고서에는 본 것만 적는다.', 'Writes only what he saw.', '報告書には見たものだけを書く。'] },
+    'honest-': { n: ['허풍선이', 'The Braggart', 'ほら吹き'], s: ['그의 톤수는 늘 조금씩 크다.', 'His tonnage always runs a little large.', '彼のトン数はいつも少し大きい。'] },
+    'crew+': { n: ['승조원의 함장', 'The Crew\'s Captain', '乗員の艦長'], s: ['서랍의 담배까지 나눠 준다.', 'Shares out even the cigarettes in his drawer.', '引き出しの煙草まで分け与える。'] },
+    'crew-': { n: ['엄격한 함장', 'The Hard Man', '厳格な艦長'], s: ['규율이 먼저, 웃음은 나중.', 'Discipline first, laughter later.', '規律が先、笑いは後。'] },
+    'humane+&bold+': { n: ['바다의 기사', 'Knight of the Sea', '海の騎士'], s: ['대담하게 싸우고, 싸움이 끝나면 물과 빵을 건넨다.', 'Fights boldly — and when it is over, hands down water and bread.', '大胆に戦い、終われば水とパンを渡す。'] },
+    'humane+&crew+': { n: ['배의 아버지', 'Father of the Boat', '艦の親父'], s: ['사람을 먼저 센다. 적이든 우리든.', 'Counts people first — theirs and ours.', 'まず人を数える。敵でも味方でも。'] },
+    'humane+&book-': { n: ['명령보다 양심', 'Conscience over Orders', '命令より良心'], s: ['명령을 알면서도 구명정 옆에 멈춘다.', 'Knows the orders — and stops by the lifeboat anyway.', '命令を知りつつ、救命艇のそばで止まる。'] },
+    'humane+&honest+': { n: ['점잖은 함장', 'The Decent Man', '誠実な艦長'], s: ['본 대로 적고, 할 수 있는 만큼 돕는다.', 'Writes what he saw, helps where he can.', '見たとおりに書き、できる限り助ける。'] },
+    'humane+&bold-': { n: ['구조자', 'The Rescuer', '救助者'], s: ['싸움보다 사람을 살리는 쪽이 익숙하다.', 'More at home saving lives than taking them.', '戦いより人を救う方が似合う。'] },
+    'humane-&bold+': { n: ['사냥꾼', 'The Hunter', '狩人'], s: ['물 위의 것은 모두 표적이다.', 'Everything afloat is a target.', '水上のものは全て標的だ。'] },
+    'humane-&bold-': { n: ['그림자', 'The Shadow', '影'], s: ['들키지 않고, 아무것도 남기지 않는다.', 'Never seen, never leaves a trace.', '見つからず、何も残さない。'] },
+    'humane-&book+': { n: ['냉정한 직업군인', 'The Cold Professional', '冷徹な職業軍人'], s: ['명령대로, 감정 없이.', 'By the orders, without feeling.', '命令どおり、感情なく。'] },
+    'humane-&crew-': { n: ['강철 함장', 'Iron Captain', '鋼鉄の艦長'], s: ['적에게도 부하에게도 무르지 않다.', 'Soft on neither the enemy nor his men.', '敵にも部下にも甘くない。'] },
+    'bold+&honest-': { n: ['허풍쟁이 에이스', 'The Swaggering Ace', '大言壮語のエース'], s: ['깊이 들어가고, 크게 말한다.', 'Goes in deep, talks it up big.', '深く踏み込み、大きく語る。'] },
+    'bold+&book-': { n: ['외로운 늑대', 'The Lone Wolf', '一匹狼'], s: ['사령부가 부르기 전에 이미 돌격해 있다.', 'Already attacking before HQ calls.', '司令部が呼ぶ前にもう突撃している。'] },
+    'bold+&book+': { n: ['교리의 창끝', 'Spearhead of Doctrine', '教範の矛先'], s: ['교범대로, 그러나 끝까지 밀어붙인다.', 'By the book — and all the way in.', '教範どおり、ただし最後まで押し込む。'] },
+    'bold+&crew+': { n: ['앞장서는 함장', 'Leads from the Front', '先頭に立つ艦長'], s: ['위험한 곳엔 자기가 먼저 간다.', 'Goes first where it is dangerous.', '危険な所へは自分が先に行く。'] },
+    'bold+&crew-': { n: ['채찍', 'The Slave Driver', '鬼艦長'], s: ['사람을 갈아 넣어서라도 이긴다.', 'Will grind the men down to win.', '人をすり潰してでも勝つ。'] },
+    'bold-&book+': { n: ['계산하는 자', 'The Calculator', '計算する者'], s: ['확률이 맞을 때만 움직인다.', 'Moves only when the odds add up.', '確率が合う時だけ動く。'] },
+    'bold-&crew+': { n: ['모두 데려오는 함장', 'Brings Them All Home', '皆を連れ帰る艦長'], s: ['격침보다 귀항이 먼저다.', 'Getting home comes before sinking ships.', '撃沈より帰投が先だ。'] },
+    'bold-&honest+': { n: ['조용한 함장', 'The Quiet One', '寡黙な艦長'], s: ['적게 쏘고, 적게 말한다.', 'Fires little, says less.', '撃つのも少なく、語るのも少ない。'] },
+    'book+&honest+': { n: ['모범 장교', 'Model Officer', '模範将校'], s: ['사령부가 가장 믿는 보고서를 쓴다.', 'Writes the reports HQ trusts most.', '司令部が最も信頼する報告書を書く。'] },
+    'book+&crew-': { n: ['규율의 화신', 'The Disciplinarian', '規律の権化'], s: ['빌지 청소 명단이 늘 길다.', 'The bilge-duty list is always long.', 'ビルジ掃除の名簿はいつも長い。'] },
+    'book-&honest-': { n: ['사령부의 골칫거리', 'HQ\'s Headache', '司令部の頭痛の種'], s: ['명령도 보고서도 제멋대로다.', 'Orders and reports alike, done his own way.', '命令も報告書も好き勝手だ。'] },
+    'book-&crew+': { n: ['해적 선장', 'The Pirate Captain', '海賊船長'], s: ['규정은 느슨하고, 배 안은 시끄럽고 즐겁다.', 'Loose with the rules; a loud, happy boat.', '規則は緩く、艦内は騒がしく楽しい。'] },
+    'honest+&crew+': { n: ['믿을 수 있는 사람', 'The One They Trust', '信頼される人'], s: ['승조원도 사령부도 그의 말을 믿는다.', 'Crew and HQ alike take him at his word.', '乗員も司令部も彼の言葉を信じる。'] },
+    'honest-&crew+': { n: ['사람 좋은 허세꾼', 'The Charming Liar', '人のいいほら吹き'], s: ['승조원은 그를 좋아하고, 사령부는 숫자를 의심한다.', 'The men love him; HQ doubts his numbers.', '乗員は彼を好み、司令部は数字を疑う。'] }
+  };
+  /* 항해 중 수군거림 — 가장 두드러진 갈래로 */
+  const MUTTER = {
+    'humane+': [['어뢰실', '그 구명정 사람들, 육지까지 갔을까. 함장님이 준 물이면 닷새는 버틸 텐데.', 'Torpedo room', 'Did those lifeboat men make land? With the water the captain gave them, they\'d last five days.', '魚雷室', 'あの救命艇の連中、陸まで行けたかな。艦長がやった水なら五日はもつ。'],
+                ['기관실', '우리 함장은 적한테도 사람 대접을 해. 그게 나쁘다는 놈은 이 배에 없어.', 'Engine room', 'Our captain treats even the enemy like people. Nobody on this boat says that\'s wrong.', '機関室', 'うちの艦長は敵にも人として接する。それを悪く言う奴はこの艦にいない。']],
+    'humane-': [['어뢰실', '함장님은 구명정을 한 번도 안 돌아보시더라. 그게 맞는 건지 모르겠다.', 'Torpedo room', 'The captain never once looked back at the lifeboats. I don\'t know if that\'s right.', '魚雷室', '艦長は救命艇を一度も振り返らなかった。それが正しいのか分からない。'],
+                ['조타실', '전쟁이니까. …그렇게 생각하기로 했어.', 'Control room', 'It\'s war. …That\'s what I\'ve decided to think.', '発令所', '戦争だからな。…そう思うことにした。']],
+    'bold+': [['어뢰실', '또 호위함 사이로 들어간대. 우리 함장 간은 강철인가 봐.', 'Torpedo room', 'Going in between the escorts again. Our captain\'s nerves are made of steel.', '魚雷室', 'また護衛艦の間に入るってさ。うちの艦長の肝は鋼鉄製だ。'],
+              ['기관실', '디젤 최대로 돌리라는 명령이 제일 자주 오는 배는 우리일 거야.', 'Engine room', 'No boat gets "full ahead both" more often than ours.', '機関室', '全速の命令が一番多く来る艦はうちだろうな。']],
+    'bold-': [['조타실', '오늘도 안 쏘고 지나갔어. 그래도 살아 있잖아.', 'Control room', 'Passed them up again today. But we\'re alive, aren\'t we.', '発令所', '今日も撃たずにやり過ごした。でも生きてるじゃないか。'],
+              ['어뢰실', '함장님은 다섯 번 재고 한 번 쏜다. 그 한 발은 대개 맞고.', 'Torpedo room', 'The captain measures five times and fires once. That one usually hits.', '魚雷室', '艦長は五回測って一回撃つ。その一発はだいたい当たる。']],
+    'book+': [['통신실', '사령부 전문은 한 글자도 안 빼고 읽으셔. 답신도 규정대로.', 'Radio room', 'He reads every word of HQ\'s signals. Replies by regulation, too.', '通信室', '司令部の電文は一字も漏らさず読まれる。返信も規定どおり。'],
+              ['부장', '교범 몇 쪽인지까지 기억하시더군. 덕분에 일지는 깔끔하다.', 'XO', 'He even remembers the page numbers in the manual. The log is spotless for it.', '副長', '教範の何ページかまで覚えておられる。おかげで日誌はきれいだ。']],
+    'book-': [['통신실', '사령부가 북쪽으로 가라는데 함장님은 남쪽을 보고 계셔.', 'Radio room', 'HQ says go north. The captain is looking south.', '通信室', '司令部は北へ行けと言うのに、艦長は南を見ておられる。'],
+              ['조타실', '명령서보다 함장님 감이 더 잘 맞는 건 비밀로 하자.', 'Control room', 'Let\'s keep it quiet that the captain\'s hunches beat the orders.', '発令所', '命令書より艦長の勘の方が当たるのは内緒にしよう。']],
+    'honest+': [['통신실', '확인 안 된 건 확인 안 됐다고 적으셔. 사령부가 그래서 우리 보고를 믿는대.', 'Radio room', 'If it\'s not confirmed, he writes "not confirmed". That\'s why HQ believes us.', '通信室', '未確認は未確認と書かれる。だから司令部はうちの報告を信じるそうだ。'],
+                ['부장', '숫자를 부풀리자는 말을 꺼냈다가 한 소리 들었어. 그게 우리 함장이다.', 'XO', 'I suggested rounding the numbers up once. Got an earful. That\'s our captain.', '副長', '数字を盛ろうと言いかけて叱られた。それがうちの艦長だ。']],
+    'honest-': [['어뢰실', '보고서에선 우리가 한 척 더 잡았더라. 난 못 봤는데.', 'Torpedo room', 'In the report we got one more ship. I didn\'t see it.', '魚雷室', '報告書じゃ一隻多く沈めてた。俺は見てないけど。'],
+                ['통신실', '귀항하면 신문에 또 우리 얘기 나오겠지. 반은 진짜고.', 'Radio room', 'Back home the papers will run our story again. Half of it true.', '通信室', '帰ったらまた新聞に載るだろう。半分は本当だ。']],
+    'crew+': [['조리장', '함장님이 또 자기 몫 초콜릿을 내놓으셨어. 이번이 세 번째야.', 'Cook', 'The captain gave up his chocolate again. Third time now.', '烹炊員', '艦長がまた自分のチョコを出された。これで三度目だ。'],
+              ['기관실', '이 배에선 아무도 혼자 버려지지 않아. 그건 확실해.', 'Engine room', 'Nobody gets left behind on this boat. That much is certain.', '機関室', 'この艦では誰も置き去りにされない。それは確かだ。']],
+    'crew-': [['어뢰실', '빌지 청소 명단에 또 내 이름. 숨 쉬는 것도 규정대로 해야 할 판이야.', 'Torpedo room', 'My name on the bilge list again. Soon we\'ll need permission to breathe.', '魚雷室', 'またビルジ掃除の名簿に俺の名前。息をするのも規定どおりだ。'],
+              ['부장', '불평은 많지만, 이 배 견시들 눈은 함대에서 제일 날카롭다.', 'XO', 'Plenty of grumbling — but this boat has the sharpest lookouts in the flotilla.', '副長', '不平は多いが、この艦の見張りの目は艦隊一鋭い。']]
+  };
+
+  function W() { try { return window.War && War.state ? War.state() : null; } catch (e) { return null; } }
+  function CS() { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } }
+  function rec(w) {
+    w = w || W(); if (!w || !w.captain) return null;
+    let c = w.captain.charV668;
+    if (!c || typeof c !== 'object') c = w.captain.charV668 = { s: {}, n: 0, title: 'UNKNOWN', hist: [], last: {} };
+    AX.forEach(a => { if (!Number.isFinite(c.s[a])) c.s[a] = 0; });
+    if (!Array.isArray(c.hist)) c.hist = []; if (!c.last) c.last = {};
+    return c;
+  }
+  const val = (c, a) => Math.round(100 * Math.tanh((c.s[a] || 0) / 10));
+  function titleOf(c) {
+    if (!c || c.n < 5) return 'UNKNOWN';
+    const v = {}; AX.forEach(a => { v[a] = val(c, a); });
+    const srt = AX.slice().sort((a, b) => Math.abs(v[b]) - Math.abs(v[a]));
+    const a1 = srt[0], a2 = srt[1];
+    if (Math.abs(v[a1]) < 22) return 'STEADY';
+    const k1 = a1 + (v[a1] > 0 ? '+' : '-');
+    if (Math.abs(v[a2]) >= 22) {
+      const k2 = a2 + (v[a2] > 0 ? '+' : '-');
+      if (ARCH[k1 + '&' + k2]) return k1 + '&' + k2;
+      if (ARCH[k2 + '&' + k1]) return k2 + '&' + k1;
+    }
+    return k1;
+  }
+  /* 받침이 있으면 「이라」, 없으면 「라」 */
+  function josaRa(w) { const ch = String(w).trim().slice(-1).charCodeAt(0); if (ch >= 0xAC00 && ch <= 0xD7A3) return (ch - 0xAC00) % 28 ? '이라' : '라'; return '(이)라'; }
+  function strength(c, t) {
+    if (!t || t === 'UNKNOWN' || t === 'STEADY') return -999;
+    const ks = t.split('&').map(k => { const a = k.slice(0, -1), sg = k.slice(-1) === '+' ? 1 : -1; return sg * val(c, a); });
+    return ks.length > 1 ? (ks[0] + ks[1]) / 2 + 15 : ks[0];
+  }
+  function logLine(C, who, ko, en, ja) { try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: who || 'exec', kind: 'report' }); } catch (e) {} }
+  function toast(html) {
+    let t = $('epCapToast'); if (!t) { t = document.createElement('div'); t.id = 'epCapToast'; document.body.appendChild(t); }
+    t.innerHTML = html; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 5200);
+  }
+  /* ── 선택 하나를 적는다 ── */
+  function note(tag, opt) {
+    const D = TAGS[tag]; if (!D) return null;
+    const w = W(), c = rec(w); if (!c) return null;
+    const now = Date.now();
+    if (opt && opt.gap && c.last[tag] && now - c.last[tag] < opt.gap) return null;
+    c.last[tag] = now;
+    const k = opt && opt.k != null ? opt.k : 1;
+    for (const a in D.d) c.s[a] = clamp((c.s[a] || 0) + D.d[a] * k, -30, 30);
+    c.n++;
+    if (D.l) { c.hist.unshift({ t: tag, at: now }); if (c.hist.length > 24) c.hist.length = 24; }
+    const t0 = c.title || 'UNKNOWN', t1 = titleOf(c);
+    /* 별명은 쉽게 바뀌지 않는다 — 새 별명이 지금 것보다 뚜렷이 더 맞을 때만 */
+    if (t1 !== t0 && (t0 === 'UNKNOWN' || t0 === 'STEADY' || t1 === 'STEADY' || strength(c, t1) > strength(c, t0) + 6)) {
+      c.title = t1;
+      const A = ARCH[t1], C = CS();
+      if (C && t1 !== 'UNKNOWN') {
+        if (t1 === 'STEADY') logLine(C, 'exec', '승조원들이 함장님을 두고 하던 말이 요즘은 잠잠합니다.', 'The talk among the men about you has gone quiet lately.', '乗員たちの艦長についての噂は、近頃は静かです。');
+        else logLine(C, 'exec', '승조원들 사이에서 함장님을 「' + A.n[0] + '」' + josaRa(A.n[0]) + ' 부르기 시작했습니다. ' + A.s[0], 'The men have started calling you "' + A.n[1] + '". ' + A.s[1], '乗員たちの間で艦長を「' + A.n[2] + '」と呼び始めました。' + A.s[2]);
+        try { if ($('world') && $('world').classList.contains('on')) toast('<small>' + T('승조원들이 부르는 함장', 'What the crew call you', '乗員が呼ぶ艦長') + '</small><b>' + qt(esc(tx(A.n))) + '</b><span>' + esc(tx(A.s)) + '</span>'); } catch (e) {}
+      }
+    }
+    try { War.save(); } catch (e) {}
+    return c;
+  }
+
+  /* ── 각 장면에서 부르는 손잡이 ── */
+  function lifeboat(S, lac) {
+    if (!S || !S.asked) return;
+    const a = S.asked;
+    if (a.AID) note('LB_AID'); if (a.MED) note('LB_MED');
+    if ((a.AID || a.MED) && lac) note('LB_BAN');
+    if (!a.AID && !a.MED) note(lac ? 'LB_ORDER' : 'LB_LEAVE');
+    if (a.PRISONER) note('LB_PRISONER'); if (a.DOG) note('LB_DOG');
+    if (a.NAME || a.SEARCH) note('LB_RECORD');
+    if ((S.risk || 0) > 0.35) note('LB_LINGER');
+  }
+  function decide(C, id, i) { const m = DEC[id]; if (m && m[i]) note(m[i]); }
+  function aft(cat, i) { const m = AFT[cat]; if (m && m[i]) note(m[i]); }
+  function ktb(w, p) {
+    if (!p) return;
+    patrolEnd(w);                      /* 초계가 끝날 때마다 조금씩 옅어진다 */
+    const map = { PAD: { HONEST: 'K_HONEST', PAD: 'K_PAD' }, BREACH: { WRITE: 'K_WRITE', OMIT: 'K_OMIT' }, FUEL: { FIX: 'K_FIX', KEEP: 'K_KEEP' }, TONE: { PLAIN: 'K_PLAIN', BOLD: 'K_BOLD' }, REC: { LEAVE: 'K_LEAVE', MEDAL: 'K_MEDAL' } };
+    for (const q in map) if (p[q] && map[q][p[q]]) note(map[q][p[q]]);
+    /* 평판이 앞선다 — 정직하다고 알려진 함장의 보고는 조금 더 믿는다 */
+    const c = rec(w); if (c && w) { const h = val(c, 'honest'); w.reportTrustV666 = clamp((w.reportTrustV666 == null ? 0.7 : w.reportTrustV666) + 0.03 * h / 100, 0.1, 1); }
+    /* 결과 표에 한 줄 — 이번 초계 뒤 승조원들이 부르는 함장 */
+    try { const tb = $('patrolTable'), A = c && ARCH[c.title || 'UNKNOWN']; if (tb && A) tb.insertAdjacentHTML('beforeend', '<tr><td>' + T('함장', 'Captain', '艦長') + '</td><td>' + qt(esc(tx(A.n))) + '</td></tr>'); } catch (e) {}
+  }
+  function patrolEnd(w) { const c = rec(w); if (!c) return; AX.forEach(a => { c.s[a] *= 0.92; }); const t = titleOf(c); if (t !== c.title && t !== 'UNKNOWN' && (t === 'STEADY' || strength(c, t) > strength(c, c.title) + 6)) c.title = t; try { War.save(); } catch (e) {} }
+  function aa(S) {
+    if (!S) return;
+    if (S.res === 'DOWN' || (S.dive == null && (S.hits || 0) > 0)) note('AA_FIGHT');
+    else if (S.dive != null) note('AA_DIVE');
+  }
+  function aar(a) {
+    if (!a) return;
+    const fired = a.torpFired || 0, hit = a.torpHit || 0;
+    if ((a.sunkEscorts || 0) > 0) note('B_ESCORT', { k: Math.min(2, a.sunkEscorts) });
+    if ((a.sunkCount || 0) >= 3) note('B_HAUL');
+    if ((a.gunFired || 0) > 0 || (a.gunHits || 0) > 0) note('B_GUN');
+    if (a.everGripped && (a.sunkCount || 0) > 0) note('B_PRESS');
+    if (!fired && !(a.gunFired || 0) && a.survived !== false) note('B_NOSHOT');
+    if (fired >= 4 && hit / fired >= 0.75) note('B_PRECISE');
+  }
+
+  /* ── 사령부 화면의 함장 칸 ── */
+  function card() {
+    const hq = $('hq'); if (!hq || !hq.classList.contains('on')) return;
+    const w = W(), c = rec(w); if (!c) return;
+    let el = $('hqCaptChar');
+    if (!el) { const m = $('hqMedals'); if (!m) return; el = document.createElement('div'); el.id = 'hqCaptChar'; m.parentNode.insertBefore(el, m.nextSibling); }
+    const key = JSON.stringify([c.s, c.n, c.title, c.hist.length, LANG()]);
+    if (el._k === key) return; el._k = key;
+    const A = ARCH[c.title || 'UNKNOWN'] || ARCH.UNKNOWN;
+    let h = '<div class="cct"><small>' + T('승조원들이 부르는 함장', 'What the crew call you', '乗員が呼ぶ艦長') + '</small><b>' + qt(esc(tx(A.n))) + '</b><span>' + esc(tx(A.s)) + '</span></div>';
+    h += '<div class="cca">' + AX.map(a => { const v = val(c, a), p = Math.abs(v) / 2;
+      return '<span class="l' + (v < -8 ? ' on' : '') + '">' + esc(tx(AXN[a][1])) + '</span><i><em style="' + (v >= 0 ? 'left:50%' : 'right:50%') + ';width:' + p.toFixed(1) + '%"></em></i><span class="' + (v > 8 ? 'on' : '') + '">' + esc(tx(AXN[a][0])) + '</span>'; }).join('') + '</div>';
+    const seen = {}, hs = c.hist.filter(x => TAGS[x.t] && TAGS[x.t].l && !seen[x.t] && (seen[x.t] = 1)).slice(0, 4);
+    if (hs.length) h += '<div class="cch"><small>' + T('최근의 선택', 'Recent choices', '最近の選択') + '</small>' + hs.map(x => '<span>· ' + esc(tx(TAGS[x.t].l)) + '</span>').join('') + '</div>';
+    else h += '<div class="cch"><small>' + T('구명정 앞에서, 사관실에서, 보고서 앞에서 고른 것들이 함장의 사람됨을 만듭니다.', 'What you choose by the lifeboats, in the wardroom and in your reports makes the kind of captain you are.', '救命艇の前で、士官室で、報告書の前で選んだことが艦長の人柄を作ります。') + '</small></div>';
+    el.innerHTML = h;
+  }
+
+  /* ── 초계 중 — 시작할 때의 사기, 이따금의 수군거림 ── */
+  let lastMut = null;
+  function tick() {
+    const C = CS(), w = W(), c = rec(w);
+    card();
+    if (!C || !c || C.status !== 'AT_SEA') return;
+    if (!C.capInitV668) {
+      C.capInitV668 = true;
+      const cv = val(c, 'crew'); if (Math.abs(cv) >= 20 && window.EP_MORALE) EP_MORALE.add(C, 0.0005 * cv);
+    }
+    const h = C.hours || 0;
+    if (C.capMutV668 == null) C.capMutV668 = h + 40 + R() * 40;
+    if (h >= C.capMutV668) {
+      C.capMutV668 = h + 60 + R() * 60;
+      const t = c.title || 'UNKNOWN'; if (t === 'UNKNOWN' || t === 'STEADY') return;
+      const ax = t.split('&')[R() < 0.65 ? 0 : 1] || t.split('&')[0];
+      const pool = MUTTER[ax]; if (!pool) return;
+      let m = pick(pool); if (lastMut === m && pool.length > 1) m = pool.find(x => x !== m);
+      lastMut = m;
+      logLine(C, 'crew', m[0] + ' — ' + m[1], m[2] + ' — ' + m[3], m[4] + ' — ' + m[5]);
+    }
+  }
+  /* 엔진 쪽 손잡이 — 전투 결과와 교전 회피, 추적 중 행동 */
+  let wrapped = false;
+  function wrap() {
+    const CP = window.Campaign;
+    /* 한 번만 감싼다. 다른 장치가 바깥 함수에 붙여 둔 표시(_v667 등)는 그대로 옮겨 — 서로 번갈아 다시 감싸지 않게 */
+    if (!wrapped && CP && CP.resolveEncounter) {
+      const o = CP.resolveEncounter;
+      const f = function (a) { try { aar(a); } catch (e) {} return o.apply(this, arguments); };
+      Object.assign(f, o); f.__capV668 = true;
+      CP.resolveEncounter = f; wrapped = true;
+    }
+    const sk = $('encSkip'); if (sk && !sk.__capV668) { sk.__capV668 = true; sk.addEventListener('click', () => { try { note('SKIP', { gap: 4000 }); } catch (e) {} }, true); }
+    const tr = $('epTrack'); if (tr && !tr.__capV668) {
+      tr.__capV668 = true;
+      tr.addEventListener('click', e => { const b = e.target.closest('.act [data-a]'); if (!b) return;
+        const m = { REPORT: 'TR_REPORT', SHADOW: 'TR_SHADOW', ENDRUN: 'TR_ENDRUN', QUIT: 'TR_QUIT' }[b.dataset.a];
+        if (m) try { note(m, { gap: 90000 }); } catch (err) {} }, true);
+    }
+  }
+  function css() {
+    if ($('ep-v668-capt-style')) return;
+    const s = document.createElement('style'); s.id = 'ep-v668-capt-style';
+    s.textContent = '#hqCaptChar{margin:8px 0 4px;padding:9px 10px;border:1px solid var(--steel,#2b3a44);border-radius:8px;background:rgba(255,255,255,.02)}' +
+      '#hqCaptChar .cct small{display:block;font-size:10.5px;color:var(--dim,#7f929e);letter-spacing:.04em}#hqCaptChar .cct b{display:block;font-size:16px;color:var(--amber,#e0b060);margin:2px 0}' +
+      '#hqCaptChar .cct span{display:block;font-size:12px;color:var(--ink,#cfdbe4);line-height:1.45}' +
+      '#hqCaptChar .cca{margin:8px 0 4px;display:grid;grid-template-columns:max-content 1fr max-content;align-items:center;gap:5px 7px;font-size:11px;color:var(--dim,#7f929e)}' +
+      '#hqCaptChar .cca span{white-space:nowrap}#hqCaptChar .cca span.l{text-align:right}#hqCaptChar .cca span.on{color:var(--ink,#cfdbe4);font-weight:700}' +
+      '#hqCaptChar .cca i{position:relative;height:6px;border-radius:3px;background:rgba(255,255,255,.07);min-width:60px}#hqCaptChar .cca i:after{content:"";position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:rgba(255,255,255,.25)}' +
+      '#hqCaptChar .cca em{position:absolute;top:0;bottom:0;border-radius:3px;background:var(--amber,#e0b060);opacity:.85}' +
+      '#hqCaptChar .cch{margin-top:6px;font-size:11.5px;color:var(--ink,#cfdbe4);line-height:1.5}#hqCaptChar .cch small{display:block;color:var(--dim,#7f929e);font-size:10.5px;margin-bottom:2px}#hqCaptChar .cch span{display:block}' +
+      '#epCapToast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 64px);transform:translate(-50%,-12px);opacity:0;pointer-events:none;z-index:9500;max-width:min(92vw,420px);padding:10px 14px;border-radius:10px;' +
+      'background:rgba(10,15,19,.94);border:1px solid var(--amber,#e0b060);box-shadow:0 6px 24px rgba(0,0,0,.5);text-align:center;transition:opacity .35s,transform .35s}' +
+      '#epCapToast.on{opacity:1;transform:translate(-50%,0)}#epCapToast small{display:block;font-size:10.5px;color:var(--dim,#7f929e)}#epCapToast b{display:block;font-size:16px;color:var(--amber,#e0b060);margin:2px 0}#epCapToast span{display:block;font-size:12px;color:var(--ink,#cfdbe4);line-height:1.4}';
+    document.head.appendChild(s);
+  }
+  function init() {
+    css();
+    setInterval(() => { try { wrap(); tick(); } catch (e) {} }, 900);
+    window.EP_CAPT = { version: '6.68.0', note, lifeboat, decide, aft, ktb, aa, aar, patrolEnd, titleOf: () => { const c = rec(); return c ? c.title : null; },
+      state: () => rec(), val: a => { const c = rec(); return c ? val(c, a) : 0; }, ARCH, TAGS };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
