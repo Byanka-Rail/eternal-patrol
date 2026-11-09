@@ -34746,7 +34746,7 @@ window.Lang.add('ja', {
     let env=null;
     /* v6.39.2 — 바다·하늘 셰이더에 이 장면의 날씨와 시각을 알려 준다(전략 지도에는 전투 상태가 없어 늘 맑은 낮으로 그려졌다) */
     const Uu=window.UBOAT, realState=Uu&&Uu.state, wid=sc.typhoonBand?(sc.typhoonBand==='CORE'?'squall':'gale'):(sc.weather||'clear');
-    if(Uu&&!(realState&&realState())) Uu.state=()=>({ weather:{ id:wid, vis:vis, sea:sc.seaState }, night:night, theater:sc.theater });
+    if(Uu&&(!(realState&&realState())||document.body.classList.contains('inworld'))) Uu.state=()=>({ weather:{ id:wid, vis:vis, sea:sc.seaState }, night:night, theater:sc.theater });
     try{
     if(O&&O.paintBase){ env=O.paintBase(c,W,H,{visibility:vis,seaState:sc.seaState,time:now,phase:.625,horizonRatio:.58}); }
     else { c.fillStyle='#24343d';c.fillRect(0,0,W,H*.58);c.fillStyle='#0d1b21';c.fillRect(0,H*.58,W,H*.42);env={baseY:H*.58}; }
@@ -45453,6 +45453,9 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     return { brg: b.periscopeBearing, half, ppd: (W / 2 - 10) / half, bx: b.x, by: b.y };
   }
   function draw(c, W, H, env) {
+    /* v6.68 — 전투 잠망경에만 그린다. 전투가 끝난 뒤에도 남아 있던 상태가 항해 함교·식별 훈련 화면에
+       그대로 그려져, 격침한 배의 연기가 수평선에 몇 날 며칠 떠 있었다. */
+    if (!c || !c.canvas || c.canvas.id !== 'cvPeri' || document.body.classList.contains('inworld')) return;
     const g = U.state(); if (!g || !env) return;
     const v = view(g, W), vis = (g.weather && g.weather.vis) || 1, night = g.night || 0, baseY = env.baseY;
     const proj = (x, y, z) => { const r = Math.hypot(x - v.bx, y - v.by); if (r < 30 || r > 9500 * vis) return null;
@@ -45509,8 +45512,13 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     OV.paintForeground = function (c, W, H, env) { try { draw(c, W, H, env); } catch (e) {} return orig ? orig.apply(this, arguments) : undefined; };
     OV.__seafx = true; return true;
   }
+  let lastG = null;
   function loop() {
-    const g = U.state();
+    let g = U.state();
+    /* v6.68 — 해도로 돌아왔으면 그 전투는 끝났다. 새 판이 열리면 앞 판의 잔해를 넘겨받지 않는다. */
+    if (g && document.body.classList.contains('inworld')) g = null;
+    if (g && g !== lastG) { parts = []; wrecks = []; fires = []; aliveMap.clear(); lastT = null; }
+    lastG = g;
     if (g) { if (lastT == null || g.time < lastT) lastT = g.time; const dt = Math.min(1.5, g.time - lastT); lastT = g.time; if (dt > 0) step(g, dt); }
     else { parts = []; wrecks = []; fires = []; aliveMap.clear(); lastT = null; }
     if (!window.ObservationVisuals || !window.ObservationVisuals.__seafx) hook();
