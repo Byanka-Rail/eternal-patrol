@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.55.0 Wolfpack Radio</title>
-<script id="ep-build">window.EP_BUILD='6.55.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.56.0 Paper Charts</title>
+<script id="ep-build">window.EP_BUILD='6.56.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -48091,7 +48091,7 @@ html[data-skin="rust"]:not([data-lamp]) #cvHydro, html[data-skin="rust"]:not([da
   const KEY = 'ep.skin';
   const get = () => { try { return localStorage.getItem(KEY) || 'blue'; } catch (e) { return 'blue'; } };
   function apply(id, save) {
-    if (!/^(blue|rust|brass)$/.test(id)) id = 'blue';
+    if (!/^(blue|rust|brass|topo|film)$/.test(id)) id = 'blue';
     if (id === 'blue') document.documentElement.removeAttribute('data-skin'); else document.documentElement.setAttribute('data-skin', id);
     if (save) try { localStorage.setItem(KEY, id); } catch (e) {}
     /* 그림판(청음표·해도)이 읽는 색을 다시 읽게 한다 — 지금 조명 단추를 한 번 누른 것과 같다 */
@@ -48442,6 +48442,173 @@ html[data-skin="rust"]:not([data-lamp]) .epCrt::after, html[data-skin="brass"]:n
 
   window.EP_FLEET = { tick: tick, draw: draw, state: () => { const C = Campaign.state(); return C && C.fleetV655; },
     _force: (k) => { const C = Campaign.state(), F = C && ensure(C); return F; } };
+})();
+</script>
+
+<style id="ep-v656-paper-style">
+/* ══════════ V6.56 종이 스킨 — 지형도 · 작전 투명도 ══════════
+   금하선 RTS 의 두 스킨에서 가져온 생각. 둘 다 **밝은 판**이라 「주간 백색」 조명 위에 얹는다 —
+   그 조명이 이미 가진 가독성 보정(굵은 선 · 밝은 바탕용 색)을 그대로 물려받고, 재질과 잉크만 바꾼다.
+   ● 지형도   흰 종이 · 지도 잉크(먹 · 등고선 갈색 · 물 파랑 · 식생 초록) · 강조는 갈색 하나 · 도곽과 네 귀 십자 · 종이 결
+   ● 투명도   흐린 복사 지도 위에 얹은 아스테이지 필름 · 그리스 펜(아군 파랑 · 적 빨강 · 경계 먹) · 맞춤 십자 ⊕ · 비스듬한 반사광
+   해도판(월드맵 · 전술 해도 · 플롯)은 **뒤집어** 종이로 만든다 — 어두운 판에 맞춰 그은 밝은 선이 종이 위의 짙은 잉크가 된다.
+   청음 · 잠망경 · 함교는 계기와 눈이므로 그대로 둔다. */
+
+/* ── 지형도 ── */
+html[data-lamp="day"][data-skin="topo"]{
+  --bg:#f3f3f1; --panel:#ffffff; --panel2:#f6f6f4; --steel:#b9b1a2; --line:#b9b1a2;
+  --ink:#1b1b1b; --dim:#55524c; --amber:#8b5a2b; --green:#3d7a3a; --red:#b8322a; --blue:#1f5f9e; --sky:#1f5f9e;
+  --el1:#ffffff; --el2:#f6f6f4; --el3:#ffffff; --edge:rgba(255,255,255,.95); --shadow:rgba(60,45,25,.18);
+  --selBg:#f1e8dc; --selBd:#8b5a2b; --goBg:#f4e9d9; --goBd:#8b5a2b; --goUp:#f7eedf; --btnBg:#f6f6f4;
+  --epBtn:#f1efea; --epBtnHi:#e7e3da; --sunk:#ebe8e1; --warnBg:#f6ecdb; --badBg:#f7dfda; --goodBg:#e1eedf; }
+html[data-lamp="day"][data-skin="topo"] body{ background:#f3f3f1; }
+html[data-lamp="day"][data-skin="topo"] .card, html[data-lamp="day"][data-skin="topo"] .ov .box{
+  border:1px solid #1b1b1b !important; border-radius:2px !important; box-shadow:0 1px 2px rgba(60,45,25,.14) !important; }
+html[data-lamp="day"][data-skin="topo"] .card > h3, html[data-lamp="day"][data-skin="topo"] .card > summary h3{
+  letter-spacing:.06em; color:#1b1b1b !important; padding:3px 6px 3px 16px !important; position:relative;
+  background-image:radial-gradient(rgba(139,90,43,.18) .8px, transparent 1px); background-size:4px 4px; }
+html[data-lamp="day"][data-skin="topo"] .card > h3::before, html[data-lamp="day"][data-skin="topo"] .card > summary h3::before{
+  content:''; position:absolute; left:4px; top:50%; width:8px; height:8px; margin-top:-4px; background:#8b5a2b; }
+html[data-lamp="day"][data-skin="topo"] #topbar{ background:#ffffff; border-bottom:1.5px solid #1b1b1b; }
+html[data-lamp="day"][data-skin="topo"] #tabs{ background:#1b1b1b; border-top:1.5px solid #1b1b1b; }
+html[data-lamp="day"][data-skin="topo"] #tabs button{ background:#ffffff; color:#4a4a4a; }
+html[data-lamp="day"][data-skin="topo"] #tabs button.on{ color:#8b5a2b; box-shadow:inset 0 3px 0 #8b5a2b; }
+html[data-lamp="day"][data-skin="topo"] :where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes, #epDock, #epAtk) button{ border-radius:2px; }
+html[data-lamp="day"][data-skin="topo"] :is(#cvWorld, #cvChart, #epPlot, #epTrkPlot){ filter:invert(1) hue-rotate(180deg) sepia(.14); }
+html[data-lamp="day"][data-skin="topo"] #cvOceanFx{ opacity:.35; mix-blend-mode:multiply; filter:invert(1) hue-rotate(180deg); }
+
+/* ── 작전 투명도 ── */
+html[data-lamp="day"][data-skin="film"]{
+  --bg:#e9ebe8; --panel:rgba(252,253,252,.78); --panel2:#f1f2f0; --steel:#a9ada7; --line:#a9ada7;
+  --ink:#111111; --dim:#454a45; --amber:#b34700; --green:#2e7d32; --red:#c62828; --blue:#1f4fbf; --sky:#1f4fbf;
+  --el1:rgba(252,253,252,.80); --el2:rgba(246,247,245,.92); --el3:#fbfcfb; --edge:rgba(255,255,255,.95); --shadow:rgba(0,0,0,.10);
+  --selBg:rgba(31,79,191,.10); --selBd:#1f4fbf; --goBg:rgba(179,71,0,.10); --goBd:#b34700; --goUp:rgba(179,71,0,.14); --btnBg:rgba(252,253,252,.8);
+  --epBtn:rgba(252,253,252,.82); --epBtnHi:rgba(236,238,235,.95); --sunk:rgba(225,228,224,.9); --warnBg:rgba(179,71,0,.08); --badBg:rgba(198,40,40,.09); --goodBg:rgba(46,125,50,.09); }
+html[data-lamp="day"][data-skin="film"] body{
+  background:#e9ebe8 url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='420' viewBox='0 0 640 420'><g fill='none' stroke='%23c3c7c2' stroke-width='1'><path d='M-10 60 C90 30 170 100 270 80 S450 20 650 55'/><path d='M-10 88 C90 58 170 128 270 108 S450 48 650 83'/><path d='M-10 116 C90 86 170 156 270 136 S450 76 650 111' stroke='%23b3b7b2' stroke-width='1.4'/><path d='M-10 144 C90 114 170 184 270 164 S450 104 650 139'/><path d='M380 250 C410 215 480 210 515 240 C545 266 525 312 480 315 C430 318 360 296 380 250 Z'/><path d='M405 258 C425 236 470 234 492 252 C510 268 498 294 470 296 C440 298 395 284 405 258 Z'/><path d='M-10 330 C70 304 120 354 190 330 C250 310 280 368 350 380 S560 368 650 395' stroke='%23aeb8c0' stroke-width='3'/></g><path d='M213 0 V420 M426 0 V420 M0 140 H640 M0 280 H640' stroke='%23d3d6d2' stroke-width='1'/></svg>") repeat; }
+html[data-lamp="day"][data-skin="film"] .card, html[data-lamp="day"][data-skin="film"] .ov .box{
+  border:1.6px solid rgba(17,17,17,.85) !important; border-radius:0 !important;
+  box-shadow:inset 1px 1px 0 rgba(255,255,255,.95), 0 1px 2px rgba(0,0,0,.08) !important; }
+html[data-lamp="day"][data-skin="film"] .card > h3, html[data-lamp="day"][data-skin="film"] .card > summary h3{ color:#111 !important; letter-spacing:.08em; }
+html[data-lamp="day"][data-skin="film"] .card > h3::after{ content:''; display:block; height:0; margin-top:4px; border-top:1.5px dashed rgba(17,17,17,.55); }
+html[data-lamp="day"][data-skin="film"] #topbar{ background:rgba(252,253,252,.78); border-bottom:1px dashed #6a706a; }
+html[data-lamp="day"][data-skin="film"] #tabs{ background:#111; }
+html[data-lamp="day"][data-skin="film"] #tabs button{ background:rgba(252,253,252,.92); color:#454a45; border-radius:0; }
+html[data-lamp="day"][data-skin="film"] #tabs button.on{ color:#c62828; box-shadow:inset 0 3px 0 #c62828; }
+html[data-lamp="day"][data-skin="film"] :where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes, #epDock, #epAtk) button{ border-radius:0; border-color:#111; }
+html[data-lamp="day"][data-skin="film"] :is(#cvWorld, #cvChart, #epPlot, #epTrkPlot){ filter:invert(1) hue-rotate(180deg) saturate(.55) contrast(1.06); }
+html[data-lamp="day"][data-skin="film"] #cvOceanFx{ display:none !important; }
+
+/* ── 해도판 테두리 — 지형도: 도곽(굵은 먹 · 흰 틈 · 가는 먹)과 네 귀 십자 / 투명도: 필름 가장자리 점선과 맞춤 십자 ⊕ ── */
+.epSkFrame{ position:absolute; inset:0; pointer-events:none; z-index:3; display:none; }
+#epSkFrameW{ position:absolute; z-index:4; }
+html[data-lamp="day"]:is([data-skin="topo"],[data-skin="film"]) .epSkFrame{ display:block; }
+html[data-lamp="day"]:is([data-skin="topo"],[data-skin="film"]) #world.bridge-view #epSkFrameW,
+html[data-lamp="day"]:is([data-skin="topo"],[data-skin="film"]) #epSkFrameW.off{ display:none; }
+html[data-skin="topo"] .epSkFrame{ box-shadow:inset 0 0 0 2px #1b1b1b, inset 0 0 0 5px rgba(255,255,255,.92), inset 0 0 0 6px #1b1b1b; }
+html[data-skin="topo"] .epSkFrame i{ position:absolute; width:13px; height:13px; }
+html[data-skin="topo"] .epSkFrame i::before, html[data-skin="topo"] .epSkFrame i::after{ content:''; position:absolute; background:#1b1b1b; }
+html[data-skin="topo"] .epSkFrame i::before{ left:6px; top:0; width:1px; height:13px; }
+html[data-skin="topo"] .epSkFrame i::after{ left:0; top:6px; width:13px; height:1px; }
+html[data-skin="topo"] .epSkFrame i:nth-child(1){ left:10px; top:10px; } html[data-skin="topo"] .epSkFrame i:nth-child(2){ right:10px; top:10px; }
+html[data-skin="topo"] .epSkFrame i:nth-child(3){ left:10px; bottom:10px; } html[data-skin="topo"] .epSkFrame i:nth-child(4){ right:10px; bottom:10px; }
+html[data-skin="film"] .epSkFrame{ box-shadow:inset 0 0 0 1px rgba(17,17,17,.35); outline:1px dashed rgba(17,17,17,.45); outline-offset:-7px; }
+html[data-skin="film"] .epSkFrame i{ position:absolute; width:15px; height:15px; border:1.2px solid #111; border-radius:50%; }
+html[data-skin="film"] .epSkFrame i::before, html[data-skin="film"] .epSkFrame i::after{ content:''; position:absolute; background:#111; }
+html[data-skin="film"] .epSkFrame i::before{ left:6px; top:-5px; width:1.2px; height:23px; }
+html[data-skin="film"] .epSkFrame i::after{ left:-5px; top:6px; width:23px; height:1.2px; }
+html[data-skin="film"] .epSkFrame i:nth-child(1){ left:14px; top:14px; } html[data-skin="film"] .epSkFrame i:nth-child(2){ right:14px; top:14px; }
+html[data-skin="film"] .epSkFrame i:nth-child(3){ left:14px; bottom:14px; } html[data-skin="film"] .epSkFrame i:nth-child(4){ display:none; }
+html[data-skin="film"] .epSkFrame::after{ content:'투명도 1 / 작전'; position:absolute; right:38px; bottom:12px; font:600 10px/1 ui-monospace, monospace; color:#111; background:rgba(255,255,255,.82); padding:2px 5px; border:1px solid #111; }
+
+/* ── 종이 결(지형도) · 반사광(투명도) — 화면 전체에 얇게, 누르기는 통과 ── */
+#epSkGrain, #epSkSheen{ position:fixed; inset:0; pointer-events:none; z-index:2147483000; display:none; }
+html[data-lamp="day"][data-skin="topo"] #epSkGrain{ display:block; opacity:.07; mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .15  0 0 0 1.6 -.45'/></filter><rect width='180' height='180' filter='url(%23n)'/></svg>"); }
+@keyframes epSkSheen{ from{ transform:translateX(-6%); } to{ transform:translateX(6%); } }
+html[data-lamp="day"][data-skin="film"] #epSkSheen{ display:block; inset:-12% -24%; animation:epSkSheen 17s ease-in-out infinite alternate; will-change:transform;
+  background:linear-gradient(118deg, rgba(255,255,255,0) 13%, rgba(120,150,185,.06) 17.5%, rgba(255,255,255,.08) 19%, rgba(255,255,255,.24) 24%, rgba(255,255,255,.08) 28.5%, rgba(185,165,120,.05) 30%, rgba(255,255,255,0) 34%, rgba(255,255,255,0) 56%, rgba(120,150,185,.05) 59%, rgba(255,255,255,.13) 61.5%, rgba(255,255,255,0) 66%); }
+@media (prefers-reduced-motion: reduce){ #epSkSheen{ animation:none !important; } }
+html[data-epfx="low"] #epSkSheen, html[data-epfx="low"] #epSkGrain{ display:none !important; }
+
+/* 지도 위 떠 있는 단추 — 검은 유리 대신 종이 범례 칸 */
+html[data-lamp="day"][data-skin="topo"] :is(.zbtn, #wExitQuick, .chartBig){ background:rgba(255,255,255,.92) !important; color:#1b1b1b !important; border:1.5px solid #1b1b1b !important; border-radius:2px !important; box-shadow:none !important; }
+html[data-lamp="day"][data-skin="film"] :is(.zbtn, #wExitQuick, .chartBig){ background:rgba(255,255,255,.82) !important; color:#111 !important; border:1.5px dashed #111 !important; border-radius:0 !important; box-shadow:none !important; }
+#epSkinRow, .epSkinRow{ grid-template-columns:repeat(3, 1fr) !important; }
+.epSkinNote{ font-size:11px; color:var(--dim); margin-top:4px; }
+</style>
+<script id="ep-v656-paper-script">
+(function EP_V656_PAPER(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const PAPER = /^(topo|film)$/;
+  const lampBtn = k => document.querySelector('#lampRow button[data-lamp="' + k + '"]');
+  const curLamp = () => document.documentElement.getAttribute('data-lamp') || 'steel';
+  /* v6.52 스킨 apply 를 넓힌다 — 종이 스킨은 주간 조명을 함께 켠다 */
+  function wrap() {
+    const S = window.EP_V652_SKIN; if (!S || S._v656) return !!S;
+    const base = S.apply;
+    S.apply = function (id, save) {
+      if (PAPER.test(id)) {
+        if (curLamp() !== 'day') { const b = lampBtn('day'); if (b) b.click(); else document.documentElement.setAttribute('data-lamp', 'day'); }
+        document.documentElement.setAttribute('data-skin', id);
+        if (save) try { localStorage.setItem('ep.skin', id); } catch (e) {}
+        document.querySelectorAll('[data-skin-pick]').forEach(b => b.classList.toggle('on', b.dataset.skinPick === id));
+        const on = document.querySelector('#lampRow button.on'); if (on && save) on.click();
+        repaint(); return;
+      }
+      base(id, save); repaint();
+    };
+    S._v656 = true;
+    return true;
+  }
+  function repaint() { try { if (window.WorldView && WorldView.render && Campaign.state && Campaign.state()) WorldView.render(); } catch (e) {} }
+  /* 종이 스킨에서 다른 조명을 고르면 종이를 걷는다(종이는 밝은 조명 위에서만 성립) */
+  document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('#lampRow button[data-lamp]'); if (!b) return;
+    const sk = document.documentElement.getAttribute('data-skin');
+    if (PAPER.test(sk || '') && b.dataset.lamp !== 'day') setTimeout(() => window.EP_V652_SKIN && EP_V652_SKIN.apply('blue', true), 0);
+  }, true);
+  function addButtons() {
+    document.querySelectorAll('.epSkinRow').forEach(row => {
+      if (row.querySelector('[data-skin-pick="topo"]')) return;
+      const mk = (k, t, s) => { const b = document.createElement('button'); b.className = 'mini'; b.dataset.skinPick = k; b.innerHTML = t + '<small>' + s + '</small>'; return b; };
+      row.appendChild(mk('topo', '지형도', '흰 종이 · 잉크'));
+      row.appendChild(mk('film', '작전 투명도', '필름 · 그리스 펜'));
+      const n = document.createElement('div'); n.className = 'epSkinNote'; n.textContent = '지형도 · 작전 투명도는 주간 백색 조명과 함께 켜집니다.';
+      row.after(n);
+      const cur = document.documentElement.getAttribute('data-skin') || 'blue';
+      row.querySelectorAll('[data-skin-pick]').forEach(b => b.classList.toggle('on', b.dataset.skinPick === cur));
+    });
+  }
+  function frames() {
+    const host = $('cvChart') && $('cvChart').parentElement;
+    if (host && !host.querySelector(':scope > .epSkFrame')) { const f = document.createElement('div'); f.className = 'epSkFrame'; f.innerHTML = '<i></i><i></i><i></i><i></i>'; host.appendChild(f); }
+    if (!$('epSkFrameW') && $('world')) { const f = document.createElement('div'); f.id = 'epSkFrameW'; f.className = 'epSkFrame'; f.innerHTML = '<i></i><i></i><i></i><i></i>'; $('world').appendChild(f); }
+    if (!$('epSkGrain')) { const g = document.createElement('div'); g.id = 'epSkGrain'; document.body.appendChild(g); }
+    if (!$('epSkSheen')) { const g = document.createElement('div'); g.id = 'epSkSheen'; document.body.appendChild(g); }
+  }
+  /* 월드맵 도곽은 화면에 고정해 두고 해도 캔버스 자리에 맞춘다 */
+  function syncW() {
+    const f = $('epSkFrameW'), cv = $('cvWorld'), w = $('world');
+    if (!f) return;
+    const sk = document.documentElement.getAttribute('data-skin') || '';
+    const show = PAPER.test(sk) && cv && w && w.classList.contains('on') && !w.classList.contains('bridge-view') && cv.offsetParent;
+    f.classList.toggle('off', !show);
+    if (!show) return;
+    const r = cv.getBoundingClientRect(), q = w.getBoundingClientRect();
+    f.style.left = (r.left - q.left) + 'px'; f.style.top = (r.top - q.top) + 'px'; f.style.width = r.width + 'px'; f.style.height = r.height + 'px';
+  }
+  function init() {
+    frames(); wrap(); addButtons();
+    const sk = (function () { try { return localStorage.getItem('ep.skin'); } catch (e) { return null; } })();
+    if (sk && PAPER.test(sk) && window.EP_V652_SKIN) EP_V652_SKIN.apply(sk, false);
+    const fxl = () => { try { document.documentElement.dataset.epfx = localStorage.getItem('ep.fxLevel') || 'mid'; } catch (e) {} };
+    fxl(); setInterval(() => { frames(); wrap(); addButtons(); fxl(); }, 1500);
+    (function loop() { syncW(); setTimeout(() => requestAnimationFrame(loop), 250); })();
+    window.EP_V656_PAPER = { sync: syncW };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(init, 50), { once: true }); else setTimeout(init, 50);
 })();
 </script>
 
