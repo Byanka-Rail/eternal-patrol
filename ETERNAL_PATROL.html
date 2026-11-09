@@ -12521,22 +12521,58 @@ window.UBOAT = (function () {
 
   /* 전구·국적별 이름표. 자료가 없으면 대서양 기본값. */
   const FLEET = {
-    ATLANTIC: { merchants: ['ORION', 'CLYDE MAID', 'FORT ROSS', 'EMPIRE DAWN', 'SAN PEDRO', 'HALIFAX STAR'],
+    ATLANTIC: { merchants: ['ORION', 'CLYDE MAID', 'FORT ROSS', 'EMPIRE DAWN', 'SAN PEDRO', 'HALIFAX STAR',
+                'EMPIRE SUNRISE', 'ATHELKING', 'BARON KINNAIRD', 'CITY OF BENARES', 'SILVERMAPLE', 'TREVISA',
+                'ASSYRIAN', 'BEATUS', 'CONVALLARIA', 'SNEFJELD', 'LANGLEEFORD', 'KNOLL', 'GLENLEA',
+                'HARBOROUGH', 'CORNISH CITY', 'LORD STRATHCONA', 'MOUNT PELION', 'NAILSEA MEADOW',
+                'DUNSLEY', 'SAMUEL HEINTZELMAN', 'WEST MAXIMUS', 'BRITISH FREEDOM', 'SAN EMILIANO',
+                'GREGALIA', 'NOTTINGHAM', 'ELMBANK', 'HARPAGUS', 'PORT AUCKLAND', 'ZAAN', 'BORNHOLM'],
                 escorts: ['HMS WREN', 'HMS PRIMROSE', 'HMCS SACKVILLE', 'HMS VANOC'],
                 tons: [4200, 9800], masts: [24, 40] },
-    MEDITERRANEAN: { merchants: ['OHIO', 'MELBOURNE STAR', 'ROCHESTER', 'PORT CHALMERS'],
+    MEDITERRANEAN: { merchants: ['OHIO', 'MELBOURNE STAR', 'ROCHESTER', 'PORT CHALMERS',
+                'BRISBANE STAR', 'DORSET', 'WAIMARAMA', 'CLAN FERGUSON', 'EMPIRE HOPE', 'GLENORCHY',
+                'DEUCALION', 'SANTA ELISA', 'ALMERIA LYKES', 'WAIRANGI', 'TALABOT', 'PAMPAS',
+                'CLAN CAMPBELL', 'BRECONSHIRE', 'SYDNEY STAR', 'CITY OF PRETORIA', 'IMPERIAL STAR',
+                'ROWALLAN CASTLE', 'GLENGYLE', 'CLAN CHATTAN', 'BHUTAN', 'POTARO', 'TROILUS'],
                 escorts: ['HMS LEDBURY', 'HMS PENN', 'HMS BRAMHAM'],
                 tons: [3400, 9200], masts: [22, 36] },
-    PACIFIC: { merchants: ['KOAN MARU', 'TAIYO MARU', 'NIPPON MARU', 'HOKKAI MARU', 'SEIWA MARU'],
+    PACIFIC: { merchants: ['KOAN MARU', 'TAIYO MARU', 'NIPPON MARU', 'HOKKAI MARU', 'SEIWA MARU',
+                'TOYO MARU', 'KASUGA MARU', 'AKITSU MARU', 'HAKKO MARU', 'TAMATSU MARU', 'ARABIA MARU',
+                'TAKETOYO MARU', 'KIBITSU MARU', 'YAMATO MARU', 'TEIA MARU', 'NANKAI MARU', 'MANJU MARU',
+                'SHINYO MARU', 'KACHIDOKI MARU', 'RAKUYO MARU', 'TOYAMA MARU', 'AWA MARU', 'KOKUYO MARU',
+                'RYUSEI MARU', 'MIYO MARU', 'HEIAN MARU', 'TATSUTA MARU', 'KAMAKURA MARU', 'NITTA MARU',
+                'TAKASAGO MARU', 'GOKOKU MARU', 'NISSHO MARU', 'OMUROSAN MARU', 'TONAN MARU', 'KENZAN MARU'],
                 escorts: ['CH-12', 'KAIBOKAN 22', 'FUBUKI'],
                 tons: [2600, 10400], masts: [20, 34] },
     /* 미 서부 해안 — 표적은 미국 연안 상선, 호위는 얇은 초계정 */
-    EASTPAC: { merchants: ['MONTEBELLO', 'EMIDIO', 'LARRY DOHENY', 'ABSAROKA', 'COAST TRADER'],
+    EASTPAC: { merchants: ['MONTEBELLO', 'EMIDIO', 'LARRY DOHENY', 'ABSAROKA', 'COAST TRADER',
+                'AGWIWORLD', 'H.M. STOREY', 'CYNTHIA OLSON', 'CAMDEN', 'FORT CAMOSUN', 'SAMOA',
+                'CAPE BLANCO', 'L.P. ST. CLAIR', 'DOROTHY PHILLIPS', 'ROYAL OAK', 'CONNECTICUT',
+                'WILLIAM H. BERG', 'JOHN A. JOHNSON', 'ELK HILLS', 'MOUNT HOOD', 'PAT DOHENY',
+                'GEORGE L. TORIAN', 'BARBARA OLSON', 'DAVID H. ATWATER', 'PAN MASSACHUSETTS'],
                 escorts: ['USS SC-505', 'YP-88', 'USCGC ATLANTA'],
                 tons: [3100, 8900], masts: [20, 32] },
   };
 
   function pick(arr, i) { return arr[i % arr.length]; }
+  /* v6.71 — 이름이 매번 같은 순서로 나오던 것을 고친다.
+     판마다 이름표를 섞고, 최근 몇 판에 나온 이름은 뒤로 미룬다. */
+  const RECENT_NAMES_KEY = 'ep.recentShipNames.v671';
+  function recentNames() {
+    try { return JSON.parse(localStorage.getItem(RECENT_NAMES_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function nameOrder(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; }
+    const recent = new Set(recentNames());
+    return a.filter(n => !recent.has(n)).concat(a.filter(n => recent.has(n)));
+  }
+  function rememberNames(list) {
+    try {
+      const r = recentNames().filter(n => list.indexOf(n) < 0).concat(list);
+      localStorage.setItem(RECENT_NAMES_KEY, JSON.stringify(r.slice(-60)));
+    } catch (e) { /* 저장 못 해도 섞기는 된다 */ }
+  }
   function lerpRange(r, t) { return r[0] + (r[1] - r[0]) * t; }
 
   function newGame(opts) {
@@ -12552,6 +12588,7 @@ window.UBOAT = (function () {
     applySpec(TH && theater ? TH.BOATS[opts.boat || theater.boat] : null);
     applyEscSpec(opts.escortSpec || null);
     const fleet = FLEET[theaterId] || FLEET.ATLANTIC;
+    const mNames = nameOrder(fleet.merchants), eNames = nameOrder(fleet.escorts);
 
     /* ── 환경 먼저 ──
        지시서3 §16.1 — 같은 시드면 난이도가 달라도 **바다는 같아야 한다.**
@@ -12646,7 +12683,7 @@ window.UBOAT = (function () {
       const tanker = rnd() < tankerChance;
       const tons = Math.round(lerpRange(fleet.tons, rnd()) / 100) * 100;
       ships.push({
-        id: 'M' + (i + 1), kind: 'merchant', name: pick(fleet.merchants, i),
+        id: 'M' + (i + 1), kind: 'merchant', name: pick(mNames, i),
         /* 함종 — 화면은 이것을 직접 읽지 않는다. 식별 엔진이 증거로만 다룬다. */
         shipType: tanker ? 'TANKER' : 'MERCHANT', category: 'merchant', shipRole: 'transport',
         tanker: tanker,
@@ -12784,7 +12821,7 @@ window.UBOAT = (function () {
       const qAttachment = escEra === 'LATE' &&
         (doctrine === 'hound' || (shipType === 'DESTROYER' && i % 2 === 0));
       escorts.push({
-        id: 'E' + (i + 1), kind: 'escort', name: pick(fleet.escorts, i),
+        id: 'E' + (i + 1), kind: 'escort', name: pick(eNames, i),
         /* 범용 호위함도 이제 함종을 가진다 — 구축함과 초계정은 다른 배다 */
         shipType: shipType, category: 'warship', shipRole: 'screen',
         dcMaxDepth: dcMaxDepth, dcDepthEra: escEra, qAttachment: qAttachment,
@@ -13249,7 +13286,8 @@ window.UBOAT = (function () {
       scenario: opts.scenario || opts.encounterKind || null,
       timedSalvo: null,
       spec: { id: UB.id, name: UB.name, navy: UB.navy },
-      boat: boat, convoy: { x: 0, y: 0, course: course, speed: cspeed, ships: ships },
+      boat: (rememberNames(ships.map(m => m.name)), boat),
+      convoy: { x: 0, y: 0, course: course, speed: cspeed, ships: ships },
       escorts: escorts,
       /* holder — 접촉을 붙들고 남는 한 척. 나머지는 목줄에 걸리면 경계로 돌아간다. */
       escortNet: { assignments: {}, lastBroadcast: 0, queue: [], holder: null, holderAt: -999 },
@@ -16080,6 +16118,20 @@ window.UBOAT = (function () {
   }
 
   /* 이 배의 선체 길이 — 겉보기 크기 계산에 쓴다 */
+  /* v6.71 — 어뢰가 배에 닿았는가를 **선체 모양**으로 본다.
+     예전에는 배의 한가운데 점에서 반지름(상선 40m · 호위함 22m) 안에 들어와야만
+     맞은 것으로 쳤다. 105m 구축함의 이물이나 고물을 정확히 지나는 어뢰가
+     「빗나감」이 됐다 — 군함이 유난히 안 맞던 이유다.
+     이제는 배의 길이 방향으로 늘인 캡슐(길이 × 폭)을 쓴다. 옛 원판도 그대로 맞음으로 친다. */
+  function torpTouchesHull(t, u, oldR) {
+    const dx = t.x - u.x, dy = t.y - u.y;
+    if (dx * dx + dy * dy < oldR * oldR) return true;
+    const L = u.len || hullLenOf(u);
+    const beam = clamp(L * 0.12, 8, 22);
+    const h = d2r(u.heading || 0), hx = Math.sin(h), hy = Math.cos(h);
+    const along = dx * hx + dy * hy, across = dx * hy - dy * hx;
+    return Math.abs(along) <= L / 2 + 2 && Math.abs(across) <= beam / 2 + 4;
+  }
   function hullLenOf(u) {
     const cls = u.classRef;
     if (cls && cls.len) return cls.len;                     /* 실측 전장이 있으면 그것 */
@@ -16920,7 +16972,7 @@ window.UBOAT = (function () {
           /* 수평으로 스쳤더라도 심도가 다르면 위·아래로 지나간다. */
           continue;
         }
-        if (hdist < 40) {
+        if (torpTouchesHull(t, m, 40)) {
           t.dead = true;
           /* 어뢰는 설정한 심도보다 깊게 달릴 수 있다 — 함형마다 그 정도가 다르다 */
           const draft = m.draft || 5;
@@ -17031,7 +17083,7 @@ window.UBOAT = (function () {
       if (t.dead) continue;
       for (const e of G.escorts) {
         if (e.sunk) continue;
-        if (dist(t.x, t.y, e.x, e.y) < 22) {
+        if (torpTouchesHull(t, e, 22)) {
           t.dead = true;
           if (t.dud) {
             t.dudHit = true;
@@ -17044,7 +17096,7 @@ window.UBOAT = (function () {
           eventBrake({ mode: 'BRAKE', cap: 1,
                        eventId: 'torpedo:' + t.tube + ':' + Math.round(t.t0),
                        reason: '어뢰가 표적에 닿았습니다' });
-          const tons = 1000 + Math.round(rnd() * 500);
+          const tons = e.tonnage || (1000 + Math.round(rnd() * 500));
           G.stats.sunkTons += tons; G.stats.sunkCount++;
           G.stats.sunkEscorts = (G.stats.sunkEscorts || 0) + 1;
           G.stats.sunkList.push({ name: '호위함 ' + e.id, tonnage: tons, escort: true });
