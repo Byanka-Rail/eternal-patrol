@@ -53114,5 +53114,175 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<script id="ep-v676-special-script">
+/* ══════════ V6.76 특수 임무 — 바다마다 다른 밤일 ══════════
+   초계 중 가끔 사령부가 어뢰 공격이 아닌 일을 맡긴다. 밤에, 해안 가까이, 들키면 끝나는 일이다.
+   · 독일(대서양 · 지중해) — 항구 입구에 기뢰 부설: 표시한 세 곳에 기뢰를 내려놓는다.
+   · 미군(태평양) — 구조 당번: 공습 뒤 바다에 떨어진 조종사들의 구명뗏목을 찾아 건진다.
+   · 일본(동태평양) — 「두더지 수송」: 고립된 섬 해안에 보급 드럼통을 떨어뜨린다.
+   · 해도를 누르면 그쪽으로 간다. 순찰정의 탐조등 · 레이더 원 안에 오래 있으면 경계가 오른다 — 가득 차면 잠항해 철수.
+   · 목표 원 안에서 속력을 줄이고 「투하 / 인양」. 새벽(제한 시간) 전에 끝내야 한다. 얕은 곳은 들어갈 수 없다.
+   · 성공하면 사령부 명성 · 승조원 사기 · 함장 성향. 지도 위 🎯 단추(초계마다 한 번 맡겨질 수 있다). 한 · 영 · 일. */
+(function EP_V676_SPECIAL() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random, rnd = (a, b) => a + R() * (b - a);
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const KIND = {
+    MINES: { n: ['기뢰 부설', 'Minelaying', '機雷敷設'], obj: ['기뢰를 내린다', 'Lay mine', '機雷投下'], who: ['어뢰사관', 'Torpedo officer', '水雷長'],
+      brief: ['항구 입구 수로에 기뢰 세 개. 순찰정 탐조등을 피해 표시한 곳에 내려놓는다.', 'Three mines in the harbour channel. Dodge the patrol boat\'s searchlight and lay them at the marks.', '港口の水路に機雷三個。哨戒艇の探照灯を避けて印の場所に置く。'] },
+    LIFEGUARD: { n: ['구조 당번', 'Lifeguard duty', '救難待機'], obj: ['건진다', 'Pick up', '救助'], who: ['갑판장', 'Bosun', '甲板長'],
+      brief: ['공습 뒤 조종사 셋이 뗏목으로 떠 있다. 해안포와 순찰정을 피해 모두 건져라.', 'Three airmen adrift on rafts after the strike. Dodge the shore guns and patrol craft and pick them all up.', '空襲後、搭乗員三名が筏で漂流中。沿岸砲と哨戒艇を避けて全員救助せよ。'] },
+    DRUMS: { n: ['두더지 수송', 'Mole transport', 'モグラ輸送'], obj: ['드럼통 투하', 'Drop drums', 'ドラム缶投下'], who: ['갑판장', 'Bosun', '甲板長'],
+      brief: ['고립된 섬 해안 세 곳에 보급 드럼통을 떨어뜨린다. 어뢰정이 돌고 있다.', 'Drop supply drums at three points off the cut-off island. PT boats are prowling.', '孤立した島の沿岸三か所に補給ドラム缶を投下。魚雷艇が巡回中。'] }
+  };
+  const kindOf = th => th === 'PACIFIC' ? 'LIFEGUARD' : th === 'EASTPAC' ? 'DRUMS' : 'MINES';
+  let S = null, raf = 0;
+
+  function offer() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA' || C.specV676) return;
+    if (C.specRollAtV676 == null) C.specRollAtV676 = (C.hours || 0) + 48 + R() * 96;
+    if ((C.hours || 0) < C.specRollAtV676) return;
+    C.specV676 = R() < 0.45 ? { kind: kindOf(C.theater), state: 'OFFER' } : { state: 'NONE' };
+    if (C.specV676.state !== 'OFFER') return;
+    const K = KIND[C.specV676.kind];
+    const ko = '무전 — 사령부 특별 명령: ' + K.n[0] + '. ' + K.brief[0], en = 'Radio — HQ special order: ' + K.n[1] + '. ' + K.brief[1], ja = '無電 — 司令部特別命令：' + K.n[2] + '。' + K.brief[2];
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e) {}
+    snd('radio');
+  }
+  function open() {
+    const C = CS(); if (!C || !C.specV676 || C.specV676.state !== 'OFFER') return false;
+    const k = C.specV676.kind;
+    /* 무대 — 0..100 정사각. 왼쪽 위가 해안 */
+    const coast = []; for (let i = 0; i <= 10; i++) coast.push([i * 10, 18 + Math.sin(i * 1.3) * 6 + (i > 6 ? (i - 6) * 3 : 0)]);
+    const objs = [];
+    for (let i = 0; i < 3; i++) objs.push({ x: 22 + i * 26 + rnd(-5, 5), y: (k === 'LIFEGUARD' ? 40 : 30) + rnd(0, 18), done: false, vx: k === 'LIFEGUARD' ? rnd(-1.2, 1.2) : 0, vy: k === 'LIFEGUARD' ? rnd(-0.6, 0.8) : 0 });
+    const pat = [{ x: 30, y: 52, a: 0, path: [[15, 55], [85, 48]], seg: 0, sp: 7, beam: 0 }];
+    if (C.escalation > 0.55 || k === 'DRUMS') pat.push({ x: 70, y: 35, a: 0, path: [[85, 30], [40, 38], [60, 62]], seg: 0, sp: 9, beam: Math.PI });
+    S = { C, k, coast, objs, pat, b: { x: 50, y: 94, tx: 50, ty: 94, sp: 0 }, alert: 0, t: 0, dawn: 60, msg: '', done: false, res: null, guns: [] };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epSp').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+    S.msg = T(KIND[k].brief[0], KIND[k].brief[1], KIND[k].brief[2]) + ' ' + T('해도를 누르면 그쪽으로 갑니다.', 'Tap the chart to steer there.', '海図を押すとそちらへ向かう。');
+    return true;
+  }
+  function coastY(S, x) { const i = clamp(Math.floor(x / 10), 0, 9), f = x / 10 - i, a = S.coast[i], b = S.coast[i + 1]; return a[1] + (b[1] - a[1]) * f; }
+  function step(dt) {
+    const s = S, b = s.b; s.t += dt;
+    /* 우리 — 목표점으로, 가까우면 느리게 */
+    const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+    const want = d < 1 ? 0 : d < 6 ? 3 : 7; b.sp += (want - b.sp) * Math.min(1, dt * 1.5);
+    if (d > 0.01) { const mv = Math.min(d, b.sp * dt); b.x += dx / d * mv; b.y += dy / d * mv; }
+    const cy = coastY(s, b.x) + 5; if (b.y < cy) { b.y = cy; b.ty = Math.max(b.ty, cy); if (!s.shoalSaid) { s.shoalSaid = true; s.msg = T('항해사: 얕습니다! 더 들어가면 걸립니다.', 'Navigator: shoaling! Any closer and we\'re aground.', '航海長：浅い！これ以上は座礁する。'); } }
+    /* 뗏목은 떠내려간다 */
+    for (const o of s.objs) if (!o.done && (o.vx || o.vy)) { o.x = clamp(o.x + o.vx * dt * 0.4, 6, 94); o.y = clamp(o.y + o.vy * dt * 0.4, coastY(s, o.x) + 8, 85); }
+    /* 순찰 — 경로를 돌며 탐조등(또는 레이더)을 휘두른다 */
+    let seen = 0;
+    for (const p of s.pat) {
+      const tgt = p.path[(p.seg + 1) % p.path.length], ex = tgt[0] - p.x, ey = tgt[1] - p.y, ed = Math.hypot(ex, ey);
+      if (ed < 1.5) p.seg = (p.seg + 1) % p.path.length; else { p.x += ex / ed * p.sp * dt * 0.5; p.y += ey / ed * p.sp * dt * 0.5; p.a = Math.atan2(ey, ex); }
+      p.beam += dt * 1.1;
+      const rx = b.x - p.x, ry = b.y - p.y, rd = Math.hypot(rx, ry), ang = Math.atan2(ry, rx);
+      let da = Math.abs(((ang - p.beam) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+      if (rd < 30 && da < 0.22) seen += (1 - rd / 30) * 2.2 * (b.sp > 4 ? 1.4 : 1);
+      if (rd < 9) seen += (1 - rd / 9) * 1.2;
+    }
+    if (s.k === 'LIFEGUARD' && R() < dt * 0.35) { const gx = b.x + rnd(-14, 14), gy = b.y + rnd(-10, 10); s.guns.push({ x: gx, y: gy, t: 0 }); if (Math.hypot(gx - b.x, gy - b.y) < 3.5) { s.hit = (s.hit || 0) + 1; s.msg = T('해안포 탄이 바로 옆에!', 'Shore battery shell right alongside!', '沿岸砲弾がすぐ横に！'); snd('uireject'); } }
+    s.guns = s.guns.filter(g => (g.t += dt) < 1.2);
+    s.alert = clamp(s.alert + seen * dt * 0.35 - (seen ? 0 : dt * 0.04), 0, 1);
+    if (seen && !s.lit) { s.lit = true; snd('spotted'); } if (!seen) s.lit = false;
+    if (s.alert >= 1) end('BLOWN');
+    else if (s.t >= s.dawn) end(s.objs.some(o => o.done) ? 'PART' : 'DAWN');
+  }
+  function act() {
+    const s = S; if (!s || s.done) return;
+    const o = s.objs.find(o => !o.done && Math.hypot(o.x - s.b.x, o.y - s.b.y) < 5);
+    if (!o) { s.msg = T('표시한 곳 안으로 들어가야 합니다.', 'We need to be inside the mark.', '印の中に入らないと。'); return; }
+    if (s.b.sp > 3.5) { s.msg = T('너무 빠릅니다 — 속력을 줄이십시오(목표 가까이 찍기).', 'Too fast — slow down (tap close to the mark).', '速すぎる — 減速を（目標の近くを押す）。'); return; }
+    o.done = true; snd('taskdone');
+    const n = s.objs.filter(x => x.done).length;
+    s.msg = s.k === 'MINES' ? T('기뢰 ' + n + ' 내려놓았습니다.', 'Mine ' + n + ' laid.', '機雷' + n + '投下。') : s.k === 'LIFEGUARD' ? T('조종사 ' + n + ' 건졌습니다 — 덜덜 떨면서 웃습니다.', 'Airman ' + n + ' aboard — shivering and grinning.', '搭乗員' + n + '救助 — 震えながら笑っている。') : T('드럼통 ' + n + ' 투하 — 해안에서 불빛이 깜박입니다.', 'Drums ' + n + ' away — a light blinks from shore.', 'ドラム缶' + n + '投下 — 岸から灯火が瞬く。');
+    if (n >= s.objs.length) end('OK');
+  }
+  function end(res) {
+    const s = S; if (!s || s.done) return; s.done = true; s.res = res;
+    const C = s.C, n = s.objs.filter(o => o.done).length, K = KIND[s.k];
+    C.specV676.state = 'DONE'; C.hours = (C.hours || 0) + 8; C.surfaced = false;
+    let fame = res === 'OK' ? 3 : n ? 1 : 0, mor = res === 'OK' ? 0.05 : res === 'BLOWN' ? -0.03 : 0.01, dmg = 0;
+    if (res === 'BLOWN') { dmg = 3 + Math.round(R() * 6); C.hull = clamp((C.hull || 100) - dmg, 1, 100); C.alert = clamp((C.alert || 0) + 0.25, 0, 1); }
+    if (s.hit) { const d2 = s.hit * 3; dmg += d2; C.hull = clamp((C.hull || 100) - d2, 1, 100); }
+    try { const w = window.War && War.state && War.state(); if (w && w.captain && fame) { w.captain.prestige = (w.captain.prestige || 0) + fame; War.save(); } } catch (e) {}
+    try { if (window.EP_MORALE) EP_MORALE.add(C, mor); } catch (e) {}
+    try { if (window.EP_CAPT) { if (res === 'OK') EP_CAPT.note(s.k === 'LIFEGUARD' ? 'W_MOURN' : 'TR_REPORT'); if (s.k === 'LIFEGUARD' && n) EP_CAPT.note('LB_MED'); if (res === 'BLOWN') EP_CAPT.note('B_PRESS'); } } catch (e) {}
+    const word = { OK: ['완수', 'completed', '完遂'], PART: [n + '/3 하고 새벽에 철수', n + '/3 done, withdrew at dawn', n + '/3で夜明けに撤収'], DAWN: ['새벽까지 못 함', 'dawn came first', '夜明けまでに未了'], BLOWN: ['들켜서 잠항 철수', 'spotted — dived and withdrew', '発見され潜航撤収'] }[res];
+    const ko = K.n[0] + ' — ' + word[0] + (fame ? ', 명성 +' + fame : '') + (dmg ? ', 선체 −' + dmg + '%' : '') + '.', en = K.n[1] + ' — ' + word[1] + (fame ? ', fame +' + fame : '') + (dmg ? ', hull −' + dmg + '%' : '') + '.', ja = K.n[2] + ' — ' + word[2] + (fame ? '、名声 +' + fame : '') + (dmg ? '、船体 −' + dmg + '%' : '') + '。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja); if (res === 'BLOWN') snd('divealarm');
+    $('epSpAct').style.display = 'none'; $('epSpEnd').textContent = T('확인', 'OK', '了解'); render();
+  }
+  function close() { if (S && !S.done && S.t > 2) end(S.objs.some(o => o.done) ? 'PART' : 'DAWN'); cancelAnimationFrame(raf); raf = 0; S = null; $('epSp').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) { if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; if (!S.done) step(dt); draw(); render(); raf = requestAnimationFrame(loop); }
+  function draw() {
+    const cv = $('epSpCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = W;
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, k = W / 100, X = v => v * k;
+    c.fillStyle = '#06121a'; c.fillRect(0, 0, W, H);
+    /* 육지 */
+    c.fillStyle = '#1d2a1f'; c.beginPath(); c.moveTo(0, 0); for (const p of s.coast) c.lineTo(X(p[0]), X(p[1])); c.lineTo(W, 0); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(160,190,150,.35)'; c.setLineDash([3, 3]); c.beginPath(); s.coast.forEach((p, i) => { if (i) c.lineTo(X(p[0]), X(p[1] + 5)); else c.moveTo(X(p[0]), X(p[1] + 5)); }); c.stroke(); c.setLineDash([]);
+    /* 목표 */
+    for (const o of s.objs) { c.strokeStyle = o.done ? 'rgba(140,230,160,.6)' : 'rgba(232,192,104,.9)'; c.lineWidth = 1.5; c.beginPath(); c.arc(X(o.x), X(o.y), 5 * k, 0, 6.283); c.stroke();
+      c.fillStyle = o.done ? 'rgba(140,230,160,.8)' : 'rgba(232,192,104,.9)'; c.font = '700 ' + Math.round(10 + k) + 'px system-ui'; c.textAlign = 'center'; c.fillText(o.done ? '✓' : s.k === 'LIFEGUARD' ? '◉' : s.k === 'MINES' ? '✕' : '▣', X(o.x), X(o.y) + 4); }
+    /* 순찰 · 탐조등 */
+    for (const p of s.pat) {
+      const g = c.createRadialGradient(X(p.x), X(p.y), 0, X(p.x), X(p.y), 30 * k); g.addColorStop(0, 'rgba(255,250,210,.32)'); g.addColorStop(1, 'rgba(255,250,210,0)');
+      c.fillStyle = g; c.beginPath(); c.moveTo(X(p.x), X(p.y)); c.arc(X(p.x), X(p.y), 30 * k, p.beam - 0.22, p.beam + 0.22); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(255,120,100,.25)'; c.beginPath(); c.arc(X(p.x), X(p.y), 9 * k, 0, 6.283); c.stroke();
+      c.save(); c.translate(X(p.x), X(p.y)); c.rotate(p.a); c.fillStyle = '#7a8790'; c.fillRect(-2.6 * k, -0.9 * k, 5.2 * k, 1.8 * k); c.restore();
+    }
+    for (const gg of s.guns) { c.fillStyle = 'rgba(240,245,250,' + (1 - gg.t / 1.2).toFixed(3) + ')'; c.beginPath(); c.arc(X(gg.x), X(gg.y), (1 + gg.t * 2) * k, 0, 6.283); c.fill(); }
+    /* 우리 */
+    const b = s.b, ang = Math.atan2(b.ty - b.y, b.tx - b.x);
+    c.strokeStyle = 'rgba(143,208,255,.35)'; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(X(b.x), X(b.y)); c.lineTo(X(b.tx), X(b.ty)); c.stroke(); c.setLineDash([]);
+    c.save(); c.translate(X(b.x), X(b.y)); c.rotate(ang); c.fillStyle = s.lit ? '#ff8a7a' : '#5ae0a6'; c.beginPath(); c.moveTo(3 * k, 0); c.lineTo(-2.5 * k, 1.4 * k); c.lineTo(-2.5 * k, -1.4 * k); c.closePath(); c.fill(); c.restore();
+    /* 계기 */
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.85)'; c.font = '10px system-ui'; c.textAlign = 'left'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, H - 34, 110, s.alert, s.alert > 0.6 ? '#ff8a7a' : '#e8c068', T('경계', 'Alert', '警戒'));
+    bar(W - 118, H - 12, 110, s.t / s.dawn, '#9fd4ff', T('새벽까지', 'Until dawn', '夜明けまで'));
+  }
+  function render() { if (!S) return; $('epSpMsg').textContent = S.msg; }
+  function labels() {
+    const C = CS(), k = C && C.specV676 ? C.specV676.kind : 'MINES', K = KIND[k];
+    $('epSpT').textContent = T(K.n[0], K.n[1], K.n[2]);
+    $('epSpAct').innerHTML = T(K.obj[0], K.obj[1], K.obj[2]); $('epSpAct').style.display = '';
+    $('epSpEnd').textContent = T('철수', 'Withdraw', '撤収');
+  }
+  function build() {
+    if ($('epSp')) return;
+    const st = document.createElement('style'); st.id = 'ep-v676-special-style';
+    st.textContent = '#epSp{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epSp.on{display:flex}' +
+      '#epSp .bx{width:min(94vw,420px);max-height:96vh;overflow:auto;background:var(--panel,#0e1a22);border:1px solid #9fe0a8;border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epSp h3{margin:0 0 6px;font-size:15px;letter-spacing:.08em;color:#9fe0a8}#epSp canvas{display:block;width:100%;aspect-ratio:1/1;border-radius:8px;touch-action:none}' +
+      '#epSp .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epSp .ctl{display:grid;grid-template-columns:2fr 1fr;gap:6px}#epSp .ctl button{padding:13px 0;font-size:15px}#epSpBtn{display:none}#epSpBtn.on{display:block}#epSpBtn.want{border-color:#9fe0a8!important;color:#9fe0a8!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epSp';
+    el.innerHTML = '<div class="bx"><h3 id="epSpT"></h3><canvas id="epSpCv"></canvas><div class="msg" id="epSpMsg"></div><div class="ctl"><button class="mini go" id="epSpAct"></button><button class="mini" id="epSpEnd"></button></div></div>';
+    document.body.appendChild(el);
+    $('epSpCv').addEventListener('pointerdown', e => { if (!S || S.done) return; const r = e.currentTarget.getBoundingClientRect(); S.b.tx = clamp((e.clientX - r.left) / r.width * 100, 2, 98); S.b.ty = clamp((e.clientY - r.top) / r.height * 100, 2, 98); });
+    $('epSpAct').addEventListener('click', act); $('epSpEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epSpBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epSpBtn'; b.textContent = '🎯'; b.title = T('특수 임무', 'Special mission', '特殊任務'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), ok = C && C.status === 'AT_SEA' && C.specV676 && C.specV676.state === 'OFFER'; b.classList.toggle('on', !!ok); b.classList.toggle('want', !!ok);
+  }
+  function init() { setInterval(() => { try { offer(); button(); } catch (e) {} }, 900); window.EP_V676_SPECIAL = { version: '6.76.0', open, close, act, state: () => S, steer: (x, y) => { if (S) { S.b.tx = x; S.b.ty = y; } } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
 </body>
 </html>
