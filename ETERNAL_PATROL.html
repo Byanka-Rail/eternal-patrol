@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.52.0 Skins</title>
-<script id="ep-build">window.EP_BUILD='6.52.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.53.0 Gauges</title>
+<script id="ep-build">window.EP_BUILD='6.53.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -48090,6 +48090,118 @@ html[data-skin="rust"]:not([data-lamp]) #cvHydro, html[data-skin="rust"]:not([da
   apply(get(), false);
   function init() { addUI(); crt(); setInterval(() => { addUI(); crt(); }, 1500); window.EP_V652_SKIN = { apply, get }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v653-gauge-style">
+/* ══════════ V6.53 계기 · 장식 ══════════ */
+/* 함 상태 — 원형 계기 넷(전지 · 공기 · 선체 · 심도). 숫자는 계기 아래에 그대로 남긴다 */
+#epGauges{ display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin:2px 0 10px; }
+#epGauges .gz{ display:flex; flex-direction:column; align-items:center; min-width:0; }
+#epGauges svg{ width:100%; max-width:92px; height:auto; display:block; }
+#epGauges .gl{ font-size:11px; color:var(--dim); margin-top:1px; letter-spacing:.08em; }
+#epGauges .gv{ font-size:13.5px; font-variant-numeric:tabular-nums; color:var(--ink); }
+#epGauges .gv.bad{ color:var(--red); } #epGauges .gv.warn{ color:var(--amber); }
+.epGz-bezel{ fill:var(--gzBezel, #2a3640); } .epGz-face{ fill:var(--gzFace, #0b1116); } .epGz-tick{ stroke:var(--gzTick, #7d8d9a); } .epGz-red{ stroke:var(--red); }
+.epGz-needle{ fill:var(--gzNeedle, #f2ede4); } .epGz-cap{ fill:var(--gzCap, #3a4650); } .epGz-glass{ fill:url(#epGzGlass); }
+html[data-skin="rust"]:not([data-lamp]){ --gzBezel:#3c3835; --gzFace:#0c0e0d; --gzTick:#b5ab9e; --gzNeedle:#f2a640; --gzCap:#55504b; }
+html[data-skin="brass"]:not([data-lamp]){ --gzBezel:#8a6a34; --gzFace:#efe3c4; --gzTick:#2a1f10; --gzNeedle:#1a1208; --gzCap:#6e5228; }
+html[data-skin="brass"]:not([data-lamp]) #epGauges .gl{ color:#ae9a74; }
+
+/* 경보등 — 위 띠. 초록 = 들키지 않음 · 호박 = 주의 · 빨강(깜빡) = 들킴/폭뢰 */
+#epLamp{ flex:0 0 auto; width:14px; height:14px; border-radius:50%; margin:0 2px 0 1px; background:#2a3a30;
+  box-shadow:inset 0 -2px 3px rgba(0,0,0,.6), 0 0 0 2px rgba(0,0,0,.35); }
+#epLamp.g{ background:radial-gradient(circle at 40% 35%, #b8ffd0, #2fbf6a 55%, #145a32); box-shadow:0 0 8px rgba(80,230,140,.55), 0 0 0 2px rgba(0,0,0,.35); }
+#epLamp.a{ background:radial-gradient(circle at 40% 35%, #fff0c0, #f2a640 55%, #6a4210); box-shadow:0 0 9px rgba(242,166,64,.6), 0 0 0 2px rgba(0,0,0,.35); }
+#epLamp.r{ background:radial-gradient(circle at 40% 35%, #ffd0c0, #ff5a3c 55%, #6a1608); box-shadow:0 0 12px rgba(255,90,60,.8), 0 0 0 2px rgba(0,0,0,.35); animation:epLampBlink .7s steps(2) infinite; }
+@keyframes epLampBlink{ 50%{ opacity:.35; } }
+@media (prefers-reduced-motion: reduce){ #epLamp.r{ animation:none; } }
+
+/* 황동 — 칸 제목을 새긴 황동 명판으로(어두운 글자 · 양끝 나사) */
+html[data-skin="brass"]:not([data-lamp]) .card > h3,
+html[data-skin="brass"]:not([data-lamp]) .card > summary h3{
+  display:inline-block; color:#2a1d08 !important; background:linear-gradient(180deg, #e7c77e, #b88b3e 55%, #9a7230);
+  padding:3px 16px 3px !important; border-radius:2px; letter-spacing:.2em !important; font-weight:700 !important;
+  text-shadow:0 1px 0 rgba(255,235,180,.55); box-shadow:inset 0 1px 0 rgba(255,240,200,.6), inset 0 -1px 0 rgba(60,40,10,.6), 0 1px 2px rgba(0,0,0,.6);
+  background-image:radial-gradient(circle at 6px 50%, #6e5228 0 1.6px, #f0d8a0 2.2px, rgba(0,0,0,0) 2.8px), radial-gradient(circle at calc(100% - 6px) 50%, #6e5228 0 1.6px, #f0d8a0 2.2px, rgba(0,0,0,0) 2.8px), linear-gradient(180deg, #e7c77e, #b88b3e 55%, #9a7230); }
+html[data-skin="brass"]:not([data-lamp]) .card > h3::after{ display:none; }
+html[data-skin="brass"]:not([data-lamp]) .card > h3 .hsub, html[data-skin="brass"]:not([data-lamp]) .card > h3 span{ color:#3a2a10 !important; }
+
+/* 녹슨 강철 — 위 띠 아래에 배관 한 줄(플랜지 마디) */
+html[data-skin="rust"]:not([data-lamp]) #topbar{ position:relative; border-bottom:0; }
+html[data-skin="rust"]:not([data-lamp]) #topbar::after{ content:''; position:absolute; left:0; right:0; bottom:-6px; height:6px; pointer-events:none; z-index:3;
+  background:repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 64px, #4a4440 64px 70px, rgba(0,0,0,0) 70px 140px),
+             linear-gradient(180deg, #5a544e, #2e2a27 60%, #1a1816); box-shadow:0 2px 3px rgba(0,0,0,.6); }
+
+/* 계기 유리 — 화면 위쪽에 아주 옅은 반사 */
+html[data-skin="rust"]:not([data-lamp]) .epCrt::after, html[data-skin="brass"]:not([data-lamp]) .epCrt::after{ content:''; position:absolute; left:6%; right:30%; top:3%; height:18%;
+  border-radius:50%; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0)); }
+</style>
+<script id="ep-v653-gauge-script">
+(function EP_V653_GAUGE(){
+  'use strict';
+  const U = window.UBOAT; if (!U) return;
+  const $ = id => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+  const A0 = -125, A1 = 125;                 /* 바늘 범위(도) */
+  const DEF = [
+    { k: 'bat', l: '전지', fmt: v => Math.round(v * 100) + '%', val: b => b.battery, max: 1, red: [0, 0.2], warn: 0.35 },
+    { k: 'air', l: '공기', fmt: v => Math.round(v * 100) + '%', val: b => b.air, max: 1, red: [0, 0.25], warn: 0.45 },
+    { k: 'hp',  l: '선체', fmt: v => Math.round(v) + '%', val: b => b.hp, max: 100, red: [0, 30], warn: 55 },
+    { k: 'dep', l: '심도', fmt: v => Math.round(v) + 'm', val: b => b.depth, max: 250, red: [200, 250], warn: null, dyn: true },
+  ];
+  const cur = {};
+  function polar(r, a) { const t = (a - 90) * Math.PI / 180; return [50 + r * Math.cos(t), 52 + r * Math.sin(t)]; }
+  function arc(r, a, b) { const p = polar(r, a), q = polar(r, b); return 'M' + p[0].toFixed(2) + ' ' + p[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + (b - a > 180 ? 1 : 0) + ' 1 ' + q[0].toFixed(2) + ' ' + q[1].toFixed(2); }
+  function make(d) {
+    const s = document.createElementNS(NS, 'svg'); s.setAttribute('viewBox', '0 0 100 99'); s.setAttribute('aria-hidden', 'true');
+    let h = '<defs><linearGradient id="epGzGlass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>';
+    h += '<circle class="epGz-bezel" cx="50" cy="52" r="46"/><circle class="epGz-face" cx="50" cy="52" r="40"/>';
+    h += '<path class="epGz-red" data-red fill="none" stroke-width="5" d=""/>';
+    for (let i = 0; i <= 10; i++) { const a = A0 + (A1 - A0) * i / 10, p = polar(i % 5 ? 34 : 31, a), q = polar(39, a);
+      h += '<line class="epGz-tick" x1="' + p[0].toFixed(2) + '" y1="' + p[1].toFixed(2) + '" x2="' + q[0].toFixed(2) + '" y2="' + q[1].toFixed(2) + '" stroke-width="' + (i % 5 ? 1.2 : 2.2) + '"/>'; }
+    h += '<g data-n><path class="epGz-needle" d="M48.6 52 L50 17 L51.4 52 Z"/></g><circle class="epGz-cap" cx="50" cy="52" r="5"/><ellipse class="epGz-glass" cx="50" cy="38" rx="34" ry="20"/>';
+    s.innerHTML = h; return s;
+  }
+  function build() {
+    const st = $('stHp'); if (!st || $('epGauges')) return !!$('epGauges');
+    const card = st.closest('.card'); if (!card) return false;
+    const box = document.createElement('div'); box.id = 'epGauges';
+    for (const d of DEF) { const z = document.createElement('div'); z.className = 'gz'; z.dataset.k = d.k; z.appendChild(make(d));
+      const l = document.createElement('div'); l.className = 'gl'; l.textContent = d.l; const v = document.createElement('div'); v.className = 'gv'; z.append(l, v); box.appendChild(z); }
+    const h3 = card.querySelector(':scope > h3'); (h3 || card.firstChild).after(box);
+    return true;
+  }
+  function update() {
+    const g = U.state(); if (!g || !g.boat) return; const b = g.boat;
+    const box = $('epGauges'); if (!box || !box.offsetParent) return;
+    for (const d of DEF) {
+      const z = box.querySelector('[data-k="' + d.k + '"]'); if (!z) continue;
+      let max = d.max, red = d.red;
+      if (d.dyn) { const sp = g.spec || {}; const crush = sp.crushDepth || (sp.safeDepth || sp.testDepth || 150) * 1.34, safe = sp.safeDepth || sp.testDepth || 150;
+        max = Math.max(50, Math.ceil(crush * 1.1 / 50) * 50); red = [safe, max]; }
+      const v = Math.max(0, d.val(b) || 0), f = Math.min(1, v / max);
+      cur[d.k] = cur[d.k] == null ? f : cur[d.k] + (f - cur[d.k]) * 0.25;
+      z.querySelector('[data-n]').setAttribute('transform', 'rotate(' + (A0 + (A1 - A0) * cur[d.k]).toFixed(1) + ' 50 52)');
+      const r = z.querySelector('[data-red]'), ra = A0 + (A1 - A0) * red[0] / max, rb = A0 + (A1 - A0) * Math.min(1, red[1] / max);
+      if (r.dataset.key !== ra + '|' + rb) { r.dataset.key = ra + '|' + rb; r.setAttribute('d', arc(36, ra, rb)); }
+      const vv = z.querySelector('.gv'); vv.textContent = d.fmt(v);
+      vv.className = 'gv' + (d.dyn ? (v >= red[0] ? ' bad' : '') : (v <= red[1] ? ' bad' : (d.warn != null && v <= d.warn ? ' warn' : '')));
+    }
+  }
+  /* 경보등 */
+  function lamp() {
+    const top = $('topbar'), env = $('tbEnv'); if (!top || !env) return;
+    let el = $('epLamp'); if (!el) { el = document.createElement('span'); el.id = 'epLamp'; el.setAttribute('role', 'img'); env.parentNode.insertBefore(el, env); }
+    const g = U.state(); if (!g || !g.boat) { el.className = ''; return; }
+    const st = $('tbStealth'), cls = st ? st.className : '';
+    const recentDC = (g.booms || []).some(bm => bm.depth != null && g.time - bm.t < 12 && Math.hypot(bm.x - g.boat.x, bm.y - g.boat.y) < 1500);
+    const hunted = (g.escorts || []).some(e => e.alive && (e.mode === 'ATTACK' || e.mode === 'TRACK'));
+    const c = recentDC || hunted || /bad/.test(cls) ? 'r' : /warn/.test(cls) || (g.escorts || []).some(e => e.alive && (e.mode === 'SEARCH' || e.mode === 'REACQUIRE')) ? 'a' : 'g';
+    if (el.className !== c) { el.className = c; el.setAttribute('aria-label', c === 'r' ? '경보 — 들킴' : c === 'a' ? '주의' : '정상'); el.title = el.getAttribute('aria-label'); }
+  }
+  function tick() { build(); update(); lamp(); }
+  setInterval(tick, 300);
+  window.EP_V653_GAUGE = { version: '6.53.0' };
 })();
 </script>
 </body>
