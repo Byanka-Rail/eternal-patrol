@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.45.0 UX Pass</title>
-<script id="ep-build">window.EP_BUILD='6.45.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.46.0 Calm Panel</title>
+<script id="ep-build">window.EP_BUILD='6.46.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -43211,15 +43211,27 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
         if (isSel) el('circle', { cx: x, cy: y, r: 13, fill: 'none', stroke: 'var(--green)', 'stroke-width': 2 }, grp);
       }
       /* 이름표 — 선택 접촉만 자세히, 나머지는 이름만. 위 아래로 겹치면 비켜 앉는다 */
-      let lx = x, ly = y - (hasR && !beyond ? 24 : 16);
-      if (ly < 10) ly = y + 26;
-      for (const s of seen) if (Math.abs(s[0] - lx) < 30 && Math.abs(s[1] - ly) < 11) ly = s[1] + 11;
-      seen.push([lx, ly]);
-      lx = clamp(lx, 14, W - 14);
-      txt(c.id, { x: lx, y: ly, fill: col, 'font-size': 10.5, 'font-weight': 600, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
-      const sub = beyond ? (c.rangeEstimate / 1000).toFixed(1) + 'km' + (c.rangeEstimate > torpR ? ' · 사거리 밖' : ' · 판 밖')
+      /* v6.46.0 — 이름표는 두 줄(이름 + 설명) 한 덩어리로 자리를 찾는다. 위 → 아래 → 오른쪽 → 왼쪽 순으로
+         앉혀 보고, 앞서 앉은 이름표와 겹치지 않는 첫 자리에 둔다. 끝내 자리가 없으면 선택 표적이 아닌 것은
+         설명 줄을 접고 이름만 남긴다. */
+      let sub = beyond ? (c.rangeEstimate / 1000).toFixed(1) + 'km' + (c.rangeEstimate > torpR ? ' · 사거리 밖' : ' · 판 밖')
         : !hasR ? '방위만' : isSel ? (c.rangeEstimate / 1000).toFixed(1) + 'km · 해법 ' + Math.round((c.solutionConfidence || 0) * 100) + '%' : identWord(c);
-      if (sub) txt(sub, { x: lx, y: ly + 10, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
+      const tw = s => { let n = 0; for (const ch of String(s || '')) n += /[\u3131-\uD79D]/.test(ch) ? 8.6 : 5.2; return n; };
+      const boxAt = (cx, cy, withSub) => { const w = Math.max(tw(c.id) * 1.25, withSub && sub ? tw(sub) : 0) + 4;
+        return { x0: cx - w / 2, x1: cx + w / 2, y0: cy - 10, y1: cy + (withSub && sub ? 13 : 3) }; };
+      const hits = b => b.x0 < 2 || b.x1 > W - 2 || b.y0 < 2 || b.y1 > H - 2 || seen.some(s => !(b.x1 < s.x0 || b.x0 > s.x1 || b.y1 < s.y0 || b.y0 > s.y1));
+      const up = hasR && !beyond ? 24 : 16;
+      const cands = [[x, y - up], [x, y + up + 8], [x + 30, y + 3], [x - 30, y + 3], [x, y - up - 22], [x, y + up + 30]];
+      let lx = x, ly = y - up, useSub = true, placed = false;
+      for (const withSub of [true, false]) {
+        if (!withSub && isSel) break;
+        for (const [cx, cy] of cands) { if (!hits(boxAt(cx, cy, withSub))) { lx = cx; ly = cy; useSub = withSub; placed = true; break; } }
+        if (placed) break;
+      }
+      if (!placed) { lx = clamp(x, 14, W - 14); ly = clamp(y - up, 12, H - 16); useSub = isSel; }
+      seen.push(boxAt(lx, ly, useSub));
+      txt(c.id, { x: lx, y: ly, fill: col, 'font-size': 10.5, 'font-weight': 600, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
+      if (sub && useSub) txt(sub, { x: lx, y: ly + 10, fill: 'var(--dim)', 'font-size': 8.5, 'font-family': NUM, 'text-anchor': 'middle' }, grp);
     }
 
     /* 선택 표적의 해법 — 어뢰 진로(뱃머리 또는 꼬리 → 예상 회합점), 자이로각 호 */
@@ -46713,6 +46725,170 @@ button{ word-break:keep-all; overflow-wrap:anywhere; }
   function tick() { torpSum(); boatGroups(); once(); }
   function init() { once(); tick(); setInterval(tick, 500); window.EP_V645_UX = { version: '6.45.0' }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<style id="ep-v646-look-style">
+/* ══════════ V6.46.0 화면 톤 정리 ══════════
+   ① 색의 뜻을 하나씩 — 호박색은 「지금 누를 것·주의」, 초록은 「켜짐·좋음·자함」. 칸 제목은 무채색.
+   ② 테두리를 걷는다 — 카드는 바탕색 차이로, 단추는 선이 아니라 면으로 구분한다.
+   ③ 단추 위계 — 주요 행동(go)은 꽉 찬 호박색, 켜짐(on)은 옅은 초록 면, 나머지는 한 단계 밝은 면.
+   ④ 둥글기는 단추 8px · 카드 10px · 알약 둘레 셋만. 글자 크기는 11.5 / 13 / 15 / 20 중심.
+   ⑤ 기본 조명(강철)의 원색 네온을 계기판 톤으로 조금 가라앉힌다. 적색등·주간·인화지는 각자 값을 그대로 쓴다. */
+:root{ --green:#5ae0a6; --amber:#f0b040; --epBtn:#16212a; --epBtnHi:#1d2b36; }
+html[data-lamp="red"]{ --epBtn:#24100c; --epBtnHi:#2e1511; }
+html[data-lamp="day"]{ --epBtn:#e2dccb; --epBtnHi:#d8d1bd; }
+html[data-lamp="sepia"]{ --epBtn:#2d251c; --epBtnHi:#372d22; }
+
+/* ① ② 카드 */
+.card{ border-color:transparent; border-radius:10px; }
+.card h3, .card > summary h3{ color:var(--dim); font-size:11.5px; font-weight:600; letter-spacing:.1em; }
+.card h3 .hsub{ letter-spacing:0; font-weight:400; }
+
+/* ② ③ 단추 — 판(카드·패널·오버레이) 위의 단추만. 하단 탭·소메뉴 띠는 제 모양 그대로 */
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #epDock, #epAtk, #panes) button{
+  background:var(--epBtn); border-color:transparent; border-radius:8px; }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #epDock, #epAtk, #panes) button:active{ background:var(--epBtnHi); }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes) button.on{
+  background:color-mix(in srgb, var(--green) 13%, transparent); color:var(--green); border-color:transparent;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--green) 45%, transparent); }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes) button.go{
+  background:var(--amber); color:var(--bg); border-color:transparent; font-weight:700; }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes) button.go:disabled{ background:var(--epBtn); color:var(--dim); font-weight:400; }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #epAtk, #panes) button.fire{
+  background:color-mix(in srgb, var(--red) 15%, transparent); border-color:transparent;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--red) 55%, transparent); }
+:where(.card, .box, #cmdPanel, #wPanel, #sheet, .ov, #panes) button.emg{ border-color:transparent;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--red) 50%, transparent); }
+/* 전구 명령줄의 「지금 할 수 있는 일」(기항·접선) — 테두리만 호박색으로 남긴다 */
+#wCmd.epCompact > button.epCtx{ box-shadow:inset 0 0 0 1px var(--amber); border-color:transparent; }
+
+/* 목록 행 · 조종대 · 위 띠 */
+.citem{ border-color:transparent; border-radius:10px; }
+.citem.sel{ background:color-mix(in srgb, var(--green) 7%, var(--el2)); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--green) 55%, transparent); }
+.citem .cdet{ border-left-color:rgba(255,255,255,.06); }
+#epDock button[data-k]{ border-color:transparent; border-radius:8px; }
+#epAtk .sol div{ border-color:transparent; border-radius:8px; }
+#tbEnv span{ border-color:transparent !important; background:color-mix(in srgb, var(--ink) 6%, transparent); }
+.zbtn{ border-color:transparent; border-radius:10px; box-shadow:inset 0 0 0 1px rgba(143,208,255,.22); }
+
+/* ④ 글자 크기 — 어중간한 값을 한 단계로 */
+#sheetTitle{ font-size:15px; }
+.val{ font-size:15px; }
+</style>
+<script id="ep-v646-labels-script">
+/* v6.46.0 — 청음표·해도의 글씨 겹침.
+   그 캔버스에 글씨를 쓸 때마다 앞서 쓴 글씨 상자와 겹치는지 보고, 겹치면 한 줄 아래·위·두 줄 아래·위 순으로
+   비켜 쓴다. 한 장을 새로 그리기 시작하면(캔버스를 통째로 지우거나 칠하면) 기록을 비운다.
+   같은 글씨를 테두리(strokeText)와 채움(fillText)으로 두 번 쓰는 경우는 같은 자리로 맞춘다.
+   회전된 글씨(방위 눈금)는 건드리지 않는다. 그림 규칙은 바꾸지 않는다 — 글씨 자리만. */
+(function EP_V646_LABELS(){
+  'use strict';
+  const IDS = ['cvHydro', 'cvChart'];
+  function hook(cv) {
+    const ctx = cv.getContext && cv.getContext('2d'); if (!ctx || ctx.__ep646) return; ctx.__ep646 = true;
+    const st = { boxes: [], last: 0, memo: new Map() };
+    const reset = () => { st.boxes.length = 0; st.memo.clear(); };
+    const full = (x, y, w, h) => { const T = ctx.getTransform(); return Math.abs(w * T.a) >= cv.width * 0.9 && Math.abs(h * T.d) >= cv.height * 0.9; };
+    const oClear = ctx.clearRect, oRect = ctx.fillRect, oFill = ctx.fillText, oStroke = ctx.strokeText;
+    ctx.clearRect = function (x, y, w, h) { if (full(x, y, w, h)) reset(); return oClear.apply(this, arguments); };
+    ctx.fillRect = function (x, y, w, h) { if (full(x, y, w, h)) reset(); return oRect.apply(this, arguments); };
+    function place(text, x, y) {
+      const now = performance.now(); if (now - st.last > 12) reset(); st.last = now;
+      const s = String(text); if (s.length < 3) return 0;
+      const T = ctx.getTransform(); if (Math.abs(T.b) > 1e-6 || Math.abs(T.c) > 1e-6) return 0;
+      const key = s + '|' + Math.round(x) + '|' + Math.round(y) + '|' + ctx.font;
+      if (st.memo.has(key)) return st.memo.get(key);
+      const m = ctx.measureText(s), w = m.width;
+      const asc = m.actualBoundingBoxAscent || parseFloat(ctx.font) * 0.8 || 8, desc = m.actualBoundingBoxDescent || 2;
+      const al = ctx.textAlign, left = al === 'center' ? x - w / 2 : (al === 'right' || al === 'end') ? x - w : x;
+      const lh = (asc + desc) * 1.2;
+      const box = dy => ({ x0: T.a * left + T.e - 1, x1: T.a * (left + w) + T.e + 1, y0: T.d * (y + dy - asc) + T.f - 1, y1: T.d * (y + dy + desc) + T.f + 1 });
+      const hit = b => st.boxes.some(o => !(b.x1 < o.x0 || b.x0 > o.x1 || b.y1 < o.y0 || b.y0 > o.y1));
+      let dy = 0;
+      for (const d of [0, lh, -lh, 2 * lh, -2 * lh]) { if (!hit(box(d))) { dy = d; break; } }
+      st.boxes.push(box(dy)); st.memo.set(key, dy);
+      return dy;
+    }
+    ctx.fillText = function (t, x, y, mw) { const dy = place(t, x, y); return mw === undefined ? oFill.call(this, t, x, y + dy) : oFill.call(this, t, x, y + dy, mw); };
+    ctx.strokeText = function (t, x, y, mw) { const dy = place(t, x, y); return mw === undefined ? oStroke.call(this, t, x, y + dy) : oStroke.call(this, t, x, y + dy, mw); };
+  }
+  function tick() { for (const id of IDS) { const cv = document.getElementById(id); if (cv) hook(cv); } }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+<style id="ep-v646-icons-style">
+/* ══════════ V6.46.0 아이콘 ══════════
+   글자 기호(＋ － ▣ ◎ ⤢ ⋯ ✕ ◀ ▶ › ▲ ▼ ⌃)로 그리던 단추를 같은 선 굵기(2px)의 그림 한 벌로 바꾼다.
+   단추 글자는 그대로 두고(누르는 쪽 코드가 글자로 상태를 바꾸기도 한다) 그림만 얹는다. */
+button[data-ico]{ font-size:0 !important; letter-spacing:0 !important; line-height:0 !important; display:inline-flex; align-items:center; justify-content:center; }
+button[data-ico]::before{ content:''; display:block; flex:0 0 auto; width:20px; height:20px; background:currentColor;
+  -webkit-mask:var(--ico) center / contain no-repeat; mask:var(--ico) center / contain no-repeat; }
+.citem .cdet[data-ico]::before{ width:18px; height:18px; }
+#tbMenu[data-ico]::before{ width:22px; height:22px; }
+button[data-ico="plus"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%205v14M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="minus"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2012h14%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="fit"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%209V4h5M20%209V4h-5M4%2015v5h5M20%2015v5h-5%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="locate"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%224.5%22%2F%3E%3Cpath%20d%3D%22M12%202v4M12%2018v4M2%2012h4M18%2012h4%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="expand"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M14%204h6v6M10%2020H4v-6M20%204l-7%207M4%2020l7-7%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="collapse"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M4%2014h6v6M20%2010h-6V4M10%2014l-6%206M14%2010l6-6%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="more"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%225%22%20cy%3D%2212%22%20r%3D%221.7%22%20fill%3D%22%23000%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221.7%22%20fill%3D%22%23000%22%2F%3E%3Ccircle%20cx%3D%2219%22%20cy%3D%2212%22%20r%3D%221.7%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="close"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%206l12%2012M18%206L6%2018%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="cl"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M15%205l-7%207%207%207%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="cll"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M12%205l-7%207%207%207M19%205l-7%207%207%207%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="cr"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%205l7%207-7%207%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="crr"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%205l7%207-7%207M12%205l7%207-7%207%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="cu"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%2015l7-7%207%207%22%2F%3E%3C%2Fsvg%3E"); }
+button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%209l7%207%207-7%22%2F%3E%3C%2Fsvg%3E"); }
+</style>
+<script id="ep-v646-icons-script">
+(function EP_V646_ICONS(){
+  'use strict';
+  const MAP = { '＋':'plus', '+':'plus', '－':'minus', '−':'minus', '▣':'fit', '◎':'locate', '⤢':'expand', '⤡':'collapse',
+    '⋯':'more', '…':'more', '✕':'close', '◀':'cl', '◀◀':'cll', '▶':'cr', '▶▶':'crr', '›':'cr', '▲':'cu', '▼':'cd', '⌃':'cu', '⌄':'cd' };
+  const NAME = { plus:'확대', minus:'축소', fit:'전체 보기', locate:'자함으로', expand:'크게 보기', collapse:'작게 보기', more:'더 보기', close:'닫기',
+    cl:'왼쪽', cll:'왼쪽 크게', cr:'오른쪽', crr:'오른쪽 크게', cu:'위', cd:'아래' };
+  function scan() {
+    for (const b of document.querySelectorAll('button')) {
+      const k = MAP[b.textContent.trim()];
+      if (k) { if (b.dataset.ico !== k) { b.dataset.ico = k; if (!b.getAttribute('aria-label') && !b.title) b.setAttribute('aria-label', NAME[k]); } }
+      else if (b.dataset.ico) delete b.dataset.ico;
+    }
+  }
+  scan(); setInterval(scan, 400);
+})();
+</script>
+<style id="ep-v646-menu-style">
+/* ══════════ V6.46.0 시작 화면 위계 ══════════
+   고를 것(전구 넷) → 할 것(초계 개시 하나만 꽉 찬 단추) → 나머지(두 칸 격자, 한 단계 낮게). */
+#ovStart button.th{ padding:12px 14px !important; border-color:transparent !important; background:var(--epBtn) !important; border-radius:10px !important; }
+#ovStart button.th b{ font-size:16.5px; }
+#ovStart button.th u, #ovStart button.th b i{ font-size:11.5px; }
+#ovStart button.th.on{ background:color-mix(in srgb, var(--green) 9%, var(--epBtn)) !important; box-shadow:inset 3px 0 0 var(--green), inset 0 0 0 1px color-mix(in srgb, var(--green) 40%, transparent) !important; }
+#ovStart #btnStart{ min-height:52px; font-size:15px; letter-spacing:.06em; }
+#ovStart #btnResume{ min-height:48px; }
+#btnBasicTut{ border-color:transparent !important; color:var(--amber) !important; background:var(--epBtn) !important;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--amber) 45%, transparent); }
+#ovStart .epMenuGrid{ display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:12px; }
+#ovStart .epMenuGrid > button{ margin:0 !important; width:auto !important; min-height:48px; font-size:13px; color:var(--ink); background:color-mix(in srgb, var(--ink) 5%, transparent) !important; }
+#ovStart .epMenuGrid > button[style*="display: none"], #ovStart .epMenuGrid > button[style*="display:none"]{ display:none !important; }
+#ovStart #dailyNote{ font-size:11.5px; margin-top:8px; }
+#ovStart #epUpdBtn{ background:transparent !important; color:var(--dim) !important; min-height:40px; margin-top:6px; }
+</style>
+<script id="ep-v646-menu-script">
+(function EP_V646_MENU(){
+  'use strict';
+  function build() {
+    const box = document.querySelector('#ovStart > .box'); const start = document.getElementById('btnStart');
+    if (!box || !start || box.querySelector('.epMenuGrid')) return;
+    const grid = document.createElement('div'); grid.className = 'epMenuGrid';
+    const ids = ['btnQuick', 'btnHistOps', 'btnHistValidate', 'btnTrain', 'btnDaily', 'btnBook', 'btnArchiveV622', 'btnOptions'];
+    const anchor = document.getElementById('btnResume') || start;
+    anchor.after(grid);
+    for (const id of ids) { const b = document.getElementById(id); if (b) grid.appendChild(b); }
+    const note = document.getElementById('dailyNote'); if (note) grid.after(note);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build, { once: true }); else build();
+  setTimeout(build, 1500);
 })();
 </script>
 </body>
