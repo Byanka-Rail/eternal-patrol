@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.44.3 Quiet Selection</title>
-<script id="ep-build">window.EP_BUILD='6.44.3';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.45.0 UX Pass</title>
+<script id="ep-build">window.EP_BUILD='6.45.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -2210,6 +2210,17 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <h3>발사관</h3>
 <div class="row" id="tubes"></div>
 <div class="cp-note" id="tubeNote" style="margin-top:6px"></div>
+<div class="row" id="epReserveRow" style="margin-top:7px">
+<div><label>예비탄</label><div class="val" id="reserve">—</div></div>
+</div>
+<div class="cp-note" id="depthHint" style="margin-top:6px"></div>
+<button class="fire" id="btnFire" style="margin-top:8px;width:100%">발 사</button>
+<button class="mini" id="btnManualSalvoOpen" style="margin-top:6px;width:100%;min-height:46px">일제사격 계획</button>
+</div>
+<!-- v6.45.0 — 매번 쓰는 것(해법·발사관·발사)과 가끔 바꾸는 것(주행심도·신관·어뢰 종류)을 나눈다.
+     가끔 바꾸는 것은 한 칸에 접어 두고, 접힌 줄에 지금 값을 적는다. -->
+<details class="card" id="epTorpSet">
+<summary><h3>어뢰 설정</h3><span id="epTorpSetSum"></span></summary>
 <div class="row" style="margin-top:7px">
 <div><label>주행심도 (m)</label>
 <select id="runDepth">
@@ -2224,12 +2235,14 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <option value="18">18 — 수중표적 중간</option>
 <option value="20">20 — 수중표적 깊음</option>
 </select></div>
-<div><label>예비탄</label><div class="val" id="reserve">—</div></div>
 </div>
-<div class="cp-note" id="depthHint" style="margin-top:6px"></div>
-<button class="fire" id="btnFire" style="margin-top:8px;width:100%">발 사</button>
-<button class="mini" id="btnManualSalvoOpen" style="margin-top:6px;width:100%;min-height:46px">일제사격 계획</button>
-</div>
+<h4 class="epSetH">신관</h4>
+<div class="grid2" id="fuzePick"></div>
+<div class="cp-note" id="fuzeNote"></div>
+<h4 class="epSetH">어뢰 종류</h4>
+<div class="grid2" id="torpPick"></div>
+<div class="cp-note" id="torpNote"></div>
+</details>
 <div class="card" id="venturerCard">
 <h3>작전 카이사르 차단 · 시간차 사격</h3>
 <div class="venturerStatus" id="venturerStatus">수중표적의 수평 해법과 심도 추정이 필요합니다.</div>
@@ -2276,16 +2289,6 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div class="cp-note" id="gunNote" style="margin-top:6px"></div>
 <button class="mini" id="btnGunMan" style="margin-top:8px;width:100%;min-height:46px">포수 갑판으로</button>
 <button class="mini" id="btnGunFire" style="margin-top:6px;width:100%;min-height:46px">선택 접촉에 사격</button>
-</div>
-<div class="card">
-<h3>신관</h3>
-<div class="grid2" id="fuzePick"></div>
-<div class="cp-note" id="fuzeNote"></div>
-</div>
-<div class="card">
-<h3>어뢰 종류</h3>
-<div class="grid2" id="torpPick"></div>
-<div class="cp-note" id="torpNote"></div>
 </div>
 </div>
 <!-- ═══ 5. 단면 — 옆에서 본 바다와 배 ═══ -->
@@ -2616,7 +2619,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <div class="cp-note lampNote" id="lampNote">야간 적색등은 눈의 암순응을 지킵니다 — 실제 유보트가 부상 전에 하던 일입니다.</div>
 </div>
 <div class="cp-sec">
-<button class="mini" id="cpBook" style="width:100%">교범</button>
+<button class="mini" id="cpBook" style="width:100%">교범 · 전술실험</button>
 </div>
 <div class="cp-sec">
 <label>항해 명령</label>
@@ -2654,8 +2657,7 @@ html[data-lamp="day"] .sstt-modal,html[data-lamp="day"] .sstt-embedded{--sstt-wa
 <!-- ═══ 시작 화면 — 전구를 고른다 ═══ -->
 <div class="ov on" id="ovStart">
 <h1 id="ttl">ETERNAL PATROL</h1>
-<div class="tag">네 개의 바다. 세 척의 배.<br/>
-<b style="color:var(--ink)">-</b></div>
+<div class="tag">네 개의 바다. 세 척의 배.</div>
 <div class="box">
 <div id="thList"></div>
 <button class="go" id="btnStart" style="width:100%;margin-top:4px">초계 개시</button>
@@ -30248,6 +30250,8 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     const g = U.state(); if (!g) return;
     const rawGun = g.boat.gun, gun = U.gunStatus ? U.gunStatus() : rawGun, card = $('gunCard');
     if (!rawGun || !gun) { card.style.display = 'none'; return; }
+    /* v6.45.0 — 잠항 중에는 쓸 수 없는 무기 칸을 늘 보여 주지 않는다. 떠 있거나 포수가 올라가 있을 때만. */
+    if (!(g.boat.depth <= 4 || gun.manned || gun.manning > 0)) { card.style.display = 'none'; return; }
     card.style.display = '';
     $('gunName').textContent = gun.name;
     $('gunAmmo').textContent = LL(gun.ammo + '발', gun.ammo + ' shells', gun.ammo + '発');
@@ -35385,6 +35389,14 @@ window.Lang.add('ja', {
     if (force || cam.theater !== C.theater) {
       const t = TH.THEATERS[C.theater];
       cam.theater = C.theater; cam.z = 1; cam.cx = t.grid.w / 2; cam.cy = t.grid.h / 2;
+      /* v6.45.0 — 폰 세로 화면에서 전구 전체를 맞추면 지도가 가운데 1/3 띠가 되고 위아래가 빈다.
+         처음 볼 때만 세로를 꽉 채우는 배율로 자함 둘레를 보인다. ▣(전체 보기)는 예전대로 전체. */
+      const W = cvW.clientWidth, H = cvW.clientHeight;
+      if (!force && W > 0 && H > 0 && C.x != null && C.y != null) {
+        const kw = W / t.grid.w, kh = H / t.grid.h;
+        cam.z = Math.min(Z_MAX, Math.max(Z_MIN, Math.max(kw, kh) / Math.min(kw, kh)));
+        cam.cx = C.x; cam.cy = C.y;
+      }
     }
   }
   /* 확대해도 지도 밖 빈 곳이 나오지 않게 중심을 가둔다 */
@@ -36451,7 +36463,7 @@ window.Lang.add('ja', {
         : '기항할 수 없습니다. 주변에서 선박 조우 가능성과 적 경계가 높아집니다.';
     if (p.availableFrom != null && window.EVENTS && window.EVENTS.monthLabel)
       $('wPortGame').textContent += ' 이 거점은 전황이 진행되어 ' + window.EVENTS.monthLabel(C.theater, Number(p.availableFrom)||0) + '부터 운용됩니다.';
-    if (p._seaPoint && p._seaPoint.shifted) $('wPortGame').textContent += ' 고정밀 해안선에서 시가지 좌표가 육지에 들어간 경우 거점 표식과 항해 목표는 인접 해상 정박점으로 자동 이동하며, 그 주변 바다에 접근하면 입항으로 인정합니다.';
+    if (false && p._seaPoint && p._seaPoint.shifted) $('wPortGame').textContent += ' 고정밀 해안선에서 시가지 좌표가 육지에 들어간 경우 거점 표식과 항해 목표는 인접 해상 정박점으로 자동 이동하며, 그 주변 바다에 접근하면 입항으로 인정합니다.';
   }
 
 
@@ -36612,7 +36624,7 @@ window.Lang.add('ja', {
     $('wNote').innerHTML = (worldTimer
       ? '항해 중입니다. 사건이 생기면 저절로 멈춥니다.'
       : (C.route.length ? '<b>항해 개시</b>를 누르면 경유점을 따라 갑니다.'
-                        : '빈 바다를 누르면 경유점을 찍습니다. 거점 표식을 누르면 선정 이유를 볼 수 있습니다.'))
+                        : '빈 바다를 누르면 경유점을 찍습니다.'))
       + seaLine + baseLine;
     const WHO = { exec: '부장', nav: '항해사', hydro: '청음수', observer:'관측원', damage:'손상통제', radio: '통신사', eng: '기관장', engine:'기관장', weap: '어뢰사관', tdc:'어뢰사관' };
     const lang = window.Lang && window.Lang.get ? window.Lang.get() : 'ko';
@@ -43270,14 +43282,16 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
 <script id="ep-v6262-submenu-script">
 (function EP_BOAT_SUBMENU(){
   'use strict';
+  /* v6.45.0 — 심도 명령은 아래 조종대에, 시간 배속은 위 ×1 에 한 자리씩 둔다. 같은 단추를 함내 「명령」에
+     또 두지 않는다. 그 묶음은 교범·첫 출항 훈련이 가리킬 때만 열린다(훈련이 그 단추를 쓰기 때문). */
   const GROUPS = [
-    { id: 'cmd',   label: '명령',   match: ['함장 명령', '시간'] },
+    { id: 'ship',  label: '함 상태', match: ['함 상태', '자동 승조원', '손상통제', '전자 장비'] },
     { id: 'helm',  label: '조타',   match: ['조타'] },
     { id: 'eng',   label: '기관',   match: ['기관'] },
     { id: 'depth', label: '심도',   match: ['심도'] },
-    { id: 'ship',  label: '함 상태', match: ['함 상태', '자동 승조원', '손상통제'] },
+    { id: 'cmd',   label: '명령',   match: ['함장 명령', '시간'] },
   ];
-  let cur = 'cmd', bar = null, pane = null, dock = null;
+  let cur = 'ship', bar = null, pane = null, dock = null;
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 
   function title(card) { const h = card.querySelector(':scope > h3'); if (!h) return '';
@@ -43292,7 +43306,7 @@ html[data-lamp="day"] #tubes button.mini:disabled{ color:#8f9ca6; }
   function cards() { return [...pane.children].filter(c => c.classList.contains('card')); }
   function apply() {
     for (const c of cards()) c.classList.toggle('epOff', (c.dataset.epGroup || groupOf(c)) !== cur);
-    if (bar) for (const b of bar.children) b.classList.toggle('on', b.dataset.g === cur);
+    if (bar) { for (const b of bar.children) b.classList.toggle('on', b.dataset.g === cur); bar.classList.toggle('epCmdLive', cur === 'cmd'); }
   }
   function show(id, scrollTo) { if (!GROUPS.some(g => g.id === id)) return; cur = id; apply();
     if (scrollTo) try { scrollTo.scrollIntoView({ block: 'center' }); } catch (e) {} }
@@ -46529,6 +46543,176 @@ body.epMenuScene{ background:#030101; }
     src.start(t); src.stop(t + dur + 0.05);
     return dur;
   };
+})();
+</script>
+<style id="ep-v645-ux-style">
+/* ══════════ V6.45.0 UX 정리 ══════════
+   ① 공격 탭 — 발사는 아래 띠 하나. 주행심도·신관·어뢰 종류는 「어뢰 설정」 한 칸에 접는다. 갑판포는 물 위에서만.
+   ② 한 조작은 한 자리 — 심도·속력·침로는 아래 조종대, 시간 배속은 위 ×1. 함내 「명령」·단면 심도 단추 줄·
+      명령 패널의 「항해 명령」은 같은 단추의 사본이라 뺀다. 소리·조명은 명령 패널 맨 아래에 접는다.
+   ③ 글씨 — 화면에 남는 글씨는 11.5px 안팎으로 올리고, 늘 같은 말만 하는 설명문은 뺀다(교범에 있다).
+   ④ 전술실험은 명령 패널의 「교범 · 전술실험」으로. ⑤ 표적판 「뱃머리 ↑」를 손가락 크기로.
+   ⑥ 전구 지도 — 처음엔 세로를 꽉 채워 자함 둘레를. 조작판은 명령 → 무전 일지 → 승조원 → 거점 순.
+   ⑦ 단추 글자를 음절 중간에서 자르지 않는다. ⑧ 「나가기」는 조용한 색으로 한 곳만. ⑨ 거점 설명의 군말 정리.
+   ⑩ 시작 화면 — 출처 글씨는 스크롤하면 물러나고, 아래 소리 단추 뒤로 글씨가 비치지 않게. ⑪ 옵션 음량 값은 이름 옆에. */
+
+/* ① */
+.pane[data-pane="torp"] #btnFire{ display:none; }
+body.epTutOn .pane[data-pane="torp"] #btnFire, .pane[data-pane="torp"] #btnFire.lrn-hl{ display:block; }
+#epTorpSet > summary{ list-style:none; display:flex; align-items:center; gap:10px; min-height:40px; cursor:pointer; margin:-4px 0; }
+#epTorpSet > summary::-webkit-details-marker{ display:none; }
+#epTorpSet > summary h3{ margin:0; flex:0 0 auto; }
+#epTorpSet > summary #epTorpSetSum{ flex:1 1 auto; min-width:0; text-align:right; color:var(--dim); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#epTorpSet > summary::after{ content:'▾'; flex:0 0 auto; color:var(--dim); font-size:13px; }
+#epTorpSet[open] > summary::after{ content:'▴'; }
+#epTorpSet .epSetH{ margin:14px 0 6px; font-size:12px; font-weight:600; color:var(--amber); letter-spacing:.04em; }
+
+/* ② */
+#sectDepRow{ display:none !important; }
+.epSubBar{ grid-template-columns:none !important; grid-auto-flow:column; grid-auto-columns:1fr; }
+.epSubBar button[data-g="cmd"]{ display:none; }
+body.epTutOn .epSubBar button[data-g="cmd"], .epSubBar.epCmdLive button[data-g="cmd"]{ display:block; }
+#cmdPanel .epCpNav{ display:none !important; }
+#cmdPanel details.epCpSet > summary{ list-style:none; display:flex; align-items:center; justify-content:space-between; min-height:44px; cursor:pointer;
+  font-size:12px; color:var(--dim); letter-spacing:.04em; }
+#cmdPanel details.epCpSet > summary::-webkit-details-marker{ display:none; }
+#cmdPanel details.epCpSet > summary::after{ content:'▾'; }
+#cmdPanel details.epCpSet[open] > summary::after{ content:'▴'; }
+#cmdPanel details.epCpSet > div + div{ margin-top:12px; }
+
+/* ③ 글씨 */
+#panes .cp-note, #cmdPanel .cp-note, #wPanel .cp-note{ font-size:11.5px !important; line-height:1.6; }
+#panes label, #cmdPanel .cp-sec > label, #cmdPanel details.epCpSet label{ font-size:11.5px !important; }
+#panes .ordline span{ font-size:11.5px !important; }
+.citem .cm{ font-size:11.5px !important; }
+#log .rep .rt, #log .rep .rw{ font-size:11px !important; }
+#log .rep .rp{ font-size:10px !important; }
+#log .rep b{ font-size:12px !important; }
+#attackTargetPick button small, #attackTargetHint, .epPlotHead small{ font-size:11px !important; }
+.epPlotHead{ flex-wrap:wrap; row-gap:4px; }
+#tbEnv span{ font-size:11px !important; }
+@media (max-width:430px){ #tbWeather{ max-width:84px !important; } #tbStealth{ max-width:92px !important; } }
+#epDock .o{ font-size:11px !important; }
+#wLog{ font-size:12px !important; }
+#wLog .wl span, #wLog .wl i{ font-size:11px !important; }
+#wPanel .crewRow{ font-size:12px; }
+/* 늘 같은 말만 하는 설명 — 교범에 있다 */
+.hydro-read-note, .epStaticNote, #cpTsNote, #captainCmdNote, #tsNote{ display:none !important; }
+
+/* ④ ⑤ */
+#btnTacticsQuick, #tacticsQuickRow{ display:none !important; }
+.epPlotHead button{ min-height:36px !important; padding:0 13px !important; font-size:12px !important; }
+
+/* ⑥ ⑧ ⑨ 전구 */
+#wExitQuick{ border-color:var(--steel) !important; color:var(--ink) !important; background:rgba(7,16,24,.82) !important;
+  font-weight:500 !important; box-shadow:none !important; }
+#wExitQuick:active{ background:rgba(20,44,58,.9) !important; }
+#wSaveQuit{ display:none !important; }
+#wTheaterSelection{ display:none !important; }
+#wPortDetail .sl.epReason{ display:none !important; }
+
+/* ⑦ 단추 글자는 낱말 단위로 줄을 바꾼다 */
+button{ word-break:keep-all; overflow-wrap:anywhere; }
+
+/* ⑩ 시작 화면 */
+#ovStart{ padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)) !important; }
+#ovStart > #epTitleFade{ position:fixed !important; left:0; right:0; bottom:0; height:calc(50px + env(safe-area-inset-bottom, 0px));
+  z-index:2 !important; pointer-events:none; background:linear-gradient(to top, rgba(6,6,7,.94) 55%, rgba(6,6,7,0)); }
+#epTitleSnd, #epTitleMus{ z-index:3 !important; }
+#ovStart.epScrolled #epTitleCredit, #ovStart.epScrolled #epTitleCap{ opacity:0 !important; }
+
+/* ⑪ 옵션 — 음량 이름 · 막대 · 값 한 줄 */
+#ovOptions .audioMixV6249 .mixLine, #cmdPanel .audioMixV6249 .mixLine{ display:grid !important; grid-template-columns:64px minmax(0,1fr) 46px !important; gap:8px; align-items:center; min-height:40px; }
+#ovOptions .audioMixV6249 .mixLine > b, #cmdPanel .audioMixV6249 .mixLine > b{ display:block; font-size:13px; margin:0; }
+#ovOptions .audioMixV6249 .mixLine > input, #cmdPanel .audioMixV6249 .mixLine > input{ display:block; width:100%; margin:0; }
+#ovOptions .audioMixV6249 .mixLine > output, #cmdPanel .audioMixV6249 .mixLine > output{ display:block; text-align:right; font-size:13px; }
+</style>
+<script id="ep-v645-ux-script">
+(function EP_V645_UX(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const lang = () => (window.Lang && window.Lang.get ? window.Lang.get() : 'ko');
+  const tr = (ko, en, ja) => { const l = lang(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  try {
+    if (window.Lang && window.Lang.add) {
+      window.Lang.add('en', { '어뢰 설정': 'Torpedo settings', '어뢰 종류': 'Torpedo type', '신관': 'Pistol', '교범 · 전술실험': 'Manual · tactical lab', '화면·소리 설정': 'Display & sound', '예비탄': 'Reserve' });
+      window.Lang.add('ja', { '어뢰 설정': '魚雷設定', '어뢰 종류': '魚雷の種類', '신관': '信管', '교범 · 전술실험': '教範・戦術実験', '화면·소리 설정': '画面・サウンド設定', '예비탄': '予備魚雷' });
+    }
+  } catch (e) {}
+
+  /* ① 어뢰 설정 — 접힌 줄에 지금 값. 교범이 안쪽을 가리키면 저절로 펼친다. */
+  const firstWord = el => { if (!el) return ''; const t = (el.childNodes[0] && el.childNodes[0].nodeType === 3 ? el.childNodes[0].textContent : el.textContent) || ''; return t.trim().split('\n')[0].trim(); };
+  function torpSum() {
+    const s = $('epTorpSetSum'); if (!s) return;
+    const rd = $('runDepth'), fz = document.querySelector('#fuzePick button.on'), tp = document.querySelector('#torpPick button.on');
+    const parts = [];
+    if (rd) parts.push(tr('심도 ', 'depth ', '深度 ') + rd.value + 'm');
+    if (fz) parts.push(firstWord(fz));
+    if (tp) parts.push(firstWord(tp));
+    const t = parts.filter(Boolean).join(' · ');
+    if (s.textContent !== t) s.textContent = t;
+  }
+  function watchTorpSet() {
+    const d = $('epTorpSet'); if (!d || d.dataset.ep645) return; d.dataset.ep645 = '1';
+    new MutationObserver(() => { if (!d.open && d.querySelector('.lrn-hl')) d.open = true; })
+      .observe(d, { attributes: true, attributeFilter: ['class'], subtree: true });
+  }
+
+  /* ② 함내 — 「명령」에 묶여 있던 무전·전자 장비 칸은 함 상태로 */
+  function boatGroups() {
+    const bar = document.querySelector('.epSubBar'); if (!bar) return;
+    const cur = (bar.querySelector('button.on') || {}).dataset ? bar.querySelector('button.on').dataset.g : 'ship';
+    for (const id of ['epRadioCard', 'epEwCard']) {
+      const c = $(id); if (!c || c.dataset.epGroup === 'ship') continue;
+      c.dataset.epGroup = 'ship'; c.classList.toggle('epOff', cur !== 'ship');
+    }
+  }
+  /* ② 명령 패널 — 시간 → 자동임무 → 전장 이탈 → 교범 → (접힌) 화면·소리 */
+  function cmdPanel() {
+    const cp = $('cmdPanel'); if (!cp || cp.dataset.ep645) return; cp.dataset.ep645 = '1';
+    const sec = id => { const e = $(id); return e ? e.closest('.cp-sec') : null; };
+    const head = cp.querySelector('.cp-head');
+    const sTime = sec('cpTsRow'), sAuto = sec('cpDoc'), sLeave = sec('cbLeave'), sBook = sec('cpBook'),
+          sSnd = sec('sndRowCp'), sLamp = sec('lampRow'), sNav = sec('cpHold');
+    let after = head;
+    for (const s of [sTime, sAuto, sLeave, sBook]) if (s && after) { after.after(s); after = s; }
+    if (sNav) sNav.classList.add('epCpNav');                 /* 아래 조종대와 같은 단추들 */
+    const d = document.createElement('details'); d.className = 'cp-sec epCpSet';
+    const sm = document.createElement('summary'); sm.textContent = tr('화면·소리 설정', 'Display & sound', '画面・サウンド設定'); d.appendChild(sm);
+    for (const s of [sSnd, sLamp]) if (s) { s.classList.remove('cp-sec'); d.appendChild(s); }
+    if (after) after.after(d); else cp.appendChild(d);
+  }
+
+  /* ③ 늘 같은 말만 하는 설명문 */
+  function staticNotes() {
+    const mark = el => { if (el && !el.classList.contains('epStaticNote')) el.classList.add('epStaticNote'); };
+    const sn = $('sectNote'); if (sn) mark(sn.closest('.card'));
+    const pw = $('periWhy'); if (pw && pw.nextElementSibling && /20초/.test(pw.nextElementSibling.textContent)) mark(pw.nextElementSibling);
+    const rr = $('rudRow'); if (rr && rr.nextElementSibling && rr.nextElementSibling.classList.contains('cp-note')) mark(rr.nextElementSibling);
+    const vc = $('venturerCard'); if (vc) vc.querySelectorAll(':scope > .cp-note').forEach(mark);
+    const ms = $('manualSalvoCard'); if (ms) ms.querySelectorAll(':scope > .cp-note:not(#salvoModeNote)').forEach(mark);
+  }
+
+  /* ⑥ 전구 조작판 — 무전 일지를 명령 바로 아래로 */
+  function worldPanel() {
+    const log = $('wLog'), note = $('wNote'); if (!log || !note) return;
+    const card = log.closest('.card'); if (!card || card.dataset.ep645) return; card.dataset.ep645 = '1';
+    note.after(card);
+    const r = $('wPortReason'); if (r && r.closest('.sl')) r.closest('.sl').classList.add('epReason');
+  }
+
+  /* ⑩ 시작 화면 */
+  function titleMenu() {
+    const ov = $('ovStart'); if (!ov) return;
+    if (!$('epTitleFade')) { const f = document.createElement('div'); f.id = 'epTitleFade'; f.setAttribute('aria-hidden', 'true'); ov.appendChild(f); }
+    if (!ov.dataset.ep645) { ov.dataset.ep645 = '1';
+      ov.addEventListener('scroll', () => ov.classList.toggle('epScrolled', ov.scrollTop > 24), { passive: true }); }
+  }
+
+  function once() { watchTorpSet(); cmdPanel(); staticNotes(); worldPanel(); titleMenu(); }
+  function tick() { torpSum(); boatGroups(); once(); }
+  function init() { once(); tick(); setInterval(tick, 500); window.EP_V645_UX = { version: '6.45.0' }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
