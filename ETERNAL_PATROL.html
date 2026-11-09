@@ -47588,22 +47588,15 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
   }
   function chaserStep(dt, night, dive) {
     const s = S, ch = s.chaser, b = s.boat; ch.t += dt;
-    if (s.hdFreeze) { ch.x = b.x; ch.y = b.y; ch.lx = b.x; ch.ly = b.y; return; }   /* v6.69 — 폭뢰 장면이 쓴 시간: 머리 위에 붙어 있었다 */
     const see = dive ? 0.9 : (8 * s.vis * (1 - night) + 2.6 * s.vis * night + (s.era > 0.55 ? (s.era - 0.55) / 0.45 * 4 * night : 0));
     const d = hyp(b.x - ch.x, b.y - ch.y);
-    if (d < see && !ch.giveUp) { ch.lx = b.x; ch.ly = b.y; ch.mode = 'CHASE'; } else if (ch.mode === 'CHASE') { ch.mode = 'SEARCH'; ch.st = 0; }
+    if (d < see) { ch.lx = b.x; ch.ly = b.y; ch.mode = 'CHASE'; } else if (ch.mode === 'CHASE') { ch.mode = 'SEARCH'; ch.st = 0; }
     let tx, ty, kn = 16;
     if (ch.mode === 'CHASE') { tx = ch.lx; ty = ch.ly; }
     else if (ch.mode === 'SEARCH') { ch.st = (ch.st || 0) + dt; tx = ch.lx + Math.sin(ch.t * 3) * 2; ty = ch.ly + Math.cos(ch.t * 3) * 2; kn = 10; if (ch.st > 0.6) ch.mode = 'RETURN'; }
     else { tx = s.cv.x; ty = s.cv.y; if (hyp(tx - ch.x, ty - ch.y) < SCREEN() + 0.5) { s.chaser = null; say('견시', '호위함이 대열로 돌아갑니다.'); return; } }
     const dx = tx - ch.x, dy = ty - ch.y, dd = hyp(dx, dy) || 1, mv = Math.min(dd, kn * KN * dt); ch.x += dx / dd * mv; ch.y += dy / dd * mv;
     if (!dive && d < 3.2 && ch.mode === 'CHASE') { b.speed = 'DIVE'; s.detectedAt = s.t; say('부장', '긴급 잠항! 놈이 너무 가깝다 — 내려가서 지나가게 둔다.'); try { window.Snd && Snd.event && Snd.event('divealarm', {}); } catch (e) {} }
-    /* v6.69 — 잠항한 우리 머리 위까지 오면 ASDIC 이 우리를 잡을 수 있다. 잡히면 폭뢰 장면 */
-    if (dive && ch.mode !== 'RETURN' && d < 1.2 && !ch.hdRolled && !s.hdBusy && window.EP_V669_HOLD) {
-      ch.hdRolled = true;
-      if (Math.random() < 0.55 + s.era * 0.3) { s.hdBusy = true; s.hdN = (s.hdN || 0) + 1; try { window.EP_V669_HOLD.open(s, HAPI); } catch (e) { s.hdBusy = false; } }
-      else say('청음수', '호위함 프로펠러가 머리 위를 지나갑니다… 핑이 우리를 못 잡았습니다.');
-    }
   }
   /* ══ 3단계 — 늑대떼: 보고를 받고 모여든 다른 보트가 이 화면에 보이고, 밤에 선단을 친다 ══
      전술 판에는 띄우지 않는다(「전술 화면에 다른 잠수함은 없다」는 원칙). 그 결과 — 줄어든 선단, 끌려간 호위,
@@ -47688,7 +47681,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     if (!S) return; const now = performance.now(), real = Math.min(0.3, (now - lastNow) / 1000); lastNow = now;
     let hours = real * (S.ts === 0 ? 0 : S.ts === 1 ? 0.05 : 0.2);       /* ×1 = 실제 1초에 3분, ×4 = 12분 */
     if (S.air && !S.air.until) hours = real * 0.008;                         /* 비행기가 들어오는 몇 분은 느리게 — 실제 1초에 약 30초 */
-    if (S.hdBusy) hours = 0;                                                   /* v6.69 — 폭뢰 장면 동안 추적 시계는 멈춘다 */
     let left = hours; while (left > 1e-6 && S) { const d = Math.min(left, 0.02); step(d); left -= d; }
     if (S) render();
   }
@@ -47727,9 +47719,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
       };
       /* 늑대떼가 방금 친 대열 — 호위가 흩어져 있다 */
       if (s.t - s.lastPackHit < 2) window.EP_TRACK_OVR.escortGrace += 150;
-      /* v6.69 — 폭뢰에 눌린 채 넘어간 전투: 호위가 이미 우리를 쥐고 있다 */
-      if (s.huntedV669) { const O = window.EP_TRACK_OVR; O.escortGrace = 0; O.startAspect = 'MIXED'; O.startRange = 1.6;
-        O.preCombat.kind = 'DETECTED_EARLY'; O.preCombat.quality = 0.05; O.preCombat.huntedV669 = true; }
       log('추적 ' + s.t.toFixed(1) + '시간 — ' + ({ AHEAD: '선단 앞', BEAM: '선단 옆', MIXED: '선단 뒤쪽' })[aspect] + '에서 ' + (night > 0.5 ? '밤' : '낮') + ' 공격' + (recent ? ' (들킨 채)' : '') + '.');
       close(); const go = $('encGo'); if (go) go.click();
     } else {
@@ -47770,15 +47759,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     $('epTrkPlot').addEventListener('click', e => { if (!S) return; const r = e.currentTarget.getBoundingClientRect(), v = S._view; if (!v) return;
       const x = (e.clientX - r.left - v.cx) / v.k + v.ox, y = -(e.clientY - r.top - v.cy) / v.k + v.oy; S.wp = { x, y }; S.mode = 'MANUAL'; go(); render(); });
   }
-  /* v6.69 — 폭뢰 장면이 추적에 돌려주는 손잡이 */
-  const HAPI = {
-    advance(h) { if (!S) return; S.hdFreeze = true; let left = h; while (left > 1e-6 && S) { const d = Math.min(left, 0.02); step(d); left -= d; } if (S) S.hdFreeze = false; },
-    say(who, t) { say(who, t); },
-    end(r) { const s = S; if (!s) return; s.hdBusy = false; s.hullHit += (r && r.dmg) || 0;
-      if (r && r.forced) { s.huntedV669 = true; finish('ATTACK'); return; }
-      if (s.chaser) { s.chaser.mode = 'RETURN'; s.chaser.giveUp = true; }
-      s.boat.speed = 'DIVE'; s.detectedAt = s.t; lastNow = performance.now(); render(); }
-  };
   /* v6.68 — 첫 명령이 떨어지면 시계가 흐른다 */
   function go() { if (!S || !S.waiting) return; S.waiting = false; S.ts = 1; }
   function attackBlock() {
@@ -51705,8 +51685,6 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
     /* 대공 */
     AA_FIGHT: { d: { bold: 1.6, book: -0.3 }, l: ['비행기와 갑판포로 맞섰다', 'Fought it out with an aircraft', '航空機と対空戦をした'] },
     AA_DIVE: { d: { bold: -0.6, book: 0.6 } },
-    /* 폭뢰에 눌렸을 때 */
-    HD_DEEP: { d: { book: 0.2, bold: -0.1 } }, HD_SILENT: { d: { book: 0.3, bold: -0.2 } }, HD_SPRINT: { d: { bold: 0.5 } }, HD_DECOY: { d: { book: 0.2 } },
     /* 추적 */
     TR_REPORT: { d: { book: 1.0 }, l: ['선단을 발견하고 사령부에 보고했다', 'Reported a convoy to HQ', '船団を発見し司令部に報告した'] },
     TR_SHADOW: { d: { book: 0.3, bold: -0.2 } },
@@ -52000,379 +51978,6 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
       state: () => rec(), val: a => { const c = rec(); return c ? val(c, a) : 0; }, ARCH, TAGS };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
-})();
-</script>
-<script id="ep-v669-hold-script">
-/* ══════════ V6.69 폭뢰 — 추적 중에 눌렸다 ══════════
-   추적하다 들켜 호위함이 쫓아오고, 잠항한 우리 머리 위까지 오면 ASDIC 이 우리를 잡을 수 있다.
-   잡히면 이 장면이 열린다 — 한 번의 공격 진입이 한 「판」이고, 많아야 네 판.
-   · 판마다 자세를 고른다: 깊이 내려간다(선체 부담) · 정숙(회피 약함) · 전속 회피(전지) · 기만체(독일 1942~)
-   · 공격 돌입 — 「고속 프로펠러!」 소리가 나면 함정은 마지막 수백 m 에서 우리를 놓친다(ASDIC 사각).
-     그 순간 전타로 꺾어야 폭뢰가 떨어지는 자리에서 벗어난다. 너무 이르면 핑이 따라오고, 늦으면 폭뢰 아래다.
-   · 늦은 시기에는 헤지호그 — 앞으로 던지고, 맞아야만 터진다(조용하면 빗나간 것).
-   · 판이 끝날 때 핑이 우리를 놓쳤는지 본다. 놓치면 빠져나간다. 오래 붙들리거나 크게 다치면,
-     다른 호위함이 합류해 전술 판의 「쫓기는 전투」로 넘어간다. 추적 화면 안에서 배가 가라앉지는 않는다.
-   · 장면 동안 추적 시계는 멈추고, 끝나면 버틴 시간만큼 선단은 멀어져 있다. 한 · 영 · 일. */
-(function EP_V669_HOLD() {
-  'use strict';
-  const $ = id => document.getElementById(id);
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const R = Math.random, rnd = (a, b) => a + R() * (b - a), pick = a => a[Math.floor(R() * a.length)];
-  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
-  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
-  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
-  const TH = () => window.THEATERS;
-  let H = null, raf = 0;
-
-  /* 호위함 — 바다마다 그 시절 함급 */
-  const ESC = {
-    ATLANTIC: [['FLOWER', 62, 25], ['RIVER', 91, 30], ['HUNT', 85, 27], ['BLACKSWAN', 91, 30], ['TOWN_DD', 96, 28], ['VW', 95, 30]],
-    MEDITERRANEAN: [['HUNT', 85, 27], ['FLOWER', 62, 25], ['JKN', 108, 32], ['TRIBAL', 115, 33]],
-    PACIFIC: [['KAIBOKAN', 78, 24], ['CH_SC', 51, 16], ['FUBUKI', 118, 30], ['KAGERO', 118, 30]],
-    EASTPAC: [['FLETCHER', 115, 32], ['SC_USN', 34, 14], ['MAHAN', 104, 30], ['CLEMSON', 95, 28]]
-  };
-  function natOf(th) { return th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE'; }
-  function yearOf(C) { try { const iso = window.EVENTS && EVENTS.isoDateAtDay ? EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24) : null; if (iso) return +String(iso).slice(0, 4); } catch (e) {} return 1942; }
-
-  /* ── 열기 — 추적 쪽에서 부른다 ── */
-  function open(s, api) {
-    const C = s.C, sp = (TH() && TH().BOATS && TH().BOATS[C.boatId]) || {};
-    const test = sp.testDepth || 150, crush = sp.crushDepth || test * 1.5;
-    let layer = null; try { if (C.thermo && Number.isFinite(+C.thermo.depth)) layer = +C.thermo.depth; else if (C.thermo && Array.isArray(C.thermo.depth)) layer = (C.thermo.depth[0] + C.thermo.depth[1]) / 2; } catch (e) {}
-    const bottom = Number.isFinite(+C.seabed) && +C.seabed < crush * 1.3 ? +C.seabed : null;
-    const era = clamp(s.era == null ? 0.5 : s.era, 0, 1);
-    const e = pick(ESC[C.theater] || ESC.ATLANTIC);
-    const yr = yearOf(C);
-    H = {
-      s, api, C, test, crush, layer, bottom, era, yr,
-      esc: { id: e[0], len: e[1], mast: e[2] }, night: (() => { const h = (((s.h0 + s.t) % 24) + 24) % 24; return h < 5 || h >= 20 ? 1 : h < 7 ? 1 - (h - 5) / 2 : h >= 18 ? (h - 18) / 2 : 0; })(),
-      depth: 45 + R() * 20, from: 0, target: 0, contact: clamp(0.6 + era * 0.25 - (1 - (s.vis || 0.8)) * 0.25, 0.35, 0.92),
-      run: 0, max: 4, phase: 'CHOOSE', dmg: 0, hours: 0, decoys: natOf(C.theater) === 'DE' && yr >= 1942 ? 2 : 0,
-      hedge: era > 0.62 ? 0.25 + (era - 0.62) : 0, lines: [], fx: [], posture: null, result: null, batt: 0, morale: 0, shake: 0, flash: 0, deepWarn: false
-    };
-    H.target = H.depth;
-    build(); line('hydro', T('호위함 프로펠러가 머리 위로 옵니다. 핑이 선체를 두드립니다 — 우리를 잡았습니다.', 'Escort screws coming overhead. Pings rattling the hull — they have us.', '護衛艦のスクリューが頭上に来ます。探信音が船体を叩く — 捕捉されました。'));
-    line('exec', T('함장님, 어떻게 버티시겠습니까?', 'Captain — how do we ride this out?', '艦長、どう耐えますか？'));
-    $('epHd').classList.add('on'); snd('ping', { range: 600 });
-    ui(); cancelAnimationFrame(raf); H.last = performance.now(); raf = requestAnimationFrame(loop);
-  }
-
-  /* ── 자세 ── */
-  const POST = {
-    DEEP: { ko: ['깊이 내려간다', 'Go deep', '深く潜る'], sub: ['폭뢰가 덜 닿는다 · 선체 부담', 'charges reach less · hull strain', '爆雷が届きにくい・船体負担'] },
-    SILENT: { ko: ['정숙 — 숨죽인다', 'Silent running', '無音潜航'], sub: ['핑이 잘 놓친다 · 꺾기 약함', 'harder to hold · weak turn', '探知されにくい・回避弱い'] },
-    SPRINT: { ko: ['전속 회피', 'Full speed evasion', '全速回避'], sub: ['꺾기 강함 · 시끄럽다 · 전지', 'strong turn · noisy · battery', '回避強い・騒音・電池'] },
-    DECOY: { ko: ['기만체 투하', 'Release decoy', 'デコイ放出'], sub: ['거품 표적 · 남은 ', 'bubble target · left ', '気泡囮・残り '] }
-  };
-  function choose(k) {
-    if (!H || H.phase !== 'CHOOSE') return;
-    if (k === 'DECOY' && H.decoys <= 0) return;
-    H.posture = k; H.run++; H.phase = 'RUN'; H.t = 0; H.turnAt = null;
-    H.cued = false; H.dropped = false; H.dcs = []; H.out = null; H.boomAt = null; H.decoyHit = false;
-    H.side = R() < 0.5 ? -1 : 1;                                   /* 호위함이 들어오는 쪽 */
-    H.tc = rnd(3.2, 5.2); H.tp = H.tc + rnd(2.2, 2.8);              /* 돌입 신호 · 머리 위 */
-    H.hh = R() < H.hedge;                                            /* 헤지호그 */
-    H.from = H.depth;
-    if (k === 'DEEP') {
-      let tg = Math.min(H.depth + 55 + R() * 20, H.test * 1.08); if (H.bottom) tg = Math.min(tg, H.bottom - 12);
-      H.target = Math.max(H.depth, tg);
-      line('exec', T('하강 — ' + Math.round(H.target) + 'm 까지. 각 15도.', 'Down to ' + Math.round(H.target) + ' m, fifteen degrees.', '深度' + Math.round(H.target) + 'mへ。角度15度。'));
-      if (H.target > H.test) line('eng', T('시험심도를 넘습니다. 선체가 웁니다.', 'Below test depth. The hull is groaning.', '試験深度を超えます。船体が鳴っています。'));
-    } else if (k === 'SILENT') { H.target = H.depth; line('exec', T('정숙. 모든 기계 정지 — 신발 벗어.', 'Silent routine. All auxiliaries off — shoes off.', '無音。補機停止 — 靴を脱げ。')); }
-    else if (k === 'SPRINT') { H.target = H.depth; H.batt += 0.07; line('exec', T('양현 전속 준비. 신호하면 꺾는다.', 'Stand by both full. We turn on my mark.', '両舷全速用意。合図で転舵。')); }
-    else { H.decoys--; H.target = H.depth; H.decoyHit = R() < 0.6; line('exec', T('기만체 발사! 거품 뒤로 숨는다.', 'Decoy away! We hide behind the bubbles.', 'デコイ放出！気泡の陰に隠れる。')); }
-    try { if (window.EP_CAPT) EP_CAPT.note('HD_' + k, { gap: 600000 }); } catch (e) {}
-    H.lastPing = -9;
-    line('hydro', T('프로펠러 — ' + (H.side < 0 ? '좌현' : '우현') + ' 쪽에서 다가옵니다.', 'Screws — closing from ' + (H.side < 0 ? 'port' : 'starboard') + '.', 'スクリュー — ' + (H.side < 0 ? '左舷' : '右舷') + '側から接近。'));
-    ui();
-  }
-  function turn() {
-    if (!H || H.phase !== 'RUN' || H.turnAt != null) return;
-    H.turnAt = H.t; snd('uibeep');
-    line('cap', H.posture === 'SILENT' ? T('조용히 — 좌현 전타.', 'Quietly — hard a-port.', '静かに — 取舵いっぱい。') : T('전타! 전속!', 'Hard over! Full ahead!', '転舵！全速！'));
-    ui();
-  }
-
-  /* ── 한 판의 결과 ── */
-  function resolve() {
-    const p = H.posture, dt = H.turnAt == null ? null : H.turnAt - H.tc;
-    let tb = 0;
-    if (dt == null) tb = 0; else if (dt < -1.2) tb = 5; else if (dt < 0) tb = 18; else if (dt <= 1.6) tb = 45; else if (dt <= 3) tb = 20; else tb = 6;
-    const tm = p === 'SPRINT' ? 1.4 : p === 'SILENT' ? 0.6 : 1;
-    const setD = H.from + rnd(-10, 10);                              /* 함정이 맞춘 폭발 심도 — 돌입 때의 우리 심도 */
-    const vert = Math.abs(H.depth - setD);
-    let horiz = 18 + R() * 45 + tb * tm - H.era * 12 + (p === 'DEEP' ? Math.max(0, H.depth - 80) * 0.08 : 0) + (p === 'SILENT' ? 8 : 0);
-    if (p === 'DECOY' && H.decoyHit) horiz = 140 + R() * 80;
-    horiz = Math.max(4, horiz);
-    let miss = H.hh ? horiz : Math.hypot(horiz, vert * 0.7);
-    const o = { miss, horiz, hh: H.hh, dt, tb };
-    let dmg = 0, mor = 0, eq = 0;
-    if (H.hh) { if (miss < 22) { dmg = rnd(14, 26); mor = -0.06; eq = 0.15; } }
-    else if (miss < 15) { dmg = rnd(14, 24); mor = -0.06; eq = 0.15; }
-    else if (miss < 35) { dmg = rnd(6, 12); mor = -0.04; eq = 0.05; }
-    else if (miss < 60) { dmg = rnd(1, 4); mor = -0.02; }
-    else if (miss < 100) { mor = -0.01; }
-    if (H.depth > H.test) { dmg = dmg * 1.3 + (dmg > 0 ? 0 : (H.depth - H.test) / H.test * 6 * R()); }
-    o.dmg = Math.round(dmg); o.mor = mor; o.eq = eq;
-    H.dmg += o.dmg; H.morale += mor;
-    if (eq) try { const C = H.C; if (C.damage) { C.damage.depthCtrl = clamp((C.damage.depthCtrl || 0) + eq * R(), 0, 1); C.damage.engine = clamp((C.damage.engine || 0) + eq * R(), 0, 1); } } catch (e) {}
-    /* 접촉 — 폭발은 물을 흐려 핑을 흐트러뜨린다(헤지호그는 아니다) */
-    let dc = p === 'SILENT' ? -0.16 : p === 'DEEP' ? -0.12 : p === 'SPRINT' ? 0.05 : (H.decoyHit ? -0.3 : -0.1);
-    if (p === 'DEEP' && H.layer && H.from < H.layer && H.depth > H.layer + 5) dc -= 0.25;
-    if (!H.hh) dc -= 0.1;
-    if (dt != null && dt < -1.2) dc += 0.05;
-    if (p === 'SPRINT' && tb >= 45 && R() < 0.3) dc -= 0.5;
-    H.contact = clamp(H.contact + dc + H.era * 0.04, 0.05, 0.95);
-    H.out = o; return o;
-  }
-  function afterLines(o) {
-    const m = o.miss;
-    if (o.hh && o.dmg === 0) line('hydro', T('…폭발 없음. 헤지호그가 빗나갔습니다.', '…No detonations. The Hedgehog missed.', '…爆発なし。ヘッジホッグは外れました。'));
-    else if (o.dmg >= 14) { line('dc', T('바로 옆입니다! 조명 나감 — 후부 침수! 선체 ' + o.dmg + '% 손상.', 'Right alongside! Lights out — flooding aft! Hull ' + o.dmg + '% damaged.', 'すぐ横です！照明消失 — 後部浸水！船体' + o.dmg + '%損傷。'));
-      line('eng', T('심도계 유리가 깨졌습니다. 디젤 받침이 들렸습니다.', 'Depth gauge glass shattered. Diesel mounts lifted.', '深度計のガラスが割れた。ディーゼル台座が浮いた。')); }
-    else if (o.dmg >= 6) line('dc', T('가깝습니다 — 밸브 몇 개가 샙니다. 선체 ' + o.dmg + '% 손상.', 'Close — a few valves leaking. Hull ' + o.dmg + '% damaged.', '近い — バルブ数か所から漏水。船体' + o.dmg + '%損傷。'));
-    else if (m < 60) line('dc', T('전구가 몇 개 깨졌습니다. 그 밖엔 괜찮습니다.', 'A few bulbs broke. Otherwise all right.', '電球がいくつか割れました。他は大丈夫です。'));
-    else if (m < 100) line('exec', T('멀다. 놈은 우리 자리를 정확히 모른다.', 'Far off. He does not know exactly where we are.', '遠い。奴はこちらの位置を正確には知らない。'));
-    else line('exec', T('한참 빗나갔다. ' + (H.posture === 'DECOY' && H.decoyHit ? '거품을 쳤어.' : '꺾은 게 통했다.'), 'Way off. ' + (H.posture === 'DECOY' && H.decoyHit ? 'He hit the bubbles.' : 'The turn worked.'), '大きく外れた。' + (H.posture === 'DECOY' && H.decoyHit ? '気泡を攻撃したな。' : '転舵が効いた。')));
-    if (o.dt == null && !(H.posture === 'DECOY' && H.decoyHit)) line('exec', T('(꺾지 않았다 — 「고속 프로펠러」 소리가 나면 전타를 누르십시오.)', '(We did not turn — hit "hard over" when you hear fast screws.)', '（転舵しなかった — 「高速スクリュー」が聞こえたら転舵を。）'));
-    else if (o.dt != null && o.dt < -1.2) line('exec', T('(너무 일찍 꺾었다 — 핑이 아직 우리를 잡고 있었다.)', '(Turned too early — his pings still had us.)', '（早すぎた — まだ探信に捕まっていた。）'));
-    else if (o.dt != null && o.dt > 3) line('exec', T('(늦었다 — 이미 폭뢰가 물속에 있었다.)', '(Too late — the charges were already in the water.)', '（遅い — 爆雷はもう水中だった。）'));
-  }
-  function nextStep() {
-    const lost = R() > H.contact;
-    if (lost) {
-      H.phase = 'END'; H.result = 'ESCAPE';
-      line('hydro', T('핑이 우리를 지나 다른 쪽을 훑습니다… 놓친 것 같습니다.', 'The pings are sweeping past us, the wrong way… he has lost us.', '探信が我々を通り過ぎ、別の方向を探っています…見失ったようです。'));
-      line('exec', T('조금 더 기다렸다가 빠진다. 선단은 멀어졌겠지.', 'We wait a little longer, then slip away. The convoy will be well ahead.', 'もう少し待ってから離脱する。船団は遠ざかっただろう。'));
-    } else {
-      const hullNow = (H.C.hull || 100) - (H.s.hullHit || 0) - H.dmg;
-      const second = H.run >= 2 && R() < (H.run >= 3 ? 0.35 : 0.15) + H.era * 0.25;
-      if (H.dmg >= 24 || hullNow <= 30 || second) {
-        H.phase = 'END'; H.result = 'FORCED';
-        line('hydro', T('두 번째 프로펠러 — 다른 호위함이 합류했습니다. 둘이 번갈아 옵니다.', 'A second set of screws — another escort has joined. They are taking turns.', '二つ目のスクリュー — 別の護衛艦が合流。交互に来ます。'));
-        line('exec', T('버티기만 해서는 못 빠져나갑니다. 전투 위치로!', 'Riding it out won\'t get us clear. Battle stations!', '耐えるだけでは抜けられません。戦闘配置！'));
-      } else if (H.run >= H.max) {
-        H.phase = 'END'; H.result = 'ESCAPE';
-        line('hydro', T('호위함이 돌아섭니다 — 선단 쪽으로. 더는 비울 수 없나 봅니다.', 'The escort is turning away — back to the convoy. It can\'t stay away any longer.', '護衛艦が反転 — 船団の方へ。これ以上離れられないようです。'));
-      } else {
-        H.phase = 'CHOOSE';
-        line('hydro', T('아직 핑이 우리를 잡고 있습니다. 다시 돌아옵니다.', 'The pings still have us. He is coming round again.', 'まだ探信に捕まっています。また戻ってきます。'));
-      }
-    }
-    H.hours += 0.3;
-    ui();
-  }
-  function finishScene() {
-    if (!H) return;
-    const h = H, C = h.C, forced = h.result === 'FORCED';
-    h.hours += forced ? 0 : rnd(0.5, 1.4);
-    try { if (h.morale && window.EP_MORALE) EP_MORALE.add(C, h.morale); } catch (e) {}
-    try { if (Number.isFinite(C.battery)) C.battery = clamp(C.battery - h.batt - 0.02 * h.run, 0, 1); } catch (e) {}
-    const ko = '추적 중 폭뢰 공격 ' + h.run + '회 — ' + (h.dmg ? '선체 ' + h.dmg + '% 손상' : '피해 없음') + (forced ? ', 쫓기는 전투로.' : ', 빠져나왔다.');
-    const en = 'Depth-charged while shadowing, ' + h.run + ' run' + (h.run > 1 ? 's' : '') + ' — ' + (h.dmg ? 'hull ' + h.dmg + '% damaged' : 'no damage') + (forced ? '; forced into a fight.' : '; slipped away.');
-    const ja = '追跡中に爆雷攻撃' + h.run + '回 — ' + (h.dmg ? '船体' + h.dmg + '%損傷' : '被害なし') + (forced ? '、追われる戦闘へ。' : '、離脱した。');
-    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'encounter' }); } catch (e) {}
-    cancelAnimationFrame(raf); raf = 0; $('epHd').classList.remove('on');
-    H = null;
-    if (!forced) { h.api.advance(h.hours); h.api.say('부장', T('폭뢰를 버텼습니다. ' + h.hours.toFixed(1) + '시간 — 선단은 그만큼 멀어졌습니다.', 'We rode out the charges. ' + h.hours.toFixed(1) + ' hours — the convoy is that much further away.', '爆雷に耐えました。' + h.hours.toFixed(1) + '時間 — 船団はそれだけ遠ざかりました。')); }
-    h.api.end({ dmg: h.dmg, forced });
-  }
-
-  /* ── 그림 ── */
-  function loop(now) {
-    if (!H) return;
-    const dt = Math.min(0.05, (now - H.last) / 1000); H.last = now;
-    if (H.phase === 'RUN') step(dt);
-    else { for (const f of H.fx) f.t += dt; H.fx = H.fx.filter(f => f.t < (f.k === 'ping' ? 1.1 : 2.6)); H.shake = Math.max(0, H.shake - dt * 1.4); H.flash = Math.max(0, H.flash - dt * 2.2); }
-    /* 심도 — 목표로 천천히 */
-    const rate = H.posture === 'DEEP' ? 9 : 4;
-    if (Math.abs(H.target - H.depth) > 0.2) H.depth += Math.sign(H.target - H.depth) * Math.min(Math.abs(H.target - H.depth), rate * dt * (H.phase === 'RUN' ? 1 : 0.5));
-    draw(now / 1000);
-    raf = requestAnimationFrame(loop);
-  }
-  function step(dt) {
-    const h = H; h.t += dt;
-    /* 핑 — 돌입 전까지. 헤지호그는 돌입 뒤에도 잡고 던진다 */
-    if (h.t < h.tc + (h.hh ? 0.8 : 0) && h.t - h.lastPing > (h.t > h.tc - 1.5 ? 0.85 : 1.35)) { h.lastPing = h.t; h.fx.push({ k: 'ping', t: 0 }); snd('ping', { range: 300 + (h.tc - h.t) * 200 }); }
-    if (!h.cued && h.t >= h.tc) { h.cued = true;
-      line('hydro', h.hh ? T('핑이 빨라집니다 — 앞으로 던집니다! 헤지호그!', 'Pings speeding up — he is throwing ahead! Hedgehog!', '探信が速くなる — 前方投射！ヘッジホッグ！')
-                         : T('고속 프로펠러! 공격 돌입!', 'Fast screws! He is running in!', '高速スクリュー！攻撃進入！'));
-      ui(); }
-    /* 투하 */
-    if (!h.dropped && h.t >= (h.hh ? h.tc + 0.9 : h.tp - 0.3)) {
-      h.dropped = true;
-      const n = h.hh ? 24 : 6 + Math.round(R() * 4);
-      const ppm = h.ppm || 1, base = h.hh ? (h.cx || 200) : (h.escX != null ? h.escX : (h.cx || 200));
-      for (let i = 0; i < n; i++) {
-        const spread = h.hh ? (i - n / 2) * 2.2 : (i - n / 2) * 7 + rnd(-4, 4);
-        h.dcs.push({ bx: base + spread * ppm, xo: spread, t0: h.t + (h.hh ? 0.2 : i * 0.14), hh: h.hh, boom: false });
-      }
-      snd(h.hh ? 'hhdrop' : 'dcdrop', {});
-      line('hydro', h.hh ? T('투사음 — 물에 꽂힙니다.', 'Projectiles — splashing in.', '投射音 — 着水。') : T('투하… 물에 떨어지는 소리.', 'Charges away… splashes.', '投下…着水音。'));
-    }
-    /* 폭뢰가 내려간다 — 심도에 닿으면 터진다 */
-    if (h.dropped) {
-      const setD = h.from, sinkV = 34 + (h.hh ? 18 : 0);
-      for (const d of h.dcs) {
-        if (d.boom || h.t < d.t0) continue;
-        d.dep = (h.t - d.t0) * sinkV;
-        const reach = h.hh ? h.depth : setD;
-        if (d.dep >= reach) {
-          if (!h.out) resolve();                                     /* 첫 폭뢰가 심도에 닿는 순간 — 그때까지의 회피가 다 들어간다 */
-          const o = h.out;
-          d.boom = true;
-          const hit = !h.hh || o.miss < 22;
-          if (hit) { h.fx.push({ k: 'boom', t: 0, x: h.hh ? (h.subX || d.bx) : d.bx, dep: reach, miss: o.miss });
-            snd('dcboom', { range: Math.max(5, o.miss + Math.abs(d.xo) * 0.6), pan: clamp(d.xo / 60, -1, 1) });
-            if (o.miss < 45) { h.shake = Math.max(h.shake, (45 - o.miss) / 45); h.flash = Math.max(h.flash, (45 - o.miss) / 60); } }
-        }
-      }
-      if (!h.boomAt && h.dcs.every(d => d.boom)) { h.boomAt = h.t; }
-      if (h.boomAt && h.t - h.boomAt > 1.4 && h.phase === 'RUN') { h.phase = 'AFTER'; afterLines(h.out); ui(); }
-    }
-    for (const f of h.fx) f.t += dt;
-    h.fx = h.fx.filter(f => f.t < (f.k === 'ping' ? 1.1 : 2.6));
-    h.shake = Math.max(0, h.shake - dt * 1.4); h.flash = Math.max(0, h.flash - dt * 2.2);
-  }
-  function draw(tt) {
-    const cv = $('epHdCv'); if (!cv || !H) return;
-    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = Math.max(200, r.width), Hh = Math.max(150, r.height);
-    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); }
-    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const h = H, surf = Hh * 0.16, maxD = Math.max(h.test * 1.25, h.depth + 40, 160), ppm = (Hh - surf - 8) / maxD;
-    const Y = d => surf + d * ppm, cx = W * 0.5;
-    c.save();
-    if (h.shake > 0) c.translate(rnd(-1, 1) * h.shake * 5, rnd(-1, 1) * h.shake * 4);
-    /* 하늘 · 물 */
-    const n = h.night;
-    let g = c.createLinearGradient(0, 0, 0, surf); g.addColorStop(0, n > 0.5 ? '#05080d' : '#3b5263'); g.addColorStop(1, n > 0.5 ? '#0c141c' : '#7a92a0'); c.fillStyle = g; c.fillRect(-10, -10, W + 20, surf + 10);
-    g = c.createLinearGradient(0, surf, 0, Hh); g.addColorStop(0, n > 0.5 ? '#0b1a22' : '#24485a'); g.addColorStop(0.35, '#0d2633'); g.addColorStop(1, '#03080b'); c.fillStyle = g; c.fillRect(-10, surf, W + 20, Hh - surf + 10);
-    c.strokeStyle = 'rgba(190,215,225,.35)'; c.lineWidth = 1; c.beginPath();
-    for (let x = -10; x <= W + 10; x += 6) { const y = surf + Math.sin(x * 0.07 + tt * 2) * 1.2; if (x < -5) c.moveTo(x, y); else c.lineTo(x, y); } c.stroke();
-    /* 수온약층 · 시험심도 · 바닥 */
-    if (h.layer && h.layer < maxD) { c.fillStyle = 'rgba(120,170,200,.07)'; c.fillRect(0, Y(h.layer) - 5, W, 10); c.fillStyle = 'rgba(150,190,210,.55)'; c.font = '10px system-ui'; c.textAlign = 'right'; c.fillText(T('수온약층', 'layer', '躍層') + ' ~' + Math.round(h.layer) + 'm', W - 6, Y(h.layer) - 7); }
-    c.setLineDash([4, 4]); c.strokeStyle = 'rgba(255,110,90,.4)'; c.beginPath(); c.moveTo(0, Y(h.test)); c.lineTo(W, Y(h.test)); c.stroke(); c.setLineDash([]);
-    c.fillStyle = 'rgba(255,130,110,.6)'; c.font = '10px system-ui'; c.textAlign = 'right'; c.fillText(T('시험심도 ', 'test depth ', '試験深度 ') + h.test + 'm', W - 6, Y(h.test) - 3);
-    if (h.bottom && h.bottom < maxD) { c.fillStyle = '#2a2219'; c.fillRect(0, Y(h.bottom), W, Hh); c.fillStyle = 'rgba(200,170,130,.7)'; c.textAlign = 'right'; c.fillText(T('해저 ', 'seabed ', '海底 ') + Math.round(h.bottom) + 'm', W - 6, Y(h.bottom) + 13); }
-    /* 깊이 눈금 */
-    c.fillStyle = 'rgba(170,200,215,.5)'; c.textAlign = 'left'; c.font = '10px system-ui';
-    for (let d = 50; d < maxD; d += 50) { c.fillRect(0, Y(d), 5, 1); c.fillText(d + 'm', 7, Y(d) + 3); }
-    /* 우리 — 돌입 뒤 꺾으면 옆으로 빠진다 */
-    h.cx = cx; h.ppm = ppm;
-    let off = 0;
-    if (h.out) off = Math.min(90, h.out.horiz) * ppm * 0.6;
-    else if (h.phase === 'RUN' && h.turnAt != null) { const k = clamp((h.t - h.turnAt) / 3, 0, 1); off = (h.posture === 'SPRINT' ? 1.3 : h.posture === 'SILENT' ? 0.6 : 1) * 28 * k * (2 - k); }
-    if (h.phase === 'CHOOSE') off = 0;
-    h.subOff = (h.subOff || 0) + (off - (h.subOff || 0)) * 0.06;
-    const sx = cx - (h.side || 1) * h.subOff;
-    h.subX = sx;
-    drawSub(c, sx, Y(h.depth), 67 * ppm * 1.4, -h.side || 1, h.posture === 'DEEP' && Math.abs(h.target - h.depth) > 1 ? 0.12 : 0, tt);
-    /* 호위함 */
-    let ex = null;
-    if (h.phase === 'RUN' || h.phase === 'AFTER') {
-      const t = h.t, a0 = cx + h.side * (W * 0.55 + 60), a1 = cx + h.side * 110, ov = cx;
-      if (t < h.tc) ex = a0 + (a1 - a0) * (t / h.tc);
-      else if (t < h.tp) ex = a1 + (ov - a1) * ((t - h.tc) / (h.tp - h.tc));
-      else ex = ov - h.side * (t - h.tp) * 70;
-    } else { ex = cx + Math.sin(tt * 0.25) * W * 0.42; }
-    h.escX = ex;
-    if (ex > -160 && ex < W + 160) drawEscort(c, ex, surf, ppm, h.phase === 'RUN' ? (h.t > h.tc ? -h.side : -h.side) : (Math.cos(tt * 0.25) > 0 ? 1 : -1), h.phase === 'RUN' && h.t > h.tc ? 18 : 10, tt);
-    /* 핑 */
-    for (const f of h.fx) if (f.k === 'ping' && ex != null) {
-      const rr = f.t / 1.1 * Math.hypot(sx - ex, Y(h.depth) - surf) * 1.1, a = (1 - f.t / 1.1) * 0.55;
-      c.strokeStyle = 'rgba(140,220,255,' + a.toFixed(3) + ')'; c.lineWidth = 1.4; c.beginPath(); c.arc(ex, surf + 4, rr, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
-    }
-    /* 폭뢰 · 헤지호그 */
-    if (h.dcs) for (const d of h.dcs) {
-      if (d.boom || h.t < d.t0 || d.dep == null) continue;
-      c.fillStyle = '#0a0c0e'; c.fillRect(d.bx - 2, Y(d.dep) - 3, 4, 5);
-    }
-    for (const f of h.fx) if (f.k === 'boom') {
-      const x = f.x, y = Y(f.dep), k = f.t / 2.6;
-      const rr = 6 + Math.min(1, f.t / 0.35) * 26, a = Math.max(0, 1 - f.t / 0.6);
-      const gg = c.createRadialGradient(x, y, 0, x, y, rr); gg.addColorStop(0, 'rgba(255,250,235,' + (a * 0.95).toFixed(3) + ')'); gg.addColorStop(1, 'rgba(200,230,240,0)');
-      c.fillStyle = gg; c.beginPath(); c.arc(x, y, rr, 0, 6.283); c.fill();
-      c.fillStyle = 'rgba(220,235,240,' + (0.5 * (1 - k)).toFixed(3) + ')';
-      for (let i = 0; i < 6; i++) { const by = y - (y - surf) * Math.min(1, k * 1.4) * (0.3 + i * 0.12), bx = x + Math.sin(i * 2.1 + f.t * 3) * 6; c.beginPath(); c.arc(bx, by, 1.5 + i * 0.3, 0, 6.283); c.fill(); }
-      if (k > 0.45) { const pa = (1 - k) * 1.4; c.fillStyle = 'rgba(235,242,245,' + clamp(pa, 0, 0.8).toFixed(3) + ')'; c.beginPath(); c.ellipse(x, surf - 8 * (k - 0.45) * 4, 6, 14 * (k - 0.4), 0, 0, 6.283); c.fill(); }
-    }
-    c.restore();
-    if (h.flash > 0) { c.fillStyle = 'rgba(0,0,0,' + (h.flash * 0.6).toFixed(3) + ')'; c.fillRect(0, 0, W, Hh); }
-    /* 숫자 */
-    c.fillStyle = 'rgba(225,235,240,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
-    c.fillText(T('심도 ', 'Depth ', '深度 ') + Math.round(h.depth) + 'm', 8, 16);
-    const hull = Math.max(1, (h.C.hull || 100) - (h.s.hullHit || 0) - h.dmg);
-    c.textAlign = 'right'; c.fillStyle = hull < 40 ? '#ff8a7a' : 'rgba(225,235,240,.9)'; c.fillText(T('선체 ', 'Hull ', '船体 ') + Math.round(hull) + '%', W - 8, 16);
-  }
-  function drawSub(c, x, y, L, dir, tilt, tt) {
-    c.save(); c.translate(x, y); c.rotate(tilt * dir); c.scale(dir, 1);
-    const hh = Math.max(4, L * 0.085);
-    c.fillStyle = '#2c363d'; c.beginPath();
-    c.moveTo(L * 0.5, 0); c.quadraticCurveTo(L * 0.42, -hh * 0.6, L * 0.3, -hh * 0.55); c.lineTo(-L * 0.36, -hh * 0.45);
-    c.quadraticCurveTo(-L * 0.5, -hh * 0.2, -L * 0.52, 0); c.quadraticCurveTo(-L * 0.46, hh * 0.45, -L * 0.3, hh * 0.5); c.lineTo(L * 0.3, hh * 0.5); c.quadraticCurveTo(L * 0.45, hh * 0.4, L * 0.5, 0); c.fill();
-    c.fillStyle = '#353f47'; c.fillRect(L * 0.02, -hh * 1.5, L * 0.13, hh);
-    c.fillStyle = 'rgba(200,220,230,.18)'; c.fillRect(-L * 0.36, -hh * 0.55, L * 0.66, 1);
-    c.restore();
-    if (H && (H.posture === 'SPRINT') && H.phase === 'RUN' && H.turnAt != null) {
-      c.fillStyle = 'rgba(210,230,240,.35)'; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(x - dir * L * 0.55 - dir * i * 5, y - Math.sin(tt * 6 + i) * 2 - i * 1.5, 1.4, 0, 6.283); c.fill(); }
-    }
-  }
-  function drawEscort(c, x, surf, ppm, dir, kn, tt) {
-    const e = H.esc, w = e.len * ppm, hgt = e.mast * ppm * 1.15;
-    try {
-      const spec = window.Sil && Sil.classSpec ? Sil.classSpec(e.id) : null;
-      if (spec) { window.Sil.canvas(c, spec, { x, waterlineY: surf + 1 + Math.sin(tt * 1.3) * 0.8, width: w, height: hgt, mirror: dir > 0, detail: 3, color: '#050809',
-        paint: { seed: 'hd' + e.id, range: 450, night: H.night, theater: H.C.theater, speed: kn, sea: 2, wx: 'clear', time: tt, cache: false } }); return; }
-    } catch (err) {}
-    c.fillStyle = '#101418'; c.fillRect(x - w / 2, surf - hgt * 0.35, w, hgt * 0.35);
-  }
-
-  /* ── 화면 ── */
-  const WHO = { hydro: ['청음수', 'Sonar', '聴音員'], exec: ['부장', 'XO', '副長'], eng: ['기관장', 'Chief', '機関長'], dc: ['손상통제', 'Damage ctl', '応急'], cap: ['함장', 'Captain', '艦長'] };
-  function line(who, text) { if (!H) return; H.lines.unshift({ who, text }); H.lines.length = Math.min(H.lines.length, 5); const el = $('epHdLog'); if (el) el.innerHTML = H.lines.map((l, i) => '<div class="' + l.who + (i ? '' : ' new') + '"><i>' + (WHO[l.who] ? T.apply(null, WHO[l.who]) : '') + '</i>' + l.text + '</div>').join(''); }
-  function ui() {
-    if (!H) return; const h = H, b = $('epHdBtns');
-    $('epHdRun').textContent = T('공격 ', 'Run ', '攻撃 ') + Math.max(1, h.run) + '/' + h.max;
-    const cw = h.contact > 0.66 ? T('핑이 우리를 꽉 잡고 있다', 'pings have us firmly', '探信にしっかり捕まっている') : h.contact > 0.4 ? T('핑이 우리를 잡고 있다', 'pings are holding us', '探信に捕まっている') : T('핑이 흔들린다', 'pings are wavering', '探信が揺らいでいる');
-    $('epHdSt').textContent = cw;
-    if (h.phase === 'CHOOSE') {
-      b.innerHTML = ['DEEP', 'SILENT', 'SPRINT', 'DECOY'].filter(k => k !== 'DECOY' || h.decoys > 0).map(k => '<button class="mini" data-p="' + k + '">' + T.apply(null, POST[k].ko) + '<small>' + T.apply(null, POST[k].sub) + (k === 'DECOY' ? h.decoys : '') + '</small></button>').join('');
-      $('epHdHint').textContent = T('판마다 버틸 자세를 고르고, 「고속 프로펠러!」가 들리면 전타로 꺾으십시오.', 'Pick how to ride each run. When you hear "fast screws!", turn hard.', '攻撃ごとに耐え方を選び、「高速スクリュー！」が聞こえたら転舵。');
-    } else if (h.phase === 'RUN') {
-      b.innerHTML = '<button class="mini go big" data-turn="1"' + (h.turnAt != null ? ' disabled' : '') + '>' + (h.turnAt != null ? T('꺾는 중…', 'Turning…', '転舵中…') : T('⟲ 지금 꺾는다 — 전타', '⟲ Hard over — now', '⟲ 今だ — 転舵')) + '<small>' + (h.cued ? T('지금!', 'now!', '今だ！') : T('「고속 프로펠러」를 기다린다', 'wait for the fast screws', '高速スクリューを待て')) + '</small></button>';
-      $('epHdHint').textContent = '';
-    } else if (h.phase === 'AFTER') {
-      b.innerHTML = '<button class="mini go" data-next="1">' + T('다음', 'Next', '次へ') + '</button>';
-    } else {
-      b.innerHTML = '<button class="mini go big" data-end="1">' + (h.result === 'FORCED' ? T('전투 위치로', 'Battle stations', '戦闘配置へ') : T('추적으로 돌아간다', 'Back to the shadowing', '追跡に戻る')) + '<small>' + (h.dmg ? T('선체 −', 'hull −', '船体 −') + h.dmg + '%' : T('피해 없음', 'no damage', '被害なし')) + '</small></button>';
-      $('epHdHint').textContent = '';
-    }
-  }
-  function build() {
-    if ($('epHd')) return;
-    const st = document.createElement('style'); st.id = 'ep-v669-hold-style';
-    st.textContent = '#epHd{position:fixed;inset:0;z-index:9150;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.86)}#epHd.on{display:flex}' +
-      '#epHd .hb{width:min(96vw,460px);max-height:96vh;overflow:auto;background:var(--panel,#0e1a22);border:1px solid #c66;border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
-      '#epHd h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:#ff8a7a;display:flex;justify-content:space-between;align-items:baseline}#epHd h3 small{font-size:11px;letter-spacing:0;color:var(--dim,#8aa);font-weight:500}' +
-      '#epHd canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px;background:#000}' +
-      '#epHd .st{font-size:12px;color:#9fd4ff;margin:6px 2px 4px}#epHd .log{min-height:92px;font-size:12.5px;line-height:1.45}#epHd .log div{opacity:.62;margin:2px 0}#epHd .log div.new{opacity:1}' +
-      '#epHd .log i{font-style:normal;font-weight:700;margin-right:6px;color:var(--amber,#e0b060)}#epHd .log .hydro i{color:#8fd0ff}#epHd .log .dc i{color:#ff8a7a}#epHd .log .cap i{color:#9fe0b0}' +
-      '#epHd .btns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}#epHd .btns button small{display:block;font-size:10.5px;opacity:.72}#epHd .btns .big{grid-column:span 2;padding:12px 6px;font-size:15px}' +
-      '#epHd .btns [data-next]{grid-column:span 2}#epHd .hint{font-size:11px;color:var(--dim,#8aa);margin-top:6px;line-height:1.4}';
-    document.head.appendChild(st);
-    const el = document.createElement('div'); el.id = 'epHd';
-    el.innerHTML = '<div class="hb"><h3><span>' + T('폭 뢰', 'DEPTH CHARGES', '爆 雷') + '</span><small id="epHdRun"></small></h3><canvas id="epHdCv"></canvas><div class="st" id="epHdSt"></div><div class="log" id="epHdLog"></div><div class="btns" id="epHdBtns"></div><div class="hint" id="epHdHint"></div></div>';
-    document.body.appendChild(el);
-    el.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b || !H) return;
-      if (b.dataset.p) choose(b.dataset.p);
-      else if (b.dataset.turn) turn();
-      else if (b.dataset.next) { nextStep(); }
-      else if (b.dataset.end) finishScene();
-    });
-  }
-  window.EP_V669_HOLD = { version: '6.69.0', open, state: () => H, choose, turn, next: () => nextStep(), end: () => finishScene() };
 })();
 </script>
 </body>
