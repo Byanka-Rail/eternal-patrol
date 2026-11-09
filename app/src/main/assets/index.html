@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.69.0 Depth Charge</title>
-<script id="ep-build">window.EP_BUILD='6.69.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.70.0 Shipwork</title>
+<script id="ep-build">window.EP_BUILD='6.70.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -16662,7 +16662,7 @@ window.UBOAT = (function () {
     logMsg('발사! ' + (useAft ? '함미 ' : '함수 ') + n + '발 ' + kinds + ' · ' + fz.name +
            ' — 자이로각 ' + gyro.toFixed(0) + '° 주행심도 ' + runDepth + 'm', 'torp');
     if (wakeShot) report('P1', 'weap', '증기어뢰입니다 — 흰 자국이 우리 쪽을 가리킵니다.');
-    emit('fire', { count: n });
+    emit('fire', { count: n, aft: !!useAft });
     markSnap('어뢰를 쏘기 직전');
     replayEvent('FIRE', b.x, b.y, (useAft ? '함미 ' : '함수 ') + n + '발 발사 (' + kinds + ')');
     /* 발사음 — 호위함이 눈치챈다 */
@@ -47588,22 +47588,15 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
   }
   function chaserStep(dt, night, dive) {
     const s = S, ch = s.chaser, b = s.boat; ch.t += dt;
-    if (s.hdFreeze) { ch.x = b.x; ch.y = b.y; ch.lx = b.x; ch.ly = b.y; return; }   /* v6.69 — 폭뢰 장면이 쓴 시간: 머리 위에 붙어 있었다 */
     const see = dive ? 0.9 : (8 * s.vis * (1 - night) + 2.6 * s.vis * night + (s.era > 0.55 ? (s.era - 0.55) / 0.45 * 4 * night : 0));
     const d = hyp(b.x - ch.x, b.y - ch.y);
-    if (d < see && !ch.giveUp) { ch.lx = b.x; ch.ly = b.y; ch.mode = 'CHASE'; } else if (ch.mode === 'CHASE') { ch.mode = 'SEARCH'; ch.st = 0; }
+    if (d < see) { ch.lx = b.x; ch.ly = b.y; ch.mode = 'CHASE'; } else if (ch.mode === 'CHASE') { ch.mode = 'SEARCH'; ch.st = 0; }
     let tx, ty, kn = 16;
     if (ch.mode === 'CHASE') { tx = ch.lx; ty = ch.ly; }
     else if (ch.mode === 'SEARCH') { ch.st = (ch.st || 0) + dt; tx = ch.lx + Math.sin(ch.t * 3) * 2; ty = ch.ly + Math.cos(ch.t * 3) * 2; kn = 10; if (ch.st > 0.6) ch.mode = 'RETURN'; }
     else { tx = s.cv.x; ty = s.cv.y; if (hyp(tx - ch.x, ty - ch.y) < SCREEN() + 0.5) { s.chaser = null; say('견시', '호위함이 대열로 돌아갑니다.'); return; } }
     const dx = tx - ch.x, dy = ty - ch.y, dd = hyp(dx, dy) || 1, mv = Math.min(dd, kn * KN * dt); ch.x += dx / dd * mv; ch.y += dy / dd * mv;
     if (!dive && d < 3.2 && ch.mode === 'CHASE') { b.speed = 'DIVE'; s.detectedAt = s.t; say('부장', '긴급 잠항! 놈이 너무 가깝다 — 내려가서 지나가게 둔다.'); try { window.Snd && Snd.event && Snd.event('divealarm', {}); } catch (e) {} }
-    /* v6.69 — 잠항한 우리 머리 위까지 오면 ASDIC 이 우리를 잡을 수 있다. 잡히면 폭뢰 장면 */
-    if (dive && ch.mode !== 'RETURN' && d < 1.2 && !ch.hdRolled && !s.hdBusy && window.EP_V669_HOLD) {
-      ch.hdRolled = true;
-      if (Math.random() < 0.55 + s.era * 0.3) { s.hdBusy = true; s.hdN = (s.hdN || 0) + 1; try { window.EP_V669_HOLD.open(s, HAPI); } catch (e) { s.hdBusy = false; } }
-      else say('청음수', '호위함 프로펠러가 머리 위를 지나갑니다… 핑이 우리를 못 잡았습니다.');
-    }
   }
   /* ══ 3단계 — 늑대떼: 보고를 받고 모여든 다른 보트가 이 화면에 보이고, 밤에 선단을 친다 ══
      전술 판에는 띄우지 않는다(「전술 화면에 다른 잠수함은 없다」는 원칙). 그 결과 — 줄어든 선단, 끌려간 호위,
@@ -47688,7 +47681,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     if (!S) return; const now = performance.now(), real = Math.min(0.3, (now - lastNow) / 1000); lastNow = now;
     let hours = real * (S.ts === 0 ? 0 : S.ts === 1 ? 0.05 : 0.2);       /* ×1 = 실제 1초에 3분, ×4 = 12분 */
     if (S.air && !S.air.until) hours = real * 0.008;                         /* 비행기가 들어오는 몇 분은 느리게 — 실제 1초에 약 30초 */
-    if (S.hdBusy) hours = 0;                                                   /* v6.69 — 폭뢰 장면 동안 추적 시계는 멈춘다 */
     let left = hours; while (left > 1e-6 && S) { const d = Math.min(left, 0.02); step(d); left -= d; }
     if (S) render();
   }
@@ -47727,9 +47719,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
       };
       /* 늑대떼가 방금 친 대열 — 호위가 흩어져 있다 */
       if (s.t - s.lastPackHit < 2) window.EP_TRACK_OVR.escortGrace += 150;
-      /* v6.69 — 폭뢰에 눌린 채 넘어간 전투: 호위가 이미 우리를 쥐고 있다 */
-      if (s.huntedV669) { const O = window.EP_TRACK_OVR; O.escortGrace = 0; O.startAspect = 'MIXED'; O.startRange = 1.6;
-        O.preCombat.kind = 'DETECTED_EARLY'; O.preCombat.quality = 0.05; O.preCombat.huntedV669 = true; }
       log('추적 ' + s.t.toFixed(1) + '시간 — ' + ({ AHEAD: '선단 앞', BEAM: '선단 옆', MIXED: '선단 뒤쪽' })[aspect] + '에서 ' + (night > 0.5 ? '밤' : '낮') + ' 공격' + (recent ? ' (들킨 채)' : '') + '.');
       close(); const go = $('encGo'); if (go) go.click();
     } else {
@@ -47770,15 +47759,6 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     $('epTrkPlot').addEventListener('click', e => { if (!S) return; const r = e.currentTarget.getBoundingClientRect(), v = S._view; if (!v) return;
       const x = (e.clientX - r.left - v.cx) / v.k + v.ox, y = -(e.clientY - r.top - v.cy) / v.k + v.oy; S.wp = { x, y }; S.mode = 'MANUAL'; go(); render(); });
   }
-  /* v6.69 — 폭뢰 장면이 추적에 돌려주는 손잡이 */
-  const HAPI = {
-    advance(h) { if (!S) return; S.hdFreeze = true; let left = h; while (left > 1e-6 && S) { const d = Math.min(left, 0.02); step(d); left -= d; } if (S) S.hdFreeze = false; },
-    say(who, t) { say(who, t); },
-    end(r) { const s = S; if (!s) return; s.hdBusy = false; s.hullHit += (r && r.dmg) || 0;
-      if (r && r.forced) { s.huntedV669 = true; finish('ATTACK'); return; }
-      if (s.chaser) { s.chaser.mode = 'RETURN'; s.chaser.giveUp = true; }
-      s.boat.speed = 'DIVE'; s.detectedAt = s.t; lastNow = performance.now(); render(); }
-  };
   /* v6.68 — 첫 명령이 떨어지면 시계가 흐른다 */
   function go() { if (!S || !S.waiting) return; S.waiting = false; S.ts = 1; }
   function attackBlock() {
@@ -51705,8 +51685,6 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
     /* 대공 */
     AA_FIGHT: { d: { bold: 1.6, book: -0.3 }, l: ['비행기와 갑판포로 맞섰다', 'Fought it out with an aircraft', '航空機と対空戦をした'] },
     AA_DIVE: { d: { bold: -0.6, book: 0.6 } },
-    /* 폭뢰에 눌렸을 때 */
-    HD_DEEP: { d: { book: 0.2, bold: -0.1 } }, HD_SILENT: { d: { book: 0.3, bold: -0.2 } }, HD_SPRINT: { d: { bold: 0.5 } }, HD_DECOY: { d: { book: 0.2 } },
     /* 추적 */
     TR_REPORT: { d: { book: 1.0 }, l: ['선단을 발견하고 사령부에 보고했다', 'Reported a convoy to HQ', '船団を発見し司令部に報告した'] },
     TR_SHADOW: { d: { book: 0.3, bold: -0.2 } },
@@ -52002,377 +51980,1308 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
-<script id="ep-v669-hold-script">
-/* ══════════ V6.69 폭뢰 — 추적 중에 눌렸다 ══════════
-   추적하다 들켜 호위함이 쫓아오고, 잠항한 우리 머리 위까지 오면 ASDIC 이 우리를 잡을 수 있다.
-   잡히면 이 장면이 열린다 — 한 번의 공격 진입이 한 「판」이고, 많아야 네 판.
-   · 판마다 자세를 고른다: 깊이 내려간다(선체 부담) · 정숙(회피 약함) · 전속 회피(전지) · 기만체(독일 1942~)
-   · 공격 돌입 — 「고속 프로펠러!」 소리가 나면 함정은 마지막 수백 m 에서 우리를 놓친다(ASDIC 사각).
-     그 순간 전타로 꺾어야 폭뢰가 떨어지는 자리에서 벗어난다. 너무 이르면 핑이 따라오고, 늦으면 폭뢰 아래다.
-   · 늦은 시기에는 헤지호그 — 앞으로 던지고, 맞아야만 터진다(조용하면 빗나간 것).
-   · 판이 끝날 때 핑이 우리를 놓쳤는지 본다. 놓치면 빠져나간다. 오래 붙들리거나 크게 다치면,
-     다른 호위함이 합류해 전술 판의 「쫓기는 전투」로 넘어간다. 추적 화면 안에서 배가 가라앉지는 않는다.
-   · 장면 동안 추적 시계는 멈추고, 끝나면 버틴 시간만큼 선단은 멀어져 있다. 한 · 영 · 일. */
-(function EP_V669_HOLD() {
+<script id="ep-v670-dc-script">
+/* ══════════ V6.70 손상 수습 — 전투가 끝나고, 배를 다시 쓸 수 있게 ══════════
+   폭뢰를 맞고 돌아오면 선체와 기관, 잠타의 손상이 다음 전투까지 그대로 따라간다(조선소에 가야 다 고쳐진다).
+   그 사이 바다 위에서 할 수 있는 만큼 고친다 — 실제 유보트 승조원들이 가장 오래 한 일 가운데 하나다.
+   · 손상은 구획마다 생긴다: 누수 · 외판 균열 · 전기 화재 · 염소가스 · 디젤 받침 · 잠타 유압 · 압축공기 · 계기 · 축 소음.
+   · 수리반 셋(기관부 · 전기부 · 갑판부)을 일감에 배정하고 한 시간씩 진행한다. 맞는 반이 하면 빠르다.
+   · 손대지 않은 누수는 물이 차고, 전지실에 바닷물이 닿으면 염소가스가 난다. 화재는 번진다.
+   · 외판 · 환기 일은 부상해야 한다 — 그동안 비행기가 올 수 있다.
+   · 예비품은 초계마다 정해져 있다. 축 소음 같은 것은 조선소에서만 고친다.
+   · 언제든 「수습 마침」 — 남은 일은 지도 위 🔧 단추로 다시 열 수 있다. 쓴 시간만큼 초계 시간이 흐른다.
+   전투 중의 손상통제(우선순위)와는 따로다 — 이것은 전투가 끝난 바다 위의 일이다. 한 · 영 · 일. */
+(function EP_V670_DC() {
   'use strict';
   const $ = id => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const R = Math.random, rnd = (a, b) => a + R() * (b - a), pick = a => a[Math.floor(R() * a.length)];
   const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
   const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const tx = a => Array.isArray(a) ? T(a[0], a[1], a[2]) : String(a || '');
   const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
-  const TH = () => window.THEATERS;
-  let H = null, raf = 0;
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
 
-  /* 호위함 — 바다마다 그 시절 함급 */
-  const ESC = {
-    ATLANTIC: [['FLOWER', 62, 25], ['RIVER', 91, 30], ['HUNT', 85, 27], ['BLACKSWAN', 91, 30], ['TOWN_DD', 96, 28], ['VW', 95, 30]],
-    MEDITERRANEAN: [['HUNT', 85, 27], ['FLOWER', 62, 25], ['JKN', 108, 32], ['TRIBAL', 115, 33]],
-    PACIFIC: [['KAIBOKAN', 78, 24], ['CH_SC', 51, 16], ['FUBUKI', 118, 30], ['KAGERO', 118, 30]],
-    EASTPAC: [['FLETCHER', 115, 32], ['SC_USN', 34, 14], ['MAHAN', 104, 30], ['CLEMSON', 95, 28]]
+  /* ── 구획(이물 → 고물) ── */
+  const COMP = [
+    { id: 'BOW', n: ['전부 어뢰실', 'Bow torpedo room', '前部魚雷室'], s: ['어뢰실', 'Bow', '前部'], x0: 0.00, x1: 0.17 },
+    { id: 'FB', n: ['전지실 · 사관실', 'Fwd battery · wardroom', '前部電池室・士官室'], s: ['전지·사관', 'Fwd batt', '前電池'], x0: 0.17, x1: 0.32, batt: true },
+    { id: 'CTRL', n: ['발령소', 'Control room', '発令所'], s: ['발령소', 'Control', '発令所'], x0: 0.32, x1: 0.46 },
+    { id: 'AB', n: ['전지실 · 승조원실', 'Aft battery · crew', '後部電池室・兵員室'], s: ['전지·승조', 'Aft batt', '後電池'], x0: 0.46, x1: 0.61, batt: true },
+    { id: 'DSL', n: ['디젤실', 'Diesel room', 'ディーゼル室'], s: ['디젤', 'Diesel', 'ディーゼル'], x0: 0.61, x1: 0.78 },
+    { id: 'MOT', n: ['전동기실', 'E-motor room', '電動機室'], s: ['전동기', 'Motors', '電動機'], x0: 0.78, x1: 0.89 },
+    { id: 'STN', n: ['후부 · 조타기', 'Stern · steering', '後部・操舵機'], s: ['후부', 'Stern', '後部'], x0: 0.89, x1: 1.00 }
+  ];
+  const TEAMS = [
+    { id: 'ENG', n: ['기관부', 'Engine gang', '機関科'], s: ['기관', 'Eng', '機関'], c: '#e8a24a' },
+    { id: 'ELEC', n: ['전기부', 'Electricians', '電機科'], s: ['전기', 'Elec', '電機'], c: '#7fc8ff' },
+    { id: 'DECK', n: ['갑판부', 'Seamen', '甲板科'], s: ['갑판', 'Deck', '甲板'], c: '#9fe0a8' }
+  ];
+  /* ── 일감 ── h: 필요한 시간(맞는 반 기준) · teams: [주 반, 보조 반…] · parts · surf: 부상해야 함 · p: 성공 확률 */
+  const KIND = {
+    LEAK: { n: ['누수', 'Leak', '漏水'], h: s => 1 + s * 0.6, teams: ['DECK', 'ENG'], parts: s => (s >= 3 ? 1 : 0), p: 0.85, at: ['BOW', 'FB', 'CTRL', 'AB', 'DSL', 'MOT', 'STN'] },
+    CRACK: { n: ['외판 균열', 'Hull crack', '外板亀裂'], h: () => 3, teams: ['DECK'], parts: () => 2, surf: true, p: 0.75, at: ['BOW', 'DSL', 'STN', 'MOT'] },
+    FIRE: { n: ['전기 화재', 'Electrical fire', '電気火災'], h: () => 1, teams: ['ELEC', 'DECK'], parts: () => 0, p: 0.8, at: ['CTRL', 'MOT', 'FB', 'AB'] },
+    GAS: { n: ['염소가스', 'Chlorine gas', '塩素ガス'], h: () => 2, teams: ['ELEC', 'DECK', 'ENG'], parts: () => 0, surf: true, p: 0.95, at: ['FB', 'AB'] },
+    DIESEL: { n: ['디젤 받침 · 축 정렬', 'Diesel mounts · alignment', 'ディーゼル台座・軸心'], h: () => 5, teams: ['ENG'], parts: () => 1, p: 0.7, at: ['DSL'] },
+    HYD: { n: ['잠타 유압', 'Hydroplane hydraulics', '潜舵油圧'], h: () => 3, teams: ['ENG', 'ELEC'], parts: () => 1, p: 0.75, at: ['CTRL', 'STN', 'BOW'] },
+    AIR: { n: ['압축공기 관', 'HP air line', '高圧空気管'], h: () => 2, teams: ['ENG'], parts: () => 0, p: 0.85, at: ['CTRL', 'DSL', 'BOW'] },
+    GAUGE: { n: ['계기 파손', 'Broken gauges', '計器破損'], h: () => 1, teams: ['ELEC'], parts: () => 0, p: 0.9, at: ['CTRL'] },
+    SHAFT: { n: ['프로펠러 축 소음', 'Shaft noise', '推進軸の騒音'], h: () => 99, teams: [], parts: () => 0, p: 0, yard: true, at: ['STN', 'MOT'] }
   };
-  function natOf(th) { return th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE'; }
-  function yearOf(C) { try { const iso = window.EVENTS && EVENTS.isoDateAtDay ? EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24) : null; if (iso) return +String(iso).slice(0, 4); } catch (e) {} return 1942; }
+  let S = null, raf = 0;
 
-  /* ── 열기 — 추적 쪽에서 부른다 ── */
-  function open(s, api) {
-    const C = s.C, sp = (TH() && TH().BOATS && TH().BOATS[C.boatId]) || {};
-    const test = sp.testDepth || 150, crush = sp.crushDepth || test * 1.5;
-    let layer = null; try { if (C.thermo && Number.isFinite(+C.thermo.depth)) layer = +C.thermo.depth; else if (C.thermo && Array.isArray(C.thermo.depth)) layer = (C.thermo.depth[0] + C.thermo.depth[1]) / 2; } catch (e) {}
-    const bottom = Number.isFinite(+C.seabed) && +C.seabed < crush * 1.3 ? +C.seabed : null;
-    const era = clamp(s.era == null ? 0.5 : s.era, 0, 1);
-    const e = pick(ESC[C.theater] || ESC.ATLANTIC);
-    const yr = yearOf(C);
-    H = {
-      s, api, C, test, crush, layer, bottom, era, yr,
-      esc: { id: e[0], len: e[1], mast: e[2] }, night: (() => { const h = (((s.h0 + s.t) % 24) + 24) % 24; return h < 5 || h >= 20 ? 1 : h < 7 ? 1 - (h - 5) / 2 : h >= 18 ? (h - 18) / 2 : 0; })(),
-      depth: 45 + R() * 20, from: 0, target: 0, contact: clamp(0.6 + era * 0.25 - (1 - (s.vis || 0.8)) * 0.25, 0.35, 0.92),
-      run: 0, max: 4, phase: 'CHOOSE', dmg: 0, hours: 0, decoys: natOf(C.theater) === 'DE' && yr >= 1942 ? 2 : 0,
-      hedge: era > 0.62 ? 0.25 + (era - 0.62) : 0, lines: [], fx: [], posture: null, result: null, batt: 0, morale: 0, shake: 0, flash: 0, deepWarn: false
-    };
-    H.target = H.depth;
-    build(); line('hydro', T('호위함 프로펠러가 머리 위로 옵니다. 핑이 선체를 두드립니다 — 우리를 잡았습니다.', 'Escort screws coming overhead. Pings rattling the hull — they have us.', '護衛艦のスクリューが頭上に来ます。探信音が船体を叩く — 捕捉されました。'));
-    line('exec', T('함장님, 어떻게 버티시겠습니까?', 'Captain — how do we ride this out?', '艦長、どう耐えますか？'));
-    $('epHd').classList.add('on'); snd('ping', { range: 600 });
-    ui(); cancelAnimationFrame(raf); H.last = performance.now(); raf = requestAnimationFrame(loop);
+  /* ── 손상에서 일감을 만든다 ── */
+  function gen(C, lost) {
+    const out = [], used = {};
+    const add = (k, comp, sev) => { const K = KIND[k]; comp = comp || pick(K.at.filter(a => !used[k + a]) .concat([]).length ? K.at.filter(a => !used[k + a]) : K.at); used[k + comp] = 1;
+      out.push({ id: k + '_' + comp + '_' + out.length, k, comp, sev: sev || 1, prog: 0, team: null, done: false, fail: 0, w: k === 'LEAK' ? 0.15 + (sev || 1) * 0.12 : 0 }); };
+    const eng = (C.damage && C.damage.engine) || 0, dep = (C.damage && C.damage.depthCtrl) || 0;
+    const nLeak = clamp(Math.ceil(lost / 12), lost >= 3 ? 1 : 0, 4);
+    for (let i = 0; i < nLeak; i++) add('LEAK', null, clamp(Math.round(lost / 18 + R() * 1.2), 1, 3));
+    if (lost >= 16) add('CRACK');
+    if (lost >= 9 && R() < 0.45) add('FIRE');
+    if (out.some(x => x.k === 'LEAK' && (x.comp === 'FB' || x.comp === 'AB') && x.sev >= 2) && R() < 0.45) add('GAS', out.find(x => x.k === 'LEAK' && (x.comp === 'FB' || x.comp === 'AB')).comp);
+    if (eng >= 0.08) add('DIESEL');
+    if (dep >= 0.08) add('HYD');
+    if (lost >= 11 && R() < 0.35) add('AIR');
+    if (lost >= 6 && R() < 0.5) add('GAUGE');
+    if (lost >= 15 && R() < 0.2) add('SHAFT');
+    return out;
   }
-
-  /* ── 자세 ── */
-  const POST = {
-    DEEP: { ko: ['깊이 내려간다', 'Go deep', '深く潜る'], sub: ['폭뢰가 덜 닿는다 · 선체 부담', 'charges reach less · hull strain', '爆雷が届きにくい・船体負担'] },
-    SILENT: { ko: ['정숙 — 숨죽인다', 'Silent running', '無音潜航'], sub: ['핑이 잘 놓친다 · 꺾기 약함', 'harder to hold · weak turn', '探知されにくい・回避弱い'] },
-    SPRINT: { ko: ['전속 회피', 'Full speed evasion', '全速回避'], sub: ['꺾기 강함 · 시끄럽다 · 전지', 'strong turn · noisy · battery', '回避強い・騒音・電池'] },
-    DECOY: { ko: ['기만체 투하', 'Release decoy', 'デコイ放出'], sub: ['거품 표적 · 남은 ', 'bubble target · left ', '気泡囮・残り '] }
-  };
-  function choose(k) {
-    if (!H || H.phase !== 'CHOOSE') return;
-    if (k === 'DECOY' && H.decoys <= 0) return;
-    H.posture = k; H.run++; H.phase = 'RUN'; H.t = 0; H.turnAt = null;
-    H.cued = false; H.dropped = false; H.dcs = []; H.out = null; H.boomAt = null; H.decoyHit = false;
-    H.side = R() < 0.5 ? -1 : 1;                                   /* 호위함이 들어오는 쪽 */
-    H.tc = rnd(3.2, 5.2); H.tp = H.tc + rnd(2.2, 2.8);              /* 돌입 신호 · 머리 위 */
-    H.hh = R() < H.hedge;                                            /* 헤지호그 */
-    H.from = H.depth;
-    if (k === 'DEEP') {
-      let tg = Math.min(H.depth + 55 + R() * 20, H.test * 1.08); if (H.bottom) tg = Math.min(tg, H.bottom - 12);
-      H.target = Math.max(H.depth, tg);
-      line('exec', T('하강 — ' + Math.round(H.target) + 'm 까지. 각 15도.', 'Down to ' + Math.round(H.target) + ' m, fifteen degrees.', '深度' + Math.round(H.target) + 'mへ。角度15度。'));
-      if (H.target > H.test) line('eng', T('시험심도를 넘습니다. 선체가 웁니다.', 'Below test depth. The hull is groaning.', '試験深度を超えます。船体が鳴っています。'));
-    } else if (k === 'SILENT') { H.target = H.depth; line('exec', T('정숙. 모든 기계 정지 — 신발 벗어.', 'Silent routine. All auxiliaries off — shoes off.', '無音。補機停止 — 靴を脱げ。')); }
-    else if (k === 'SPRINT') { H.target = H.depth; H.batt += 0.07; line('exec', T('양현 전속 준비. 신호하면 꺾는다.', 'Stand by both full. We turn on my mark.', '両舷全速用意。合図で転舵。')); }
-    else { H.decoys--; H.target = H.depth; H.decoyHit = R() < 0.6; line('exec', T('기만체 발사! 거품 뒤로 숨는다.', 'Decoy away! We hide behind the bubbles.', 'デコイ放出！気泡の陰に隠れる。')); }
-    try { if (window.EP_CAPT) EP_CAPT.note('HD_' + k, { gap: 600000 }); } catch (e) {}
-    H.lastPing = -9;
-    line('hydro', T('프로펠러 — ' + (H.side < 0 ? '좌현' : '우현') + ' 쪽에서 다가옵니다.', 'Screws — closing from ' + (H.side < 0 ? 'port' : 'starboard') + '.', 'スクリュー — ' + (H.side < 0 ? '左舷' : '右舷') + '側から接近。'));
-    ui();
+  function state(C) {
+    let D = C.dcV670;
+    const eng = (C.damage && C.damage.engine) || 0, dep = (C.damage && C.damage.depthCtrl) || 0, lost = 100 - (C.hull || 100);
+    if (!D || !Array.isArray(D.issues)) {
+      if (lost < 2 && eng < 0.08 && dep < 0.08) return null;
+      D = C.dcV670 = { issues: gen(C, lost), hullCap: Math.round(lost * 0.6), hullGot: 0, hours: 0, surf: false, base: { hull: C.hull, eng, dep } };
+    }
+    if (C.sparesV670 == null) C.sparesV670 = 6;
+    return D;
   }
-  function turn() {
-    if (!H || H.phase !== 'RUN' || H.turnAt != null) return;
-    H.turnAt = H.t; snd('uibeep');
-    line('cap', H.posture === 'SILENT' ? T('조용히 — 좌현 전타.', 'Quietly — hard a-port.', '静かに — 取舵いっぱい。') : T('전타! 전속!', 'Hard over! Full ahead!', '転舵！全速！'));
-    ui();
+  function open(force) {
+    const C = CS(); if (!C) return false;
+    const D = state(C); if (!D) { if (force) toast(T('고칠 데가 없습니다.', 'Nothing to repair.', '修理すべき所はありません。')); return false; }
+    if (!D.issues.some(i => !i.done && !KIND[i.k].yard)) { if (force) toast(T('바다에서 고칠 수 있는 것은 다 고쳤습니다. 나머지는 조선소에서.', 'Everything fixable at sea is fixed. The rest needs a yard.', '洋上で直せるものは全て直した。残りは工廠で。')); return false; }
+    S = { C, D, sel: null, lines: [], t0: performance.now(), anim: [] };
+    build(); window.EP_PAUSE_V662 = true;
+    const n = D.issues.filter(i => !i.done).length;
+    line('dc', D.hours ? T('수리 계속합니다. 남은 일 ' + n + '건.', 'Resuming repairs. ' + n + ' jobs left.', '修理を続けます。残り' + n + '件。')
+      : T('손상 보고 — ' + n + '건. 어디부터 손댈지 정해 주십시오.', 'Damage report — ' + n + ' items. Where do we start, sir?', '損傷報告 — ' + n + '件。どこから手を付けますか。'));
+    $('epDcr').classList.add('on'); render(); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+    return true;
   }
 
-  /* ── 한 판의 결과 ── */
-  function resolve() {
-    const p = H.posture, dt = H.turnAt == null ? null : H.turnAt - H.tc;
-    let tb = 0;
-    if (dt == null) tb = 0; else if (dt < -1.2) tb = 5; else if (dt < 0) tb = 18; else if (dt <= 1.6) tb = 45; else if (dt <= 3) tb = 20; else tb = 6;
-    const tm = p === 'SPRINT' ? 1.4 : p === 'SILENT' ? 0.6 : 1;
-    const setD = H.from + rnd(-10, 10);                              /* 함정이 맞춘 폭발 심도 — 돌입 때의 우리 심도 */
-    const vert = Math.abs(H.depth - setD);
-    let horiz = 18 + R() * 45 + tb * tm - H.era * 12 + (p === 'DEEP' ? Math.max(0, H.depth - 80) * 0.08 : 0) + (p === 'SILENT' ? 8 : 0);
-    if (p === 'DECOY' && H.decoyHit) horiz = 140 + R() * 80;
-    horiz = Math.max(4, horiz);
-    let miss = H.hh ? horiz : Math.hypot(horiz, vert * 0.7);
-    const o = { miss, horiz, hh: H.hh, dt, tb };
-    let dmg = 0, mor = 0, eq = 0;
-    if (H.hh) { if (miss < 22) { dmg = rnd(14, 26); mor = -0.06; eq = 0.15; } }
-    else if (miss < 15) { dmg = rnd(14, 24); mor = -0.06; eq = 0.15; }
-    else if (miss < 35) { dmg = rnd(6, 12); mor = -0.04; eq = 0.05; }
-    else if (miss < 60) { dmg = rnd(1, 4); mor = -0.02; }
-    else if (miss < 100) { mor = -0.01; }
-    if (H.depth > H.test) { dmg = dmg * 1.3 + (dmg > 0 ? 0 : (H.depth - H.test) / H.test * 6 * R()); }
-    o.dmg = Math.round(dmg); o.mor = mor; o.eq = eq;
-    H.dmg += o.dmg; H.morale += mor;
-    if (eq) try { const C = H.C; if (C.damage) { C.damage.depthCtrl = clamp((C.damage.depthCtrl || 0) + eq * R(), 0, 1); C.damage.engine = clamp((C.damage.engine || 0) + eq * R(), 0, 1); } } catch (e) {}
-    /* 접촉 — 폭발은 물을 흐려 핑을 흐트러뜨린다(헤지호그는 아니다) */
-    let dc = p === 'SILENT' ? -0.16 : p === 'DEEP' ? -0.12 : p === 'SPRINT' ? 0.05 : (H.decoyHit ? -0.3 : -0.1);
-    if (p === 'DEEP' && H.layer && H.from < H.layer && H.depth > H.layer + 5) dc -= 0.25;
-    if (!H.hh) dc -= 0.1;
-    if (dt != null && dt < -1.2) dc += 0.05;
-    if (p === 'SPRINT' && tb >= 45 && R() < 0.3) dc -= 0.5;
-    H.contact = clamp(H.contact + dc + H.era * 0.04, 0.05, 0.95);
-    H.out = o; return o;
+  /* ── 한 시간 ── */
+  function airRisk(C) {
+    let ap = 0.5; try { ap = window.THEATERS.THEATERS[C.theater].airPatrol || 0.5; } catch (e) {}
+    const h = ((C.hours % 24) + 24) % 24, night = h < 5 || h >= 20 ? 1 : (h < 7 ? 1 - (h - 5) / 2 : h >= 18 ? (h - 18) / 2 : 0);
+    const esc = clamp(C.escalation != null ? C.escalation : 0.5, 0, 1);
+    return 0.09 * ap * (0.5 + esc) * ((1 - night) + night * 0.2);
   }
-  function afterLines(o) {
-    const m = o.miss;
-    if (o.hh && o.dmg === 0) line('hydro', T('…폭발 없음. 헤지호그가 빗나갔습니다.', '…No detonations. The Hedgehog missed.', '…爆発なし。ヘッジホッグは外れました。'));
-    else if (o.dmg >= 14) { line('dc', T('바로 옆입니다! 조명 나감 — 후부 침수! 선체 ' + o.dmg + '% 손상.', 'Right alongside! Lights out — flooding aft! Hull ' + o.dmg + '% damaged.', 'すぐ横です！照明消失 — 後部浸水！船体' + o.dmg + '%損傷。'));
-      line('eng', T('심도계 유리가 깨졌습니다. 디젤 받침이 들렸습니다.', 'Depth gauge glass shattered. Diesel mounts lifted.', '深度計のガラスが割れた。ディーゼル台座が浮いた。')); }
-    else if (o.dmg >= 6) line('dc', T('가깝습니다 — 밸브 몇 개가 샙니다. 선체 ' + o.dmg + '% 손상.', 'Close — a few valves leaking. Hull ' + o.dmg + '% damaged.', '近い — バルブ数か所から漏水。船体' + o.dmg + '%損傷。'));
-    else if (m < 60) line('dc', T('전구가 몇 개 깨졌습니다. 그 밖엔 괜찮습니다.', 'A few bulbs broke. Otherwise all right.', '電球がいくつか割れました。他は大丈夫です。'));
-    else if (m < 100) line('exec', T('멀다. 놈은 우리 자리를 정확히 모른다.', 'Far off. He does not know exactly where we are.', '遠い。奴はこちらの位置を正確には知らない。'));
-    else line('exec', T('한참 빗나갔다. ' + (H.posture === 'DECOY' && H.decoyHit ? '거품을 쳤어.' : '꺾은 게 통했다.'), 'Way off. ' + (H.posture === 'DECOY' && H.decoyHit ? 'He hit the bubbles.' : 'The turn worked.'), '大きく外れた。' + (H.posture === 'DECOY' && H.decoyHit ? '気泡を攻撃したな。' : '転舵が効いた。')));
-    if (o.dt == null && !(H.posture === 'DECOY' && H.decoyHit)) line('exec', T('(꺾지 않았다 — 「고속 프로펠러」 소리가 나면 전타를 누르십시오.)', '(We did not turn — hit "hard over" when you hear fast screws.)', '（転舵しなかった — 「高速スクリュー」が聞こえたら転舵を。）'));
-    else if (o.dt != null && o.dt < -1.2) line('exec', T('(너무 일찍 꺾었다 — 핑이 아직 우리를 잡고 있었다.)', '(Turned too early — his pings still had us.)', '（早すぎた — まだ探信に捕まっていた。）'));
-    else if (o.dt != null && o.dt > 3) line('exec', T('(늦었다 — 이미 폭뢰가 물속에 있었다.)', '(Too late — the charges were already in the water.)', '（遅い — 爆雷はもう水中だった。）'));
-  }
-  function nextStep() {
-    const lost = R() > H.contact;
-    if (lost) {
-      H.phase = 'END'; H.result = 'ESCAPE';
-      line('hydro', T('핑이 우리를 지나 다른 쪽을 훑습니다… 놓친 것 같습니다.', 'The pings are sweeping past us, the wrong way… he has lost us.', '探信が我々を通り過ぎ、別の方向を探っています…見失ったようです。'));
-      line('exec', T('조금 더 기다렸다가 빠진다. 선단은 멀어졌겠지.', 'We wait a little longer, then slip away. The convoy will be well ahead.', 'もう少し待ってから離脱する。船団は遠ざかっただろう。'));
-    } else {
-      const hullNow = (H.C.hull || 100) - (H.s.hullHit || 0) - H.dmg;
-      const second = H.run >= 2 && R() < (H.run >= 3 ? 0.35 : 0.15) + H.era * 0.25;
-      if (H.dmg >= 24 || hullNow <= 30 || second) {
-        H.phase = 'END'; H.result = 'FORCED';
-        line('hydro', T('두 번째 프로펠러 — 다른 호위함이 합류했습니다. 둘이 번갈아 옵니다.', 'A second set of screws — another escort has joined. They are taking turns.', '二つ目のスクリュー — 別の護衛艦が合流。交互に来ます。'));
-        line('exec', T('버티기만 해서는 못 빠져나갑니다. 전투 위치로!', 'Riding it out won\'t get us clear. Battle stations!', '耐えるだけでは抜けられません。戦闘配置！'));
-      } else if (H.run >= H.max) {
-        H.phase = 'END'; H.result = 'ESCAPE';
-        line('hydro', T('호위함이 돌아섭니다 — 선단 쪽으로. 더는 비울 수 없나 봅니다.', 'The escort is turning away — back to the convoy. It can\'t stay away any longer.', '護衛艦が反転 — 船団の方へ。これ以上離れられないようです。'));
-      } else {
-        H.phase = 'CHOOSE';
-        line('hydro', T('아직 핑이 우리를 잡고 있습니다. 다시 돌아옵니다.', 'The pings still have us. He is coming round again.', 'まだ探信に捕まっています。また戻ってきます。'));
+  function hour() {
+    const s = S; if (!s) return; const C = s.C, D = s.D;
+    D.hours++; C.hours = (C.hours || 0) + 1;
+    /* 일 진행 */
+    for (const i of D.issues) {
+      if (i.done || !i.team) continue;
+      const K = KIND[i.k];
+      if (K.surf && !D.surf) { if (!i.waitSaid) { line('dc', T(tx(K.n) + ' — 부상해야 손댈 수 있습니다.', tx(K.n) + ' — we must surface to get at it.', tx(K.n) + ' — 浮上しないと手が付けられません。')); i.waitSaid = true; } continue; }
+      const eff = K.teams[0] === i.team ? 1 : 0.6;
+      i.prog += eff;
+      if (i.prog >= K.h(i.sev)) {
+        const need = K.parts(i.sev);
+        if (need > C.sparesV670) { line('eng', T(tx(K.n) + ' — 예비품이 모자랍니다. 임시로 묶어 둘 수밖에 없습니다.', tx(K.n) + ' — not enough spares. We can only lash it up.', tx(K.n) + ' — 予備品が足りません。応急処置しかできません。')); i.prog = K.h(i.sev) * 0.5; i.team = null; continue; }
+        if (R() < K.p - i.fail * 0.1 + (eff < 1 ? -0.1 : 0)) {
+          C.sparesV670 -= need; i.done = true; i.team = null; apply(i); s.anim.push({ comp: i.comp, t: 0, ok: true });
+        } else { i.fail++; i.prog = K.h(i.sev) * 0.4; line('dc', T(tx(K.n) + ' — 실패. 다시 해 봅니다.', tx(K.n) + ' — failed. Trying again.', tx(K.n) + ' — 失敗。やり直します。')); }
       }
     }
-    H.hours += 0.3;
-    ui();
-  }
-  function finishScene() {
-    if (!H) return;
-    const h = H, C = h.C, forced = h.result === 'FORCED';
-    h.hours += forced ? 0 : rnd(0.5, 1.4);
-    try { if (h.morale && window.EP_MORALE) EP_MORALE.add(C, h.morale); } catch (e) {}
-    try { if (Number.isFinite(C.battery)) C.battery = clamp(C.battery - h.batt - 0.02 * h.run, 0, 1); } catch (e) {}
-    const ko = '추적 중 폭뢰 공격 ' + h.run + '회 — ' + (h.dmg ? '선체 ' + h.dmg + '% 손상' : '피해 없음') + (forced ? ', 쫓기는 전투로.' : ', 빠져나왔다.');
-    const en = 'Depth-charged while shadowing, ' + h.run + ' run' + (h.run > 1 ? 's' : '') + ' — ' + (h.dmg ? 'hull ' + h.dmg + '% damaged' : 'no damage') + (forced ? '; forced into a fight.' : '; slipped away.');
-    const ja = '追跡中に爆雷攻撃' + h.run + '回 — ' + (h.dmg ? '船体' + h.dmg + '%損傷' : '被害なし') + (forced ? '、追われる戦闘へ。' : '、離脱した。');
-    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'encounter' }); } catch (e) {}
-    cancelAnimationFrame(raf); raf = 0; $('epHd').classList.remove('on');
-    H = null;
-    if (!forced) { h.api.advance(h.hours); h.api.say('부장', T('폭뢰를 버텼습니다. ' + h.hours.toFixed(1) + '시간 — 선단은 그만큼 멀어졌습니다.', 'We rode out the charges. ' + h.hours.toFixed(1) + ' hours — the convoy is that much further away.', '爆雷に耐えました。' + h.hours.toFixed(1) + '時間 — 船団はそれだけ遠ざかりました。')); }
-    h.api.end({ dmg: h.dmg, forced });
-  }
-
-  /* ── 그림 ── */
-  function loop(now) {
-    if (!H) return;
-    const dt = Math.min(0.05, (now - H.last) / 1000); H.last = now;
-    if (H.phase === 'RUN') step(dt);
-    else { for (const f of H.fx) f.t += dt; H.fx = H.fx.filter(f => f.t < (f.k === 'ping' ? 1.1 : 2.6)); H.shake = Math.max(0, H.shake - dt * 1.4); H.flash = Math.max(0, H.flash - dt * 2.2); }
-    /* 심도 — 목표로 천천히 */
-    const rate = H.posture === 'DEEP' ? 9 : 4;
-    if (Math.abs(H.target - H.depth) > 0.2) H.depth += Math.sign(H.target - H.depth) * Math.min(Math.abs(H.target - H.depth), rate * dt * (H.phase === 'RUN' ? 1 : 0.5));
-    draw(now / 1000);
-    raf = requestAnimationFrame(loop);
-  }
-  function step(dt) {
-    const h = H; h.t += dt;
-    /* 핑 — 돌입 전까지. 헤지호그는 돌입 뒤에도 잡고 던진다 */
-    if (h.t < h.tc + (h.hh ? 0.8 : 0) && h.t - h.lastPing > (h.t > h.tc - 1.5 ? 0.85 : 1.35)) { h.lastPing = h.t; h.fx.push({ k: 'ping', t: 0 }); snd('ping', { range: 300 + (h.tc - h.t) * 200 }); }
-    if (!h.cued && h.t >= h.tc) { h.cued = true;
-      line('hydro', h.hh ? T('핑이 빨라집니다 — 앞으로 던집니다! 헤지호그!', 'Pings speeding up — he is throwing ahead! Hedgehog!', '探信が速くなる — 前方投射！ヘッジホッグ！')
-                         : T('고속 프로펠러! 공격 돌입!', 'Fast screws! He is running in!', '高速スクリュー！攻撃進入！'));
-      ui(); }
-    /* 투하 */
-    if (!h.dropped && h.t >= (h.hh ? h.tc + 0.9 : h.tp - 0.3)) {
-      h.dropped = true;
-      const n = h.hh ? 24 : 6 + Math.round(R() * 4);
-      const ppm = h.ppm || 1, base = h.hh ? (h.cx || 200) : (h.escX != null ? h.escX : (h.cx || 200));
-      for (let i = 0; i < n; i++) {
-        const spread = h.hh ? (i - n / 2) * 2.2 : (i - n / 2) * 7 + rnd(-4, 4);
-        h.dcs.push({ bx: base + spread * ppm, xo: spread, t0: h.t + (h.hh ? 0.2 : i * 0.14), hh: h.hh, boom: false });
-      }
-      snd(h.hh ? 'hhdrop' : 'dcdrop', {});
-      line('hydro', h.hh ? T('투사음 — 물에 꽂힙니다.', 'Projectiles — splashing in.', '投射音 — 着水。') : T('투하… 물에 떨어지는 소리.', 'Charges away… splashes.', '投下…着水音。'));
-    }
-    /* 폭뢰가 내려간다 — 심도에 닿으면 터진다 */
-    if (h.dropped) {
-      const setD = h.from, sinkV = 34 + (h.hh ? 18 : 0);
-      for (const d of h.dcs) {
-        if (d.boom || h.t < d.t0) continue;
-        d.dep = (h.t - d.t0) * sinkV;
-        const reach = h.hh ? h.depth : setD;
-        if (d.dep >= reach) {
-          if (!h.out) resolve();                                     /* 첫 폭뢰가 심도에 닿는 순간 — 그때까지의 회피가 다 들어간다 */
-          const o = h.out;
-          d.boom = true;
-          const hit = !h.hh || o.miss < 22;
-          if (hit) { h.fx.push({ k: 'boom', t: 0, x: h.hh ? (h.subX || d.bx) : d.bx, dep: reach, miss: o.miss });
-            snd('dcboom', { range: Math.max(5, o.miss + Math.abs(d.xo) * 0.6), pan: clamp(d.xo / 60, -1, 1) });
-            if (o.miss < 45) { h.shake = Math.max(h.shake, (45 - o.miss) / 45); h.flash = Math.max(h.flash, (45 - o.miss) / 60); } }
+    /* 손대지 않은 것들은 나빠진다 */
+    for (const i of D.issues) {
+      if (i.done) continue;
+      if (i.k === 'LEAK' && !(i.team && i.prog > 0)) {
+        const w0 = i.w; i.w = clamp(i.w + 0.04 * i.sev, 0, 1);
+        if (w0 < 1 && i.w >= 1) { C.hull = clamp((C.hull || 100) - 2, 1, 100); line('dc', T(tx(COMP.find(c => c.id === i.comp).s) + ' — 물이 허리까지 찼습니다! 선체 −2%.', 'The ' + tx(COMP.find(c => c.id === i.comp).s) + ' is waist-deep! Hull −2%.', tx(COMP.find(c => c.id === i.comp).s) + ' — 腰まで浸水！船体 −2%。')); }
+        const cp = COMP.find(c => c.id === i.comp);
+        if (cp && cp.batt && i.w >= 0.55 && !D.issues.some(x => x.k === 'GAS' && x.comp === i.comp && !x.done)) {
+          D.issues.push({ id: 'GAS_' + i.comp + '_' + D.issues.length, k: 'GAS', comp: i.comp, sev: 1, prog: 0, team: null, done: false, fail: 0, w: 0 });
+          line('dc', T('바닷물이 전지에 닿았습니다 — 염소가스! 마스크 써!', 'Seawater in the battery — chlorine! Masks on!', '海水が電池に — 塩素ガス！マスク着用！')); snd('uireject');
         }
       }
-      if (!h.boomAt && h.dcs.every(d => d.boom)) { h.boomAt = h.t; }
-      if (h.boomAt && h.t - h.boomAt > 1.4 && h.phase === 'RUN') { h.phase = 'AFTER'; afterLines(h.out); ui(); }
+      if (i.k === 'FIRE' && !i.team) {
+        i.age = (i.age || 0) + 1;
+        if (i.age >= 2 && R() < 0.5) { const idx = COMP.findIndex(c => c.id === i.comp), nb = COMP[clamp(idx + (R() < 0.5 ? -1 : 1), 0, COMP.length - 1)];
+          if (!D.issues.some(x => x.k === 'FIRE' && x.comp === nb.id && !x.done)) { D.issues.push({ id: 'FIRE_' + nb.id + '_' + D.issues.length, k: 'FIRE', comp: nb.id, sev: 1, prog: 0, team: null, done: false, fail: 0 }); line('dc', T('불이 ' + tx(nb.s) + '까지 번졌습니다!', 'The fire has spread to the ' + tx(nb.s) + '!', '火が' + tx(nb.s) + 'まで広がった！')); }
+          if (window.EP_MORALE) EP_MORALE.add(C, -0.015); }
+      }
+      if (i.k === 'GAS' && !D.surf && window.EP_MORALE) EP_MORALE.add(C, -0.008);
     }
-    for (const f of h.fx) f.t += dt;
-    h.fx = h.fx.filter(f => f.t < (f.k === 'ping' ? 1.1 : 2.6));
-    h.shake = Math.max(0, h.shake - dt * 1.4); h.flash = Math.max(0, h.flash - dt * 2.2);
+    /* 부상해 있으면 하늘을 본다 */
+    if (D.surf && R() < airRisk(C)) {
+      D.surf = false; for (const i of D.issues) if (!i.done && KIND[i.k].surf) i.prog = Math.max(0, i.prog - 1);
+      line('obs', T('비행기! 긴급 잠항 — 갑판 일 중단!', 'Aircraft! Crash dive — deck work abandoned!', '航空機！急速潜航 — 甲板作業中断！')); snd('airalarm');
+      if (R() < 0.3) { const c = pick(['DSL', 'MOT', 'STN']); D.issues.push({ id: 'LEAK_' + c + '_' + D.issues.length, k: 'LEAK', comp: c, sev: 1, prog: 0, team: null, done: false, fail: 0, w: 0.2 }); line('dc', T('폭탄이 가까이 떨어졌습니다. ' + COMP.find(x => x.id === c).s[0] + '에 새 누수.', 'A bomb close aboard. New leak in the ' + COMP.find(x => x.id === c).s[1] + '.', '至近弾。' + COMP.find(x => x.id === c).s[2] + 'に新たな漏水。')); }
+    }
+    snd('chart'); render();
+    if (!D.issues.some(i => !i.done && !KIND[i.k].yard)) { line('dc', T('바다에서 할 수 있는 수리는 다 끝났습니다.', 'All repairs possible at sea are done.', '洋上でできる修理は全て終わりました。')); render(); }
   }
-  function draw(tt) {
-    const cv = $('epHdCv'); if (!cv || !H) return;
-    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
-    const W = Math.max(200, r.width), Hh = Math.max(150, r.height);
-    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr); }
+  function apply(i) {
+    const C = S.C, D = S.D, K = KIND[i.k];
+    let say = '';
+    if (i.k === 'LEAK' || i.k === 'CRACK' || i.k === 'AIR') {
+      const g = Math.min(i.k === 'CRACK' ? 6 : i.k === 'AIR' ? 1 : 1 + 2 * i.sev, Math.max(0, D.hullCap - D.hullGot));
+      D.hullGot += g; C.hull = clamp((C.hull || 100) + g, 1, 100);
+      say = g ? T(' 선체 +' + g + '%', ' Hull +' + g + '%', ' 船体 +' + g + '%') : '';
+    } else if (i.k === 'DIESEL') { if (C.damage) C.damage.engine = clamp((C.damage.engine || 0) - 0.25, 0, 1); say = T(' 기관 손상 줄어듦', ' engine damage reduced', ' 機関損傷 軽減'); }
+    else if (i.k === 'HYD') { if (C.damage) C.damage.depthCtrl = clamp((C.damage.depthCtrl || 0) - 0.25, 0, 1); say = T(' 잠타 손상 줄어듦', ' hydroplane damage reduced', ' 潜舵損傷 軽減'); }
+    else if (i.k === 'GAS' || i.k === 'FIRE') { if (window.EP_MORALE) EP_MORALE.add(C, 0.01); }
+    else if (i.k === 'GAUGE') { if (window.EP_MORALE) EP_MORALE.add(C, 0.005); }
+    line(i.k === 'DIESEL' || i.k === 'HYD' || i.k === 'AIR' ? 'eng' : 'dc', T(tx(K.n) + ' (' + tx(COMP.find(c => c.id === i.comp).s) + ') — 끝났습니다.', tx(K.n) + ' (' + tx(COMP.find(c => c.id === i.comp).s) + ') — done.', tx(K.n) + '（' + tx(COMP.find(c => c.id === i.comp).s) + '）— 完了。') + say);
+    snd('taskdone');
+  }
+  function assign(id, team) {
+    const D = S && S.D; if (!D) return;
+    const i = D.issues.find(x => x.id === id); if (!i || i.done) return;
+    const K = KIND[i.k]; if (!K.teams.includes(team)) return;
+    if (i.team === team) { i.team = null; render(); return; }
+    for (const x of D.issues) if (x.team === team) x.team = null;
+    i.team = team; snd('uibeep'); render();
+  }
+  function close() {
+    const s = S; if (!s) return;
+    const C = s.C, D = s.D;
+    const left = D.issues.filter(i => !i.done && !KIND[i.k].yard).length;
+    const ko = '손상 수습 ' + D.hours + '시간 — ' + (D.hullGot ? '선체 +' + D.hullGot + '%' : '선체 그대로') + (left ? ', 남은 일 ' + left + '건.' : ', 바다에서 할 일은 끝.');
+    const en = 'Damage control, ' + D.hours + ' h — ' + (D.hullGot ? 'hull +' + D.hullGot + '%' : 'hull unchanged') + (left ? ', ' + left + ' jobs left.' : ', all sea repairs done.');
+    const ja = '損傷復旧 ' + D.hours + '時間 — ' + (D.hullGot ? '船体 +' + D.hullGot + '%' : '船体そのまま') + (left ? '、残り' + left + '件。' : '、洋上でできる修理は完了。');
+    if (D.hours) try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'damage', kind: 'report' }); } catch (e) {}
+    for (const i of D.issues) i.team = null;
+    if (D.surf) D.surf = false;
+    cancelAnimationFrame(raf); raf = 0; $('epDcr').classList.remove('on'); window.EP_PAUSE_V662 = false; S = null;
+    try { Campaign.save(); WorldView && WorldView.render && WorldView.render(); } catch (e) {}
+  }
+
+  /* ── 그림 — 배의 옆 단면 ── */
+  function loop(now) {
+    if (!S) return; draw(now / 1000); raf = requestAnimationFrame(loop);
+  }
+  function draw(t) {
+    const cv = $('epDcrCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(240, r.width), H = Math.max(110, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
     const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const h = H, surf = Hh * 0.16, maxD = Math.max(h.test * 1.25, h.depth + 40, 160), ppm = (Hh - surf - 8) / maxD;
-    const Y = d => surf + d * ppm, cx = W * 0.5;
-    c.save();
-    if (h.shake > 0) c.translate(rnd(-1, 1) * h.shake * 5, rnd(-1, 1) * h.shake * 4);
-    /* 하늘 · 물 */
-    const n = h.night;
-    let g = c.createLinearGradient(0, 0, 0, surf); g.addColorStop(0, n > 0.5 ? '#05080d' : '#3b5263'); g.addColorStop(1, n > 0.5 ? '#0c141c' : '#7a92a0'); c.fillStyle = g; c.fillRect(-10, -10, W + 20, surf + 10);
-    g = c.createLinearGradient(0, surf, 0, Hh); g.addColorStop(0, n > 0.5 ? '#0b1a22' : '#24485a'); g.addColorStop(0.35, '#0d2633'); g.addColorStop(1, '#03080b'); c.fillStyle = g; c.fillRect(-10, surf, W + 20, Hh - surf + 10);
-    c.strokeStyle = 'rgba(190,215,225,.35)'; c.lineWidth = 1; c.beginPath();
-    for (let x = -10; x <= W + 10; x += 6) { const y = surf + Math.sin(x * 0.07 + tt * 2) * 1.2; if (x < -5) c.moveTo(x, y); else c.lineTo(x, y); } c.stroke();
-    /* 수온약층 · 시험심도 · 바닥 */
-    if (h.layer && h.layer < maxD) { c.fillStyle = 'rgba(120,170,200,.07)'; c.fillRect(0, Y(h.layer) - 5, W, 10); c.fillStyle = 'rgba(150,190,210,.55)'; c.font = '10px system-ui'; c.textAlign = 'right'; c.fillText(T('수온약층', 'layer', '躍層') + ' ~' + Math.round(h.layer) + 'm', W - 6, Y(h.layer) - 7); }
-    c.setLineDash([4, 4]); c.strokeStyle = 'rgba(255,110,90,.4)'; c.beginPath(); c.moveTo(0, Y(h.test)); c.lineTo(W, Y(h.test)); c.stroke(); c.setLineDash([]);
-    c.fillStyle = 'rgba(255,130,110,.6)'; c.font = '10px system-ui'; c.textAlign = 'right'; c.fillText(T('시험심도 ', 'test depth ', '試験深度 ') + h.test + 'm', W - 6, Y(h.test) - 3);
-    if (h.bottom && h.bottom < maxD) { c.fillStyle = '#2a2219'; c.fillRect(0, Y(h.bottom), W, Hh); c.fillStyle = 'rgba(200,170,130,.7)'; c.textAlign = 'right'; c.fillText(T('해저 ', 'seabed ', '海底 ') + Math.round(h.bottom) + 'm', W - 6, Y(h.bottom) + 13); }
-    /* 깊이 눈금 */
-    c.fillStyle = 'rgba(170,200,215,.5)'; c.textAlign = 'left'; c.font = '10px system-ui';
-    for (let d = 50; d < maxD; d += 50) { c.fillRect(0, Y(d), 5, 1); c.fillText(d + 'm', 7, Y(d) + 3); }
-    /* 우리 — 돌입 뒤 꺾으면 옆으로 빠진다 */
-    h.cx = cx; h.ppm = ppm;
-    let off = 0;
-    if (h.out) off = Math.min(90, h.out.horiz) * ppm * 0.6;
-    else if (h.phase === 'RUN' && h.turnAt != null) { const k = clamp((h.t - h.turnAt) / 3, 0, 1); off = (h.posture === 'SPRINT' ? 1.3 : h.posture === 'SILENT' ? 0.6 : 1) * 28 * k * (2 - k); }
-    if (h.phase === 'CHOOSE') off = 0;
-    h.subOff = (h.subOff || 0) + (off - (h.subOff || 0)) * 0.06;
-    const sx = cx - (h.side || 1) * h.subOff;
-    h.subX = sx;
-    drawSub(c, sx, Y(h.depth), 67 * ppm * 1.4, -h.side || 1, h.posture === 'DEEP' && Math.abs(h.target - h.depth) > 1 ? 0.12 : 0, tt);
-    /* 호위함 */
-    let ex = null;
-    if (h.phase === 'RUN' || h.phase === 'AFTER') {
-      const t = h.t, a0 = cx + h.side * (W * 0.55 + 60), a1 = cx + h.side * 110, ov = cx;
-      if (t < h.tc) ex = a0 + (a1 - a0) * (t / h.tc);
-      else if (t < h.tp) ex = a1 + (ov - a1) * ((t - h.tc) / (h.tp - h.tc));
-      else ex = ov - h.side * (t - h.tp) * 70;
-    } else { ex = cx + Math.sin(tt * 0.25) * W * 0.42; }
-    h.escX = ex;
-    if (ex > -160 && ex < W + 160) drawEscort(c, ex, surf, ppm, h.phase === 'RUN' ? (h.t > h.tc ? -h.side : -h.side) : (Math.cos(tt * 0.25) > 0 ? 1 : -1), h.phase === 'RUN' && h.t > h.tc ? 18 : 10, tt);
-    /* 핑 */
-    for (const f of h.fx) if (f.k === 'ping' && ex != null) {
-      const rr = f.t / 1.1 * Math.hypot(sx - ex, Y(h.depth) - surf) * 1.1, a = (1 - f.t / 1.1) * 0.55;
-      c.strokeStyle = 'rgba(140,220,255,' + a.toFixed(3) + ')'; c.lineWidth = 1.4; c.beginPath(); c.arc(ex, surf + 4, rr, 0.15 * Math.PI, 0.85 * Math.PI); c.stroke();
-    }
-    /* 폭뢰 · 헤지호그 */
-    if (h.dcs) for (const d of h.dcs) {
-      if (d.boom || h.t < d.t0 || d.dep == null) continue;
-      c.fillStyle = '#0a0c0e'; c.fillRect(d.bx - 2, Y(d.dep) - 3, 4, 5);
-    }
-    for (const f of h.fx) if (f.k === 'boom') {
-      const x = f.x, y = Y(f.dep), k = f.t / 2.6;
-      const rr = 6 + Math.min(1, f.t / 0.35) * 26, a = Math.max(0, 1 - f.t / 0.6);
-      const gg = c.createRadialGradient(x, y, 0, x, y, rr); gg.addColorStop(0, 'rgba(255,250,235,' + (a * 0.95).toFixed(3) + ')'); gg.addColorStop(1, 'rgba(200,230,240,0)');
-      c.fillStyle = gg; c.beginPath(); c.arc(x, y, rr, 0, 6.283); c.fill();
-      c.fillStyle = 'rgba(220,235,240,' + (0.5 * (1 - k)).toFixed(3) + ')';
-      for (let i = 0; i < 6; i++) { const by = y - (y - surf) * Math.min(1, k * 1.4) * (0.3 + i * 0.12), bx = x + Math.sin(i * 2.1 + f.t * 3) * 6; c.beginPath(); c.arc(bx, by, 1.5 + i * 0.3, 0, 6.283); c.fill(); }
-      if (k > 0.45) { const pa = (1 - k) * 1.4; c.fillStyle = 'rgba(235,242,245,' + clamp(pa, 0, 0.8).toFixed(3) + ')'; c.beginPath(); c.ellipse(x, surf - 8 * (k - 0.45) * 4, 6, 14 * (k - 0.4), 0, 0, 6.283); c.fill(); }
+    const D = S.D, sea = D.surf;
+    /* 바다 */
+    const g = c.createLinearGradient(0, 0, 0, H); g.addColorStop(0, sea ? '#30475a' : '#0d2230'); g.addColorStop(sea ? 0.32 : 0, sea ? '#5f7f92' : '#0d2230'); g.addColorStop(sea ? 0.33 : 0.01, '#16384a'); g.addColorStop(1, '#061218');
+    c.fillStyle = g; c.fillRect(0, 0, W, H);
+    const L = W * 0.04, Rr = W * 0.96, cy = H * 0.6, hh = H * 0.26;
+    const X = f => L + (Rr - L) * f;
+    /* 선체 윤곽 */
+    const hull = new Path2D();
+    hull.moveTo(L, cy); hull.bezierCurveTo(L + 6, cy - hh, X(0.08), cy - hh, X(0.12), cy - hh); hull.lineTo(X(0.9), cy - hh * 0.9);
+    hull.bezierCurveTo(X(0.97), cy - hh * 0.75, Rr, cy - hh * 0.3, Rr, cy); hull.bezierCurveTo(Rr, cy + hh * 0.3, X(0.97), cy + hh * 0.75, X(0.9), cy + hh * 0.85);
+    hull.lineTo(X(0.12), cy + hh); hull.bezierCurveTo(X(0.08), cy + hh, L + 6, cy + hh, L, cy); hull.closePath();
+    c.fillStyle = '#1c242a'; c.fill(hull);
+    /* 함교탑 */
+    c.fillStyle = '#232c33'; c.fillRect(X(0.35), cy - hh * 1.75, X(0.44) - X(0.35), hh * 0.8);
+    c.save(); c.clip(hull);
+    for (const cp of COMP) {
+      const x0 = X(cp.x0), x1 = X(cp.x1), iss = D.issues.filter(i => i.comp === cp.id && !i.done);
+      if (S.sel === cp.id) { c.fillStyle = 'rgba(232,188,104,.12)'; c.fillRect(x0, cy - hh, x1 - x0, hh * 2); }
+      const leak = iss.filter(i => i.k === 'LEAK').reduce((a, i) => Math.max(a, i.w || 0), 0);
+      if (leak > 0) { const wy = cy + hh - leak * hh * 1.6 + Math.sin(t * 3 + x0) * 1.2; c.fillStyle = 'rgba(60,140,190,.55)'; c.fillRect(x0, wy, x1 - x0, cy + hh - wy + 2); }
+      if (iss.some(i => i.k === 'FIRE')) { for (let k = 0; k < 6; k++) { const fx = x0 + (x1 - x0) * (0.15 + k * 0.14), fh = hh * (0.5 + 0.35 * Math.sin(t * 9 + k * 1.7)); const fg = c.createLinearGradient(0, cy + hh, 0, cy + hh - fh); fg.addColorStop(0, 'rgba(255,140,40,.85)'); fg.addColorStop(1, 'rgba(255,220,120,0)'); c.fillStyle = fg; c.beginPath(); c.moveTo(fx - 5, cy + hh); c.quadraticCurveTo(fx, cy + hh - fh * 1.2, fx + 5, cy + hh); c.fill(); } }
+      if (iss.some(i => i.k === 'GAS')) { c.fillStyle = 'rgba(190,220,90,' + (0.18 + 0.06 * Math.sin(t * 2)).toFixed(3) + ')'; c.fillRect(x0, cy - hh, x1 - x0, hh * 2); }
     }
     c.restore();
-    if (h.flash > 0) { c.fillStyle = 'rgba(0,0,0,' + (h.flash * 0.6).toFixed(3) + ')'; c.fillRect(0, 0, W, Hh); }
-    /* 숫자 */
-    c.fillStyle = 'rgba(225,235,240,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
-    c.fillText(T('심도 ', 'Depth ', '深度 ') + Math.round(h.depth) + 'm', 8, 16);
-    const hull = Math.max(1, (h.C.hull || 100) - (h.s.hullHit || 0) - h.dmg);
-    c.textAlign = 'right'; c.fillStyle = hull < 40 ? '#ff8a7a' : 'rgba(225,235,240,.9)'; c.fillText(T('선체 ', 'Hull ', '船体 ') + Math.round(hull) + '%', W - 8, 16);
-  }
-  function drawSub(c, x, y, L, dir, tilt, tt) {
-    c.save(); c.translate(x, y); c.rotate(tilt * dir); c.scale(dir, 1);
-    const hh = Math.max(4, L * 0.085);
-    c.fillStyle = '#2c363d'; c.beginPath();
-    c.moveTo(L * 0.5, 0); c.quadraticCurveTo(L * 0.42, -hh * 0.6, L * 0.3, -hh * 0.55); c.lineTo(-L * 0.36, -hh * 0.45);
-    c.quadraticCurveTo(-L * 0.5, -hh * 0.2, -L * 0.52, 0); c.quadraticCurveTo(-L * 0.46, hh * 0.45, -L * 0.3, hh * 0.5); c.lineTo(L * 0.3, hh * 0.5); c.quadraticCurveTo(L * 0.45, hh * 0.4, L * 0.5, 0); c.fill();
-    c.fillStyle = '#353f47'; c.fillRect(L * 0.02, -hh * 1.5, L * 0.13, hh);
-    c.fillStyle = 'rgba(200,220,230,.18)'; c.fillRect(-L * 0.36, -hh * 0.55, L * 0.66, 1);
-    c.restore();
-    if (H && (H.posture === 'SPRINT') && H.phase === 'RUN' && H.turnAt != null) {
-      c.fillStyle = 'rgba(210,230,240,.35)'; for (let i = 0; i < 5; i++) { c.beginPath(); c.arc(x - dir * L * 0.55 - dir * i * 5, y - Math.sin(tt * 6 + i) * 2 - i * 1.5, 1.4, 0, 6.283); c.fill(); }
+    /* 격벽 · 이름 · 표 */
+    c.strokeStyle = 'rgba(160,190,205,.35)'; c.lineWidth = 1;
+    c.font = '600 10px system-ui'; c.textAlign = 'center';
+    for (const cp of COMP) {
+      const x0 = X(cp.x0), x1 = X(cp.x1), mx = (x0 + x1) / 2;
+      if (cp.x0 > 0) { c.beginPath(); c.moveTo(x0, cy - hh * 0.95); c.lineTo(x0, cy + hh * 0.95); c.stroke(); }
+      c.fillStyle = 'rgba(205,220,230,.75)'; c.fillText(tx(cp.s), mx, cy - hh * 0.55);
+      const iss = S.D.issues.filter(i => i.comp === cp.id && !i.done);
+      iss.slice(0, 3).forEach((i, k) => {
+        const lab = tx(KIND[i.k].n).split(' ')[0], y = cy - hh * 0.18 + k * 13;
+        c.fillStyle = KIND[i.k].yard ? 'rgba(120,130,140,.85)' : i.k === 'FIRE' ? 'rgba(255,140,60,.9)' : i.k === 'GAS' ? 'rgba(190,220,90,.9)' : i.k === 'LEAK' ? 'rgba(120,190,240,.9)' : 'rgba(230,200,140,.9)';
+        c.font = '600 9.5px system-ui'; c.fillText(lab.length > 6 ? lab.slice(0, 6) : lab, mx, y);
+      });
+      const tm = S.D.issues.filter(i => i.comp === cp.id && i.team && !i.done);
+      tm.forEach((i, k) => { const T0 = TEAMS.find(z => z.id === i.team); c.fillStyle = T0.c; c.beginPath(); c.arc(mx - 8 + k * 16, cy + hh * 0.62, 6, 0, 6.283); c.fill(); c.fillStyle = '#081016'; c.font = '700 8px system-ui'; c.fillText(tx(T0.s).slice(0, 1), mx - 8 + k * 16, cy + hh * 0.62 + 3); });
     }
-  }
-  function drawEscort(c, x, surf, ppm, dir, kn, tt) {
-    const e = H.esc, w = e.len * ppm, hgt = e.mast * ppm * 1.15;
-    try {
-      const spec = window.Sil && Sil.classSpec ? Sil.classSpec(e.id) : null;
-      if (spec) { window.Sil.canvas(c, spec, { x, waterlineY: surf + 1 + Math.sin(tt * 1.3) * 0.8, width: w, height: hgt, mirror: dir > 0, detail: 3, color: '#050809',
-        paint: { seed: 'hd' + e.id, range: 450, night: H.night, theater: H.C.theater, speed: kn, sea: 2, wx: 'clear', time: tt, cache: false } }); return; }
-    } catch (err) {}
-    c.fillStyle = '#101418'; c.fillRect(x - w / 2, surf - hgt * 0.35, w, hgt * 0.35);
+    c.lineWidth = 1.4; c.strokeStyle = 'rgba(190,210,220,.5)'; c.stroke(hull);
+    for (const a of S.anim) a.t += 0.016;
+    S.anim = S.anim.filter(a => a.t < 1.2);
+    for (const a of S.anim) { const cp = COMP.find(x => x.id === a.comp); if (!cp) continue; const mx = (X(cp.x0) + X(cp.x1)) / 2; c.fillStyle = 'rgba(160,240,170,' + (1 - a.t / 1.2).toFixed(3) + ')'; c.font = '700 14px system-ui'; c.fillText('✓', mx, cy + hh * 0.3 - a.t * 14); }
+    if (sea) { c.fillStyle = 'rgba(230,240,245,.8)'; c.font = '600 10px system-ui'; c.textAlign = 'left'; c.fillText(T('부상 중 — 하늘 조심', 'Surfaced — watch the sky', '浮上中 — 空に注意'), 8, 14); }
   }
 
   /* ── 화면 ── */
-  const WHO = { hydro: ['청음수', 'Sonar', '聴音員'], exec: ['부장', 'XO', '副長'], eng: ['기관장', 'Chief', '機関長'], dc: ['손상통제', 'Damage ctl', '応急'], cap: ['함장', 'Captain', '艦長'] };
-  function line(who, text) { if (!H) return; H.lines.unshift({ who, text }); H.lines.length = Math.min(H.lines.length, 5); const el = $('epHdLog'); if (el) el.innerHTML = H.lines.map((l, i) => '<div class="' + l.who + (i ? '' : ' new') + '"><i>' + (WHO[l.who] ? T.apply(null, WHO[l.who]) : '') + '</i>' + l.text + '</div>').join(''); }
-  function ui() {
-    if (!H) return; const h = H, b = $('epHdBtns');
-    $('epHdRun').textContent = T('공격 ', 'Run ', '攻撃 ') + Math.max(1, h.run) + '/' + h.max;
-    const cw = h.contact > 0.66 ? T('핑이 우리를 꽉 잡고 있다', 'pings have us firmly', '探信にしっかり捕まっている') : h.contact > 0.4 ? T('핑이 우리를 잡고 있다', 'pings are holding us', '探信に捕まっている') : T('핑이 흔들린다', 'pings are wavering', '探信が揺らいでいる');
-    $('epHdSt').textContent = cw;
-    if (h.phase === 'CHOOSE') {
-      b.innerHTML = ['DEEP', 'SILENT', 'SPRINT', 'DECOY'].filter(k => k !== 'DECOY' || h.decoys > 0).map(k => '<button class="mini" data-p="' + k + '">' + T.apply(null, POST[k].ko) + '<small>' + T.apply(null, POST[k].sub) + (k === 'DECOY' ? h.decoys : '') + '</small></button>').join('');
-      $('epHdHint').textContent = T('판마다 버틸 자세를 고르고, 「고속 프로펠러!」가 들리면 전타로 꺾으십시오.', 'Pick how to ride each run. When you hear "fast screws!", turn hard.', '攻撃ごとに耐え方を選び、「高速スクリュー！」が聞こえたら転舵。');
-    } else if (h.phase === 'RUN') {
-      b.innerHTML = '<button class="mini go big" data-turn="1"' + (h.turnAt != null ? ' disabled' : '') + '>' + (h.turnAt != null ? T('꺾는 중…', 'Turning…', '転舵中…') : T('⟲ 지금 꺾는다 — 전타', '⟲ Hard over — now', '⟲ 今だ — 転舵')) + '<small>' + (h.cued ? T('지금!', 'now!', '今だ！') : T('「고속 프로펠러」를 기다린다', 'wait for the fast screws', '高速スクリューを待て')) + '</small></button>';
-      $('epHdHint').textContent = '';
-    } else if (h.phase === 'AFTER') {
-      b.innerHTML = '<button class="mini go" data-next="1">' + T('다음', 'Next', '次へ') + '</button>';
-    } else {
-      b.innerHTML = '<button class="mini go big" data-end="1">' + (h.result === 'FORCED' ? T('전투 위치로', 'Battle stations', '戦闘配置へ') : T('추적으로 돌아간다', 'Back to the shadowing', '追跡に戻る')) + '<small>' + (h.dmg ? T('선체 −', 'hull −', '船体 −') + h.dmg + '%' : T('피해 없음', 'no damage', '被害なし')) + '</small></button>';
-      $('epHdHint').textContent = '';
-    }
+  const WHO = { dc: ['손상통제', 'Damage ctl', '応急'], eng: ['기관장', 'Chief', '機関長'], obs: ['견시', 'Lookout', '見張り'], exec: ['부장', 'XO', '副長'] };
+  function line(who, text) { if (!S) return; S.lines.unshift({ who, text }); S.lines.length = Math.min(S.lines.length, 4); }
+  function labels() {
+    $('epDcrT').textContent = T('손상 수습', 'DAMAGE CONTROL', '損傷復旧');
+    $('epDcrHour').innerHTML = T('1시간 진행', 'Work 1 hour', '1時間作業') + '<small>' + T('배정한 반이 일한다', 'assigned gangs work', '配置した班が作業') + '</small>';
+    $('epDcrEnd').innerHTML = T('수습 마침', 'Stand down', '復旧終了') + '<small>' + T('남은 일은 🔧 로', 'rest later via 🔧', '残りは🔧で') + '</small>';
   }
+  function render() {
+    if (!S) return; const C = S.C, D = S.D;
+    labels();
+    $('epDcrHd').innerHTML = '<span>+' + D.hours + T('시간', 'h', '時間') + '</span><span>' + T('예비품 ', 'Spares ', '予備品 ') + '<b>' + C.sparesV670 + '</b></span><span>' + T('선체 ', 'Hull ', '船体 ') + '<b>' + Math.round(C.hull || 100) + '%</b></span>';
+    const busy = TEAMS.map(tm => { const i = D.issues.find(x => x.team === tm.id && !x.done); return '<div class="tm" style="--c:' + tm.c + '"><b>' + tx(tm.n) + '</b><span>' + (i ? tx(KIND[i.k].n) + ' · ' + tx(COMP.find(c => c.id === i.comp).s) : T('대기', 'idle', '待機')) + '</span></div>'; }).join('');
+    $('epDcrTeams').innerHTML = busy;
+    const list = D.issues.slice().sort((a, b) => (a.done - b.done) || ((KIND[a.k].yard ? 1 : 0) - (KIND[b.k].yard ? 1 : 0)) || (S.sel ? (b.comp === S.sel) - (a.comp === S.sel) : 0));
+    $('epDcrList').innerHTML = list.map(i => {
+      const K = KIND[i.k], cp = COMP.find(c => c.id === i.comp), need = K.h(i.sev), pct = clamp(i.prog / need, 0, 1);
+      if (i.done) return '<div class="it done"><div class="nm">✓ ' + tx(K.n) + ' <small>' + tx(cp.s) + '</small></div></div>';
+      if (K.yard) return '<div class="it yard"><div class="nm">' + tx(K.n) + ' <small>' + tx(cp.s) + '</small></div><div class="ds">' + T('바다에서는 못 고칩니다 — 조선소에서.', 'Cannot be fixed at sea — needs a yard.', '洋上では直せない — 工廠で。') + '</div></div>';
+      const tags = [Math.ceil(need) + T('시간', 'h', '時間')]; if (K.parts(i.sev)) tags.push(T('예비품 ', 'spares ', '予備品 ') + K.parts(i.sev)); if (K.surf) tags.push(T('부상 필요', 'surface', '浮上要'));
+      if (i.k === 'LEAK') tags.push(T('물 ', 'water ', '水位 ') + Math.round(i.w * 100) + '%');
+      return '<div class="it' + (i.team ? ' on' : '') + (S.sel === i.comp ? ' sel' : '') + '"><div class="nm">' + tx(K.n) + (i.sev > 1 ? ' ×' + i.sev : '') + ' <small>' + tx(cp.s) + '</small></div><div class="ds">' + tags.join(' · ') + '</div>' +
+        '<i class="bar"><em style="width:' + (pct * 100).toFixed(0) + '%"></em></i><div class="tb">' + TEAMS.map(tm => K.teams.includes(tm.id) ? '<button class="mini' + (i.team === tm.id ? ' go' : '') + '" data-i="' + i.id + '" data-t="' + tm.id + '" style="--c:' + tm.c + '">' + tx(tm.s) + (K.teams[0] === tm.id ? '' : '<small>' + T('느림', 'slow', '遅い') + '</small>') + '</button>' : '').join('') + '</div></div>';
+    }).join('');
+    $('epDcrSurf').innerHTML = D.surf ? T('잠항한다', 'Dive', '潜航する') + '<small>' + T('갑판 일 멈춤', 'stops deck work', '甲板作業停止') + '</small>' : T('부상한다', 'Surface', '浮上する') + '<small>' + T('외판 · 환기 · 비행기 위험', 'hull · venting · air risk', '外板・換気・航空機の危険') + '</small>';
+    $('epDcrLog').innerHTML = S.lines.map((l, k) => '<div class="' + (k ? '' : 'new') + '"><i>' + (WHO[l.who] ? tx(WHO[l.who]) : '') + '</i>' + l.text + '</div>').join('');
+  }
+  function toast(msg) { const C = CS(); try { if (window.WorldView && WorldView.tip) WorldView.tip(msg); } catch (e) {} let t = $('epDcrToast'); if (!t) { t = document.createElement('div'); t.id = 'epDcrToast'; document.body.appendChild(t); } t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); }
   function build() {
-    if ($('epHd')) return;
-    const st = document.createElement('style'); st.id = 'ep-v669-hold-style';
-    st.textContent = '#epHd{position:fixed;inset:0;z-index:9150;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.86)}#epHd.on{display:flex}' +
-      '#epHd .hb{width:min(96vw,460px);max-height:96vh;overflow:auto;background:var(--panel,#0e1a22);border:1px solid #c66;border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
-      '#epHd h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:#ff8a7a;display:flex;justify-content:space-between;align-items:baseline}#epHd h3 small{font-size:11px;letter-spacing:0;color:var(--dim,#8aa);font-weight:500}' +
-      '#epHd canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px;background:#000}' +
-      '#epHd .st{font-size:12px;color:#9fd4ff;margin:6px 2px 4px}#epHd .log{min-height:92px;font-size:12.5px;line-height:1.45}#epHd .log div{opacity:.62;margin:2px 0}#epHd .log div.new{opacity:1}' +
-      '#epHd .log i{font-style:normal;font-weight:700;margin-right:6px;color:var(--amber,#e0b060)}#epHd .log .hydro i{color:#8fd0ff}#epHd .log .dc i{color:#ff8a7a}#epHd .log .cap i{color:#9fe0b0}' +
-      '#epHd .btns{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px}#epHd .btns button small{display:block;font-size:10.5px;opacity:.72}#epHd .btns .big{grid-column:span 2;padding:12px 6px;font-size:15px}' +
-      '#epHd .btns [data-next]{grid-column:span 2}#epHd .hint{font-size:11px;color:var(--dim,#8aa);margin-top:6px;line-height:1.4}';
+    if ($('epDcr')) return;
+    const st = document.createElement('style'); st.id = 'ep-v670-dc-style';
+    st.textContent = '#epDcr{position:fixed;inset:0;z-index:9120;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epDcr.on{display:flex}' +
+      '#epDcr .bx{width:min(96vw,470px);max-height:96vh;overflow:auto;background:var(--panel,#0e1a22);border:1px solid var(--amber,#e0b060);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epDcr h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:var(--amber,#e0b060)}#epDcr .hd{display:flex;gap:12px;font-size:12px;color:var(--dim,#8aa);margin-bottom:6px}#epDcr .hd b{color:var(--ink,#dfe)}' +
+      '#epDcr canvas{display:block;width:100%;aspect-ratio:3/1.25;border-radius:8px;background:#000;touch-action:manipulation}' +
+      '#epDcr .teams{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin:7px 0}#epDcr .tm{border:1px solid var(--c);border-radius:8px;padding:4px 6px;font-size:11px;line-height:1.3}#epDcr .tm b{display:block;color:var(--c);font-size:11.5px}#epDcr .tm span{color:var(--ink,#dfe);opacity:.85}' +
+      '#epDcr .list{display:grid;gap:5px;max-height:34vh;overflow:auto;padding-right:2px}#epDcr .it{border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:6px 7px}#epDcr .it.on{border-color:var(--amber,#e0b060)}#epDcr .it.sel{background:rgba(232,188,104,.06)}' +
+      '#epDcr .it.done{opacity:.45;padding:4px 7px}#epDcr .it.yard{opacity:.6}#epDcr .nm{font-size:13px;font-weight:600}#epDcr .nm small{font-weight:400;color:var(--dim,#8aa);margin-left:4px}#epDcr .ds{font-size:11px;color:var(--dim,#8aa);margin-top:1px}' +
+      '#epDcr .bar{display:block;height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin:5px 0}#epDcr .bar em{display:block;height:100%;border-radius:2px;background:var(--amber,#e0b060)}' +
+      '#epDcr .tb{display:flex;gap:5px}#epDcr .tb button{flex:1;padding:5px 2px;font-size:12px;border-color:var(--c)}#epDcr .tb button.go{background:var(--c);color:#081016}#epDcr .tb button small{display:block;font-size:9.5px;opacity:.7}' +
+      '#epDcr .log{min-height:58px;font-size:12px;line-height:1.45;margin-top:7px}#epDcr .log div{opacity:.6}#epDcr .log div.new{opacity:1}#epDcr .log i{font-style:normal;font-weight:700;color:var(--amber,#e0b060);margin-right:6px}' +
+      '#epDcr .ctl{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:6px;margin-top:8px}#epDcr .ctl button small{display:block;font-size:10px;opacity:.7}' +
+      '#epDcrBtn{display:none}#epDcrBtn.on{display:block}#epDcrBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}' +
+      '#epDcrToast{position:fixed;left:50%;bottom:22vh;transform:translateX(-50%);z-index:9600;background:rgba(10,15,19,.94);border:1px solid var(--amber,#e0b060);color:var(--ink,#dfe);padding:8px 12px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .3s}#epDcrToast.on{opacity:1}';
     document.head.appendChild(st);
-    const el = document.createElement('div'); el.id = 'epHd';
-    el.innerHTML = '<div class="hb"><h3><span>' + T('폭 뢰', 'DEPTH CHARGES', '爆 雷') + '</span><small id="epHdRun"></small></h3><canvas id="epHdCv"></canvas><div class="st" id="epHdSt"></div><div class="log" id="epHdLog"></div><div class="btns" id="epHdBtns"></div><div class="hint" id="epHdHint"></div></div>';
+    const el = document.createElement('div'); el.id = 'epDcr';
+    el.innerHTML = '<div class="bx"><h3 id="epDcrT"></h3><div class="hd" id="epDcrHd"></div><canvas id="epDcrCv"></canvas>' +
+      '<div class="teams" id="epDcrTeams"></div><div class="list" id="epDcrList"></div><div class="log" id="epDcrLog"></div>' +
+      '<div class="ctl"><button class="mini go" id="epDcrHour"></button><button class="mini" id="epDcrSurf"></button><button class="mini" id="epDcrEnd"></button></div></div>';
     document.body.appendChild(el);
     el.addEventListener('click', e => {
-      const b = e.target.closest('button'); if (!b || !H) return;
-      if (b.dataset.p) choose(b.dataset.p);
-      else if (b.dataset.turn) turn();
-      else if (b.dataset.next) { nextStep(); }
-      else if (b.dataset.end) finishScene();
+      const b = e.target.closest('button'); if (!S) return;
+      if (b && b.dataset.i) { assign(b.dataset.i, b.dataset.t); return; }
+      if (b && b.id === 'epDcrHour') { if (!S.D.issues.some(i => i.team && !i.done)) { line('dc', T('먼저 수리반을 일감에 배정하십시오.', 'Assign a repair gang to a job first.', 'まず修理班を作業に割り当ててください。')); render(); return; } hour(); return; }
+      if (b && b.id === 'epDcrSurf') { S.D.surf = !S.D.surf; line('exec', S.D.surf ? T('부상. 해치 열고 환기 — 견시 배치.', 'Surfacing. Hatches open, ventilate — lookouts up.', '浮上。ハッチを開け換気 — 見張り配置。') : T('잠항. 갑판 일은 접는다.', 'Diving. Deck work stops.', '潜航。甲板作業は中止。')); render(); return; }
+      if (b && b.id === 'epDcrEnd') { close(); return; }
+    });
+    $('epDcrCv').addEventListener('click', e => {
+      if (!S) return; const r = e.currentTarget.getBoundingClientRect(), f = ((e.clientX - r.left) / r.width - 0.04) / 0.92;
+      const cp = COMP.find(c => f >= c.x0 && f < c.x1); S.sel = cp && S.sel !== cp.id ? cp.id : null; render();
     });
   }
-  window.EP_V669_HOLD = { version: '6.69.0', open, state: () => H, choose, turn, next: () => nextStep(), end: () => finishScene() };
+  /* ── 지도 위 🔧 단추 ── */
+  function button() {
+    let b = $('epDcrBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epDcrBtn'; b.textContent = '🔧'; b.title = T('손상 수습', 'Damage control', '損傷復旧'); b.addEventListener('click', () => open(true)); z.appendChild(b); }
+    const C = CS(); let want = false;
+    if (C && C.status === 'AT_SEA') { const lost = 100 - (C.hull || 100), D = C.dcV670; want = D ? D.issues.some(i => !i.done && !KIND[i.k].yard) : (lost >= 2 || ((C.damage && (C.damage.engine >= 0.08 || C.damage.depthCtrl >= 0.08)))); }
+    b.classList.toggle('on', want); b.classList.toggle('want', want);
+  }
+  /* ── 전투가 끝나면 — 사관실 · 구명정 장면 뒤에 연다 ── */
+  let wrapped = false;
+  function wrap() {
+    const CP = window.Campaign; if (wrapped || !CP || !CP.resolveEncounter) return;
+    const o = CP.resolveEncounter;
+    const f = function (a) {
+      const C0 = CP.state(), hp0 = C0 ? C0.hull : 100, e0 = C0 && C0.damage ? (C0.damage.engine || 0) : 0, d0 = C0 && C0.damage ? (C0.damage.depthCtrl || 0) : 0;
+      const r = o.apply(this, arguments);
+      try { const C = CP.state(); if (C && C.status === 'AT_SEA') {
+        const lost = hp0 - C.hull, de = ((C.damage && C.damage.engine) || 0) - e0, dd = ((C.damage && C.damage.depthCtrl) || 0) - d0;
+        if (lost >= 4 || de >= 0.08 || dd >= 0.08) { if (C.dcV670) { const add = gen(C, Math.max(0, lost)); C.dcV670.issues = C.dcV670.issues.concat(add); C.dcV670.hullCap += Math.round(Math.max(0, lost) * 0.6); } C.dcPendingV670 = true; } } } catch (e) {}
+      return r;
+    };
+    Object.assign(f, o); CP.resolveEncounter = f; wrapped = true;
+  }
+  function busy() { return !!document.querySelector('.ov.on, #epMorse.on, #epNav.on, #epLb.on, #epDec.on, #epHy.on, #epAA.on, #epKtb.on, #epAft.on, #epTrack.on, #epDcr.on'); }
+  function watch() {
+    wrap(); button();
+    const C = CS(); if (!C || !C.dcPendingV670 || C.status !== 'AT_SEA' || busy()) return;
+    const w = $('world'); if (!w || !w.classList.contains('on')) return;
+    C.dcPendingV670 = false; setTimeout(() => { if (!busy()) open(false); else C.dcPendingV670 = true; }, 900);
+  }
+  function init() { setInterval(watch, 700); window.EP_V670_DC = { version: '6.70.0', open, close, state: () => S, assign, hour, KIND, COMP }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v671-trim-script">
+/* ══════════ V6.71 트림 — 쏘고 나면 이물이 뜬다 ══════════
+   잠망경 심도에서 어뢰를 쏘면 한 발에 1.5톤 남짓이 앞에서 빠져나간다. 보상 탱크에 바로 물을 받지 않으면
+   이물이 들리고, 배가 떠올라 함교탑이 물 위로 튀어나온다(브로칭) — 막 쏜 자리에서 가장 보이면 안 될 때다.
+   · 함수 발사 → 이물이 가볍다. 함미 발사 → 고물이 가볍다.
+   · 「앞 탱크 주수」를 누르고 있으면 이물이 무거워지고, 「뒤로 옮김」은 그 반대. 수평과 잠망경 심도(11~17m)를 지키면 끝.
+   · 손대지 않아도 기관장이 잡는다 — 다만 숙련만큼 느리게. 많이 쏠수록 위험하다.
+   · 너무 뜨면 함교탑이 드러나 가까운 호위함이 우리를 본다. 너무 무거우면 잠망경이 물에 잠긴다(잠깐 못 본다).
+   · 시간이 멈춰 있으면 트림도 멈춘다. 깊이 잠항해 쏜 경우에는 열리지 않는다. 한 · 영 · 일. */
+(function EP_V671_TRIM() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const U = () => window.UBOAT;
+  let S = null, raf = 0, hooked = false;
+
+  function skill() {
+    try { const C = window.Campaign && Campaign.state && Campaign.state(); const q = C && C.crewCareer && (C.crewCareer.engine || C.crewCareer.eng); if (q && Number.isFinite(q.skill)) return q.skill; } catch (e) {}
+    try { const w = window.War && War.state && War.state(); const q = w && w.crewCareer && (w.crewCareer.engine || w.crewCareer.eng); if (q && Number.isFinite(q.skill)) return q.skill; } catch (e) {}
+    return 0.55;
+  }
+  function onFire(d) {
+    const g = U() && U().state(); if (!g || !g.boat) return;
+    const b = g.boat, n = (d && d.count) || 1;
+    if (b.depth < 8 || b.depth > 22) return;                     /* 부상 · 깊은 잠항 발사는 트림 장면 없음 */
+    const M = (d && d.aft ? -1 : 1) * n * 1.5;
+    if (S && !S.done) { S.M += M; S.left = 25; return; }          /* 연달아 쏘면 쌓인다 */
+    S = { M, comp: 0, th: 0, z: b.depth, z0: clamp(b.depth, 11, 17), t: 0, left: 25, hold: 0, ok: 0, broach: false, sunk: 0, done: false, lastG: g.time, sk: skill(), aft: !!(d && d.aft) };
+    build(); $('epTrim').classList.add('on'); say(S.aft ? T('고물이 가볍습니다 — 트림!', 'Stern is light — trim!', '艦尾が軽い — トリム！') : T('이물이 뜹니다 — 트림!', 'Bow is coming up — trim!', '艦首が浮く — トリム！'));
+    cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+  }
+  function loop(now) {
+    if (!S) return;
+    const g = U() && U().state(); if (!g || !g.boat) { end(); return; }
+    let dt = Math.min(0.05, (now - S.last) / 1000); S.last = now;
+    /* 시계가 멈추면 트림도 멈춘다 — 엔진은 화면보다 드물게 걸으니 잠깐의 정지는 흘려 본다 */
+    if (g.time > S.lastG) { S.stall = 0; S.lastG = g.time; } else { S.stall = (S.stall || 0) + dt; if (S.stall > 0.3) dt = 0; }
+    if (dt > 0 && !S.done) step(dt, g);
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+  function step(dt, g) {
+    const s = S, b = g.boat;
+    s.t += dt; s.left -= dt;
+    /* 손 — 누르고 있는 동안 보상량이 움직인다 */
+    if (s.hold) s.comp += s.hold * 1.2 * dt;
+    /* 기관장 — 숙련만큼, 늦게 */
+    if (s.t > 1.8 - s.sk) s.comp += clamp(s.M - s.comp, -1, 1) * (0.15 + s.sk * 0.35) * dt;
+    const N = s.M - s.comp;
+    const spd = clamp((Math.abs(b.speed || 0) / 0.5144) / 4, 0.6, 2);
+    s.th += (N * 1.1 - s.th) * 0.6 * dt;
+    s.z += (-s.th * 0.18 * spd + (s.z0 - s.z) * 0.06) * dt;
+    if (s.broach) { s.bt -= dt; if (s.bt <= 0) { s.broach = false; } else s.z = Math.min(s.z, 6.5); }
+    b.depth = s.z;
+    if (!s.broached && s.z < 9) broach(g);
+    if (s.z > 22 && !s.sunk) { s.sunk = 1; say(T('너무 무겁다 — 잠망경이 잠겼습니다!', 'Too heavy — the periscope has dipped under!', '重すぎる — 潜望鏡が沈んだ！')); }
+    if (s.z < 20 && s.sunk === 1) s.sunk = 2;
+    const good = Math.abs(N) < 0.3 && Math.abs(s.th) < 1 && s.z >= 11 && s.z <= 17.5;
+    s.ok = good ? s.ok + dt : 0;
+    if (s.ok > 2) { s.done = true; say(T('트림 잡았습니다. 수평, 잠망경 심도.', 'Trim caught. Level, at periscope depth.', 'トリム良し。水平、潜望鏡深度。')); setTimeout(end, 1600); }
+    else if (s.left <= 0) { s.done = true; s.comp = s.M; say(T('기관장이 잡았습니다.', 'The Chief has her.', '機関長が押さえました。')); setTimeout(end, 1400); }
+  }
+  function broach(g) {
+    const s = S; s.broached = true; s.broach = true; s.bt = 3.5; s.z = 6.5;
+    say(T('함교탑이 물 위로 나왔습니다! 다 봤을 겁니다!', 'The tower has broken the surface! They\'ve seen us!', '司令塔が水面に出た！見られたぞ！'), true);
+    try { const u = U(), b = g.boat;
+      for (const e of (g.escorts || [])) { if (e.sunk || e.alive === false) continue; const r = Math.hypot(e.x - b.x, e.y - b.y);
+        if (r < 4500) u.pushEscortContact(e, { x: b.x + (R() - 0.5) * 300, y: b.y + (R() - 0.5) * 300 }, clamp(0.75 - r / 9000, 0.25, 0.75), 'visual'); }
+      if (u.report) u.report('P0', 'exec', T('브로칭 — 함교탑이 드러났다. 호위가 이쪽을 본다.', 'Broached — the tower showed. The escorts are looking this way.', 'ブローチング — 司令塔が露出。護衛がこちらを見ている。'));
+    } catch (e) {}
+    try { window.Snd && Snd.event && Snd.event('spotted', {}); } catch (e) {}
+  }
+  function end() { cancelAnimationFrame(raf); raf = 0; S = null; const el = $('epTrim'); if (el) el.classList.remove('on'); }
+
+  /* ── 그림 ── */
+  function say(t, bad) { const el = $('epTrimMsg'); if (el) { el.textContent = t; el.classList.toggle('bad', !!bad); } }
+  function draw() {
+    const cv = $('epTrimCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(160, r.width), H = Math.max(70, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    const s = S, surfY = 10, zp = d => surfY + d * (H - surfY - 6) / 30;
+    /* 물 · 잠망경 심도 띠 */
+    c.fillStyle = '#0c2230'; c.fillRect(0, surfY, W, H - surfY); c.fillStyle = '#2e4656'; c.fillRect(0, 0, W, surfY);
+    c.fillStyle = 'rgba(120,220,150,.12)'; c.fillRect(0, zp(11), W * 0.72, zp(17.5) - zp(11));
+    c.strokeStyle = 'rgba(200,230,240,.5)'; c.beginPath(); c.moveTo(0, surfY); c.lineTo(W, surfY); c.stroke();
+    /* 배 — 기울기 · 심도 */
+    const bx = W * 0.36, by = zp(s.z), L = W * 0.46, th = clamp(s.th, -14, 14) * Math.PI / 180;
+    c.save(); c.translate(bx, by); c.rotate(-th);
+    c.fillStyle = s.broach ? '#7a5048' : '#3a4650'; c.beginPath(); c.ellipse(0, 0, L / 2, 5, 0, 0, 6.283); c.fill();
+    c.fillRect(-L * 0.04, -12, L * 0.12, 8); c.fillStyle = '#9fb3bf'; c.fillRect(L * 0.02, -22, 1.5, 10);
+    c.fillStyle = 'rgba(200,220,230,.7)'; c.font = '600 9px system-ui'; c.textAlign = 'right'; c.fillText(T('이물 ▸', 'bow ▸', '艦首 ▸'), L / 2 - 2, 15);
+    c.restore();
+    /* 수평계 — 기포 */
+    const lx = W * 0.8, lw = W * 0.17, ly = H * 0.32;
+    c.fillStyle = 'rgba(255,255,255,.06)'; c.fillRect(lx, ly - 7, lw, 14); c.strokeStyle = 'rgba(255,255,255,.3)'; c.strokeRect(lx, ly - 7, lw, 14);
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(lx + lw / 2 - 0.5, ly - 7, 1, 14);
+    const bub = lx + lw / 2 + clamp(s.th / 6, -1, 1) * (lw / 2 - 6);
+    c.fillStyle = Math.abs(s.th) < 1 ? '#8fe0a0' : Math.abs(s.th) < 3.5 ? '#e8c068' : '#ff8a7a'; c.beginPath(); c.arc(bub, ly, 5, 0, 6.283); c.fill();
+    c.fillStyle = 'rgba(220,235,240,.85)'; c.font = '600 11px system-ui'; c.textAlign = 'center';
+    c.fillText((s.th >= 0 ? '+' : '') + s.th.toFixed(1) + '°', lx + lw / 2, ly + 22);
+    c.fillText(s.z.toFixed(1) + 'm', lx + lw / 2, ly + 37);
+    /* 남은 무게 막대 */
+    const N = s.M - s.comp, nx = W * 0.8, ny = H - 12;
+    c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(nx, ny, lw, 5); c.fillStyle = Math.abs(N) < 0.25 ? '#8fe0a0' : '#e8c068';
+    const nw = clamp(N / 6, -1, 1) * lw / 2; c.fillRect(nx + lw / 2 + Math.min(0, nw), ny, Math.abs(nw), 5);
+    c.textAlign = 'left'; c.font = '10px system-ui'; c.fillStyle = 'rgba(200,220,230,.6)'; c.fillText(T('잠망경 심도', 'periscope depth', '潜望鏡深度'), 4, zp(11) + 10);
+  }
+  function build() {
+    if ($('epTrim')) { labels(); return; }
+    const st = document.createElement('style'); st.id = 'ep-v671-trim-style';
+    st.textContent = '#epTrim{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 58px);transform:translateX(-50%);z-index:600;width:min(94vw,380px);display:none;background:rgba(8,14,18,.95);border:1px solid var(--amber,#e0b060);border-radius:11px;padding:7px;box-shadow:0 6px 24px rgba(0,0,0,.55);color:var(--ink,#dfe)}' +
+      '#epTrim.on{display:block}#epTrim .hd{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:4px}#epTrim .hd b{color:var(--amber,#e0b060);letter-spacing:.08em}' +
+      '#epTrim canvas{display:block;width:100%;height:96px;border-radius:7px}#epTrim .msg{font-size:12.5px;min-height:18px;margin:5px 2px}#epTrim .msg.bad{color:#ff8a7a;font-weight:700}' +
+      '#epTrim .bt{display:grid;grid-template-columns:1fr 1fr;gap:6px}#epTrim .bt button{padding:10px 4px;font-size:13px;touch-action:none;user-select:none;-webkit-user-select:none}#epTrim .bt button small{display:block;font-size:10px;opacity:.7}#epTrim .bt button.hold{background:var(--amber,#e0b060);color:#081016}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epTrim';
+    el.innerHTML = '<div class="hd"><b id="epTrimT"></b><small id="epTrimS"></small></div><canvas id="epTrimCv"></canvas><div class="msg" id="epTrimMsg"></div>' +
+      '<div class="bt"><button class="mini" id="epTrimF" data-h="1"></button><button class="mini" id="epTrimA" data-h="-1"></button></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    labels();
+  }
+  function labels() {
+    $('epTrimT').textContent = T('트 림', 'T R I M', 'ト リ ム');
+    $('epTrimS').textContent = T('누르고 있는 동안 물을 옮깁니다', 'Hold to move water', '押している間、水を移す');
+    $('epTrimF').innerHTML = T('앞 탱크 주수', 'Flood forward', '前部注水') + '<small>' + T('이물을 무겁게 ▼', 'bow heavier ▼', '艦首を重く ▼') + '</small>';
+    $('epTrimA').innerHTML = T('뒤로 옮김', 'Pump aft', '後部へ移送') + '<small>' + T('이물을 가볍게 ▲', 'bow lighter ▲', '艦首を軽く ▲') + '</small>';
+  }
+  function hook() {
+    if (hooked) return; const u = U(); if (!u || !u.on) return;
+    u.on((kind, d) => { if (kind === 'fire') { try { onFire(d); } catch (e) {} } else if (kind === 'end') end(); });
+    hooked = true;
+  }
+  function init() { setInterval(hook, 800); hook(); window.EP_V671_TRIM = { version: '6.71.0', state: () => S, fire: onFire, end, hold: h => { if (S) S.hold = h; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v672-enigma-script">
+/* ══════════ V6.72 암호 전문 — 회전자를 맞춰 푼다 ══════════
+   사령부의 선단 보고 가운데 일부는 「우선 · 암호」로 온다. 풀기 전에는 해도에 선단이 나타나지 않는다.
+   · 오늘의 열쇠표(회전자 순서 · 기본 위치 · 플러그 세 쌍)대로 기계를 맞춘다.
+   · ① 기본 위치에서 머리의 지시자 세 글자를 치면 이번 전문의 열쇠가 램프에 뜬다.
+     ② 회전자를 그 열쇠에 맞추고 본문을 치면 평문이 나온다 — 해군의 실제 절차를 줄인 것이다.
+   · 기계는 진짜 회전자 기계다(회전자 I~V, 반사판 B, 이중 진행, 플러그보드). 하나라도 틀리면 글자 범벅이 나온다.
+   · 시도마다 15분. 손대지 않으면 통신사가 몇 시간 뒤 풀어 주지만, 그때는 위치가 오래된 정보다.
+   · 독일 보트는 에니그마 M4(그리스 회전자 β·A 고정 — M3 와 같게 돈다), 미군은 ECM Mark II, 일본은 97식 인자기로 부른다.
+   한 · 영 · 일. */
+(function EP_V672_ENIGMA() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', ci = ch => ch.charCodeAt(0) - 65, ch = i => A[((i % 26) + 26) % 26];
+
+  /* ── 기계 ── */
+  const ROT = { I: ['EKMFLGDQVZNTOWYHXUSPAIBRCJ', 'Q'], II: ['AJDKSIRUXBLHWTMCQGZNPYFVOE', 'E'], III: ['BDFHJLCPRTXVZNYEIWGAKMUSQO', 'V'], IV: ['ESOVPZJAYQUIRHXLNFTGKDCMWB', 'J'], V: ['VZBRGITYUPSDNHLXAWMJQOFECK', 'Z'] };
+  const NAMES = ['I', 'II', 'III', 'IV', 'V'], REF = 'YRUHQSLDPXNGOKMIEBFZCWVJAT';
+  function machine(order, pos, pairs) {
+    const plug = {}; for (const p of pairs) { if (p.length === 2) { plug[p[0]] = p[1]; plug[p[1]] = p[0]; } }
+    const P = pos.map(ci);
+    const fw = order.map(n => ROT[n][0]), nt = order.map(n => ci(ROT[n][1]));
+    const inv = fw.map(w => { const o = []; for (let i = 0; i < 26; i++) o[ci(w[i])] = i; return o; });
+    const pass = (c, k, back) => { const sh = P[k]; return back ? (inv[k][(c + sh) % 26] - sh + 26) % 26 : (ci(fw[k][(c + sh) % 26]) - sh + 26) % 26; };
+    return {
+      pos: () => P.map(ch).join(''),
+      key(letter) {
+        /* 이중 진행 — 가운데가 자기 홈에 있으면 가운데와 왼쪽이 함께 돈다 */
+        if (P[1] === nt[1]) { P[1] = (P[1] + 1) % 26; P[0] = (P[0] + 1) % 26; }
+        else if (P[2] === nt[2]) P[1] = (P[1] + 1) % 26;
+        P[2] = (P[2] + 1) % 26;
+        let c = ci(plug[letter] || letter);
+        c = pass(c, 2); c = pass(c, 1); c = pass(c, 0);
+        c = ci(REF[c]);
+        c = pass(c, 0, true); c = pass(c, 1, true); c = pass(c, 2, true);
+        const o = ch(c); return plug[o] || o;
+      }
+    };
+  }
+  const run = (order, pos, pairs, text) => { const m = machine(order, pos.split(''), pairs); return text.split('').map(x => m.key(x)).join(''); };
+
+  /* ── 오늘의 열쇠 · 전문 ── */
+  function hash(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function dayIso(C) { try { return EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24); } catch (e) { return 'D' + Math.floor((C.hours || 0) / 24); } }
+  function dayKey(C, iso) {
+    const r = rng(hash((C.theater || '') + '|' + iso + '|' + (C.boatId || '')));
+    const ns = NAMES.slice(); const order = []; for (let i = 0; i < 3; i++) order.push(ns.splice(Math.floor(r() * ns.length), 1)[0]);
+    const pos = [0, 1, 2].map(() => A[Math.floor(r() * 26)]).join('');
+    const pool = A.split(''); const pairs = []; for (let i = 0; i < 3; i++) { const a = pool.splice(Math.floor(r() * pool.length), 1)[0], b = pool.splice(Math.floor(r() * pool.length), 1)[0]; pairs.push(a + b); }
+    return { order, pos, pairs, iso };
+  }
+  const NUM = { DE: ['NULL', 'EINS', 'ZWO', 'DREI', 'VIER', 'FUENF', 'SECHS', 'SIEBEN', 'ACHT', 'NEUN'], US: ['ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE'], JP: ['REI', 'ICHI', 'NI', 'SAN', 'YON', 'GO', 'ROKU', 'NANA', 'HACHI', 'KYU'] };
+  function natOf(th) { return th === 'PACIFIC' ? 'US' : th === 'EASTPAC' ? 'JP' : 'DE'; }
+  const spell = (nat, s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, '').split('').map(c => /\d/.test(c) ? NUM[nat][+c] : c).join('');
+  function plainOf(nat, r) {
+    const g = spell(nat, r.grid || 'XX'), k = spell(nat, String(r.course).padStart(3, '0')), v = spell(nat, r.speedKn), n = spell(nat, r.size);
+    if (nat === 'DE') return 'GELEITZUGQU' + g + 'KURS' + k + 'FAHRT' + v + 'STAERKE' + n + 'ANGREIFEN';
+    if (nat === 'US') return 'ENEMYCONVOYSQ' + g + 'COURSE' + k + 'SPEED' + v + 'SHIPS' + n + 'ATTACK';
+    return 'TEKISENDANKUIKI' + g + 'HOKO' + k + 'SOKU' + v + 'SEKISU' + n + 'KOGEKISEYO';
+  }
+  const MACH = { DE: ['에니그마 M4', 'Enigma M4', 'エニグマM4'], US: ['ECM Mark II', 'ECM Mark II', 'ECMマークII'], JP: ['97식 인자기', 'Type 97 machine', '九七式印字機'] };
+
+  /* ── 새 보고 가운데 일부를 암호 전문으로 ── */
+  function watchReports() {
+    const C = CS(); if (!C || !Array.isArray(C.reports) || C.status !== 'AT_SEA') return;
+    C.encSeenV672 = C.encSeenV672 || [];
+    for (const r of C.reports) {
+      if (C.encSeenV672.includes(r.id)) continue;
+      C.encSeenV672.push(r.id); if (C.encSeenV672.length > 40) C.encSeenV672.shift();
+      if (C.hours - (r.at || 0) > 1 || R() > 0.4 || C.reports.some(x => x.encV672 && x !== r)) continue;
+      encrypt(C, r);
+    }
+    /* 손대지 않으면 통신사가 풀어 준다 — 늦게 */
+    for (const r of C.reports) if (r.encV672 && C.hours >= r.encV672.autoAt) { reveal(C, r, false); }
+  }
+  function encrypt(C, r) {
+    {
+      const nat = natOf(C.theater), iso = dayIso(C), K = dayKey(C, iso);
+      const mk = [0, 1, 2].map(() => A[Math.floor(R() * 26)]).join('');
+      const plain = plainOf(nat, r);
+      r.encV672 = { iso, nat, ind: run(K.order, K.pos, K.pairs, mk), mk, body: run(K.order, mk, K.pairs, plain), plain, at: C.hours, autoAt: C.hours + 4 + R() * 4, tries: 0 };
+      /* 방금 찍힌 「무전 — 그리드…」 줄을 암호 수신으로 바꾼다 */
+      try { const L = C.log.find(l => l.kind === 'report' && l.text && l.text.indexOf(r.grid) >= 0 && Math.abs((l.h || 0) - (r.at || 0)) < 0.6);
+        if (L) { const ko = '무전 — 우선 · 암호 전문 수신. 풀어야 내용을 압니다.', en = 'Radio — priority signal received, enciphered. We must break it out to read it.', ja = '無電 — 優先・暗号電文受信。解読しないと内容は分かりません。';
+          L.text = ko; L.variants = { ko, en, ja }; } } catch (e) {}
+      snd('radio');
+    }
+  }
+  function reveal(C, r, manual) {
+    const e = r.encV672; if (!e) return; r.encV672 = null;
+    if (manual) { r.at = C.hours - 0.3; r.strength = Math.max(r.strength || 0, 1); }
+    const ko = (manual ? '해독 — ' : '통신사가 늦게 풀었습니다 — ') + r.grid + ' 에 선단. 침로 ' + String(r.course).padStart(3, '0') + '도, 약 ' + r.speedKn + '노트, ' + r.size + '척.';
+    const en = (manual ? 'Deciphered — ' : 'The radioman broke it out, late — ') + 'convoy in ' + r.grid + ', course ' + String(r.course).padStart(3, '0') + ', about ' + r.speedKn + ' kn, ' + r.size + ' ships.';
+    const ja = (manual ? '解読 — ' : '通信士が遅れて解読 — ') + r.grid + 'に船団。針路' + String(r.course).padStart(3, '0') + '度、約' + r.speedKn + 'ノット、' + r.size + '隻。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e2) {}
+    try { Campaign.save(); } catch (e2) {}
+  }
+  function wrapTracks() {
+    const CP = window.Campaign; if (!CP || !CP.tracks || CP.tracks.__encV672) return;
+    const o = CP.tracks;
+    const f = function () { const C = CP.state(), list = o.apply(this, arguments) || []; if (!C || !C.reports) return list; return list.filter(t => { const r = C.reports.find(z => z.id === t.id); return !(r && r.encV672); }); };
+    Object.assign(f, o); f.__encV672 = true; CP.tracks = f;
+  }
+  function pending(C) { return C && Array.isArray(C.reports) ? C.reports.find(r => r.encV672) : null; }
+
+  /* ── 화면 ── */
+  let S = null;
+  function open() {
+    const C = CS(), r = pending(C); if (!r) return false;
+    const e = r.encV672, K = dayKey(C, e.iso);
+    S = { C, r, e, K, order: ['I', 'II', 'III'], pos: ['A', 'A', 'A'], pairs: [], pend: null, step: 1, lamp: '', out: '', anim: null };
+    build(); window.EP_PAUSE_V662 = true; $('epEng').classList.add('on'); render(); return true;
+  }
+  function close() { if (S && S.anim) clearInterval(S.anim); S = null; $('epEng').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function typeOut(text, done) {
+    if (S.anim) clearInterval(S.anim);
+    const m = machine(S.order, S.pos.slice(), S.pairs), src = text.split(''); let i = 0; S.out = '';
+    S.busy = true; render();
+    S.anim = setInterval(() => {
+      if (!S) return;
+      const o = m.key(src[i]); S.out += o; S.lamp = o; S.pos = m.pos().split(''); i++;
+      if (i % 2 === 0) snd('uibeep');
+      render(true);
+      if (i >= src.length) { clearInterval(S.anim); S.anim = null; S.busy = false; setTimeout(() => { if (S) { S.lamp = ''; done(S.out); } }, 250); }
+    }, text.length > 10 ? 55 : 160);
+  }
+  function act(a) {
+    if (!S || S.busy) return;
+    const C = S.C, e = S.e;
+    if (a === 'IND') {
+      typeOut(e.ind, out => { S.key3 = out; S.step = 2; render();
+        say(T('램프: 「' + out + '」 — 이것이 이번 전문의 열쇠입니다. 회전자를 ' + out + ' 에 맞추십시오.', 'Lamps: "' + out + '" — that is this message\'s key. Set the rotors to ' + out + '.', 'ランプ：「' + out + '」 — これが本電文の鍵です。ローターを' + out + 'に合わせてください。')); });
+    } else if (a === 'BODY') {
+      e.tries++; C.hours = (C.hours || 0) + 0.25;
+      typeOut(e.body, out => {
+        if (out === e.plain) { S.step = 3; S.ok = true; snd('taskdone'); reveal(C, S.r, true); render();
+          try { if (window.EP_MORALE) EP_MORALE.add(C, 0.005); } catch (x) {} }
+        else { S.ok = false; snd('uireject'); render();
+          say(T('글자 범벅입니다. 열쇠표와 다른 데가 있습니다 — 회전자 순서, 플러그, 기본 위치를 다시 보십시오.', 'Gibberish. Something differs from the key sheet — check rotor order, plugs and ground setting.', '文字がめちゃくちゃです。鍵表と違う所があります — ローター順、プラグ、基本位置を確認してください。')); }
+      });
+    } else if (a === 'RESET') { S.step = 1; S.out = ''; S.key3 = null; S.pos = S.K.pos.split('').map(() => 'A'); render(); }
+  }
+  let sayLine = '';
+  function say(t) { sayLine = t; const el = $('epEngSay'); if (el) el.textContent = t; }
+  const groups = s => s.replace(/(.{5})/g, '$1 ').trim();
+  function render(fast) {
+    if (!S) return; const K = S.K, e = S.e;
+    if (!fast) {
+      $('epEngT').textContent = T(MACH[e.nat][0], MACH[e.nat][1], MACH[e.nat][2]) + ' — ' + T('전문 해독', 'deciphering', '電文解読');
+      $('epEngSheet').innerHTML = '<b>' + T('열쇠표', 'Key sheet', '鍵表') + ' · ' + e.iso + '</b>' +
+        '<span>' + T('회전자', 'Rotors', 'ローター') + ' <em>' + K.order.join(' · ') + '</em></span>' +
+        '<span>' + T('기본 위치', 'Ground setting', '基本位置') + ' <em>' + K.pos.split('').join(' ') + '</em></span>' +
+        '<span>' + T('플러그', 'Plugs', 'プラグ') + ' <em>' + K.pairs.join(' ') + '</em></span>' +
+        (e.nat === 'DE' ? '<small>' + T('그리스 회전자 β · A, 얇은 반사판 B (고정)', 'Greek rotor β at A, thin reflector B (fixed)', 'ギリシャ・ローターβ・A、薄型反射板B（固定）') + '</small>' : '');
+      $('epEngMsg').innerHTML = '<small>' + T('지시자', 'Indicator', '指標') + '</small><b>' + e.ind + '</b> <small>' + T('본문', 'Text', '本文') + '</small><code>' + groups(e.body) + '</code>';
+    }
+    $('epEngRot').innerHTML = [0, 1, 2].map(k => '<div class="rt"><button class="mini nm" data-o="' + k + '">' + S.order[k] + '</button><button class="mini" data-u="' + k + '">▲</button><div class="win">' + S.pos[k] + '</div><button class="mini" data-d="' + k + '">▼</button></div>').join('');
+    const pc = ['#e8a24a', '#7fc8ff', '#9fe0a8', '#e58fd0', '#f3e27a'];
+    $('epEngPlug').innerHTML = A.split('').map(L => { const i = S.pairs.findIndex(p => p.includes(L)); return '<button class="mini' + (S.pend === L ? ' pend' : '') + '" data-p="' + L + '"' + (i >= 0 ? ' style="background:' + pc[i % pc.length] + ';color:#081016"' : '') + '>' + L + '</button>'; }).join('');
+    $('epEngOut').innerHTML = (S.lamp ? '<span class="lamp">' + S.lamp + '</span>' : '') + '<code>' + groups(S.out) + '</code>';
+    const btn = $('epEngGo');
+    if (S.step === 1) { btn.innerHTML = T('① 지시자 치기', '① Key the indicator', '① 指標を打つ') + '<small>' + T('기본 위치에서', 'at the ground setting', '基本位置で') + '</small>'; btn.dataset.a = 'IND'; }
+    else if (S.step === 2) { btn.innerHTML = T('② 본문 치기', '② Key the text', '② 本文を打つ') + '<small>' + T('회전자를 ' + (S.key3 || '') + ' 에 맞춘 뒤 · 15분', 'after setting rotors to ' + (S.key3 || '') + ' · 15 min', 'ローターを' + (S.key3 || '') + 'に合わせて・15分') + '</small>'; btn.dataset.a = 'BODY'; }
+    else { btn.innerHTML = T('닫기', 'Close', '閉じる'); btn.dataset.a = 'CLOSE'; }
+    btn.disabled = !!S.busy;
+    if (S.step === 3 && S.ok && !fast) {
+      const r = S.r;
+      say(T('해독 — ' + r.grid + ' 에 선단. 침로 ' + String(r.course).padStart(3, '0') + '도, ' + r.speedKn + '노트, ' + r.size + '척. 해도에 올렸습니다.', 'Deciphered — convoy in ' + r.grid + ', course ' + String(r.course).padStart(3, '0') + ', ' + r.speedKn + ' kn, ' + r.size + ' ships. Plotted on the chart.', '解読 — ' + r.grid + 'に船団。針路' + String(r.course).padStart(3, '0') + '度、' + r.speedKn + 'ノット、' + r.size + '隻。海図に記入しました。'));
+    } else if (!fast && S.step === 1 && !S.out) say(T('열쇠표대로 회전자 순서 · 플러그 · 기본 위치를 맞추고 지시자를 치십시오.', 'Set rotor order, plugs and ground setting from the key sheet, then key the indicator.', '鍵表どおりにローター順・プラグ・基本位置を合わせ、指標を打ってください。'));
+  }
+  function build() {
+    if ($('epEng')) return;
+    const st = document.createElement('style'); st.id = 'ep-v672-enigma-style';
+    st.textContent = '#epEng{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epEng.on{display:flex}' +
+      '#epEng .bx{width:min(96vw,440px);max-height:96vh;overflow:auto;background:#151310;border:1px solid #8a7550;border-radius:12px;padding:10px;color:#efe6d2;box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epEng h3{margin:0 0 7px;font-size:14px;letter-spacing:.06em;color:#e8c068}#epEng .sheet{background:#efe6cf;color:#2b2418;border-radius:6px;padding:7px 9px;font-size:12px;display:grid;gap:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.2)}' +
+      '#epEng .sheet b{font-size:12px}#epEng .sheet em{font-style:normal;font-family:ui-monospace,monospace;font-weight:700;letter-spacing:.08em;margin-left:6px}#epEng .sheet small{color:#6b5d44}' +
+      '#epEng .msg{margin:7px 0;font-size:12px;line-height:1.5}#epEng .msg small{color:#a8987a;margin-right:4px}#epEng .msg b{font-family:ui-monospace,monospace;letter-spacing:.12em;color:#e8c068;margin-right:8px}#epEng code,#epEng .out code{font-family:ui-monospace,monospace;letter-spacing:.08em;word-break:break-all;color:#efe6d2}' +
+      '#epEng .rot{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0}#epEng .rt{display:grid;gap:4px;justify-items:stretch}#epEng .rt .nm{font-weight:700;letter-spacing:.06em;border-color:#8a7550}' +
+      '#epEng .win{text-align:center;font:700 26px ui-monospace,monospace;background:#0b0a08;border:2px solid #8a7550;border-radius:8px;padding:6px 0;color:#f6efe0}' +
+      '#epEng .plug{display:grid;grid-template-columns:repeat(13,1fr);gap:3px;margin:6px 0}#epEng .plug button{padding:5px 0;font:600 11px ui-monospace,monospace;min-width:0}#epEng .plug button.pend{outline:2px solid #e8c068}' +
+      '#epEng .out{min-height:44px;background:#0b0a08;border-radius:8px;padding:7px;font-size:12px;margin:6px 0;position:relative}#epEng .lamp{position:absolute;right:8px;top:6px;width:30px;height:30px;border-radius:50%;background:radial-gradient(#fff6c8,#e8b440 60%,#7a5a10);color:#2b1d02;font:700 15px/30px ui-monospace,monospace;text-align:center;box-shadow:0 0 16px #f0c050}' +
+      '#epEng .say{font-size:12.5px;line-height:1.45;min-height:36px;color:#efe6d2}#epEng .ctl{display:grid;grid-template-columns:1.6fr 1fr 1fr;gap:6px;margin-top:6px}#epEng .ctl button small{display:block;font-size:10px;opacity:.7}' +
+      '#epEngBtn{display:none}#epEngBtn.on{display:block}#epEngBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epEng';
+    el.innerHTML = '<div class="bx"><h3 id="epEngT"></h3><div class="sheet" id="epEngSheet"></div><div class="msg" id="epEngMsg"></div><div class="rot" id="epEngRot"></div><div class="plug" id="epEngPlug"></div>' +
+      '<div class="out" id="epEngOut"></div><div class="say" id="epEngSay"></div><div class="ctl"><button class="mini go" id="epEngGo"></button><button class="mini" id="epEngReset"></button><button class="mini" id="epEngClose"></button></div></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('button'); if (!b || !S || S.busy) return;
+      if (b.dataset.o != null) { const k = +b.dataset.o; S.order[k] = NAMES[(NAMES.indexOf(S.order[k]) + 1) % 5]; snd('uibeep'); render(); return; }
+      if (b.dataset.u != null) { const k = +b.dataset.u; S.pos[k] = ch(ci(S.pos[k]) + 1); render(); return; }
+      if (b.dataset.d != null) { const k = +b.dataset.d; S.pos[k] = ch(ci(S.pos[k]) - 1); render(); return; }
+      if (b.dataset.p) { const L = b.dataset.p, i = S.pairs.findIndex(p => p.includes(L));
+        if (i >= 0) { S.pairs.splice(i, 1); S.pend = null; }
+        else if (!S.pend) S.pend = L;
+        else if (S.pend === L) S.pend = null;
+        else { if (S.pairs.length < 10) S.pairs.push(S.pend + L); S.pend = null; }
+        render(); return; }
+      if (b.id === 'epEngGo') { if (b.dataset.a === 'CLOSE') close(); else act(b.dataset.a); return; }
+      if (b.id === 'epEngReset') { act('RESET'); return; }
+      if (b.id === 'epEngClose') { close(); return; }
+    });
+    labels();
+  }
+  function labels() {
+    $('epEngReset').innerHTML = T('처음부터', 'Start over', '最初から') + '<small>' + T('①로', 'back to ①', '①へ') + '</small>';
+    $('epEngClose').innerHTML = T('나중에', 'Later', '後で') + '<small>' + T('통신사가 늦게 푼다', 'radioman will, late', '通信士が遅れて解読') + '</small>';
+  }
+  function button() {
+    let b = $('epEngBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epEngBtn'; b.textContent = '✉'; b.title = T('암호 전문', 'Cipher signal', '暗号電文'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), p = C && C.status === 'AT_SEA' && pending(C);
+    b.classList.toggle('on', !!p); b.classList.toggle('want', !!p);
+  }
+  function init() { setInterval(() => { try { wrapTracks(); watchReports(); button(); } catch (e) {} }, 700);
+    window.EP_V672_ENIGMA = { version: '6.72.0', open, close, state: () => S, machine, run, dayKey, act, encrypt: r => { const C = CS(); if (C && r) encrypt(C, r); }, test: () => run(['I', 'II', 'III'], 'AAA', [], 'AAAAA') }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v673-maint-script">
+/* ══════════ V6.73 어뢰 정비 — 며칠마다 꺼내 본다 ══════════
+   실제 유보트는 며칠마다 발사관의 어뢰를 꺼내 기름을 치고 심도장치와 신관을 시험했다.
+   1939~40년 「어뢰 위기」 — 깊게 달리고 터지지 않는 어뢰 — 의 절반은 정비와 시험의 문제였다.
+   · 정비 상태(%)는 초계 내내 조금씩 떨어진다(거친 바다면 더 빨리). 지도 위 ⚙ 단추가 깜박이면 때가 됐다.
+   · 한 발씩: 심도장치 바늘이 흔들리는 동안 표시선에 올 때 「조정」을 누른다 — 세 번(심도 · 자이로 · 신관).
+   · 잘 맞출수록 그 어뢰의 점수가 높고, 정비 상태가 오른다. 한 발에 한 시간.
+   · 정비 상태는 전투의 어뢰 「로트 품질」이 된다 — 낮으면 깊게 달리고 불발이 늘고, 높으면 줄어든다.
+   한 · 영 · 일. */
+(function EP_V673_MAINT() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const STEPS = [
+    { n: ['심도장치', 'Depth gear', '深度装置'], d: ['수압 시험 — 바늘이 설정 심도에 올 때', 'pressure test — when the needle hits the set depth', '水圧試験 — 針が設定深度に来た時'] },
+    { n: ['자이로', 'Gyro', 'ジャイロ'], d: ['방향 맞춤 — 바늘이 0에 올 때', 'alignment — when the needle hits zero', '方向合わせ — 針が0に来た時'] },
+    { n: ['신관', 'Pistol', '信管'], d: ['격발 시험 — 바늘이 표시선에 올 때', 'firing test — when the needle hits the mark', '撃発試験 — 針が標線に来た時'] }
+  ];
+  let S = null, raf = 0;
+
+  function level(C) { if (C.torpMaintV673 == null) C.torpMaintV673 = 0.85; return C.torpMaintV673; }
+  /* 초계 시간이 흐르면 떨어진다 */
+  let lastH = null;
+  function decay() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA') { lastH = null; return; }
+    level(C); const h = C.hours || 0;
+    if (lastH != null && h > lastH) { const sea = C.seaState == null ? 1 : C.seaState; C.torpMaintV673 = clamp(C.torpMaintV673 - (h - lastH) / 24 * (0.05 + Math.max(0, sea - 2) * 0.015), 0.15, 1); }
+    lastH = h;
+  }
+  function open() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA') return false;
+    const n = Math.max(1, Math.min(5, (C.torpLoaded != null ? C.torpLoaded : 4) || 4));
+    S = { C, n, i: 0, step: 0, ph: R() * 6, sp: 1.6 + R() * 0.6, scores: [], cur: [], lv0: level(C), msg: '', busy: false, target: 0.3 + R() * 0.4 };
+    build(); window.EP_PAUSE_V662 = true; $('epMt').classList.add('on'); labels(); render(); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop); return true;
+  }
+  function close() {
+    const s = S; if (!s) return; cancelAnimationFrame(raf); raf = 0;
+    const C = s.C, done = s.scores.length;
+    if (done) {
+      const avg = s.scores.reduce((a, b) => a + b, 0) / done;
+      const gain = done / s.n * (0.12 + avg * 0.3);
+      C.torpMaintV673 = clamp(level(C) + gain, 0.15, 1); C.hours = (C.hours || 0) + done;
+      const ko = '어뢰 정비 ' + done + '발 — 정비 상태 ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%.';
+      const en = 'Torpedo maintenance, ' + done + ' fish — condition ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%.';
+      const ja = '魚雷整備 ' + done + '本 — 整備状態 ' + Math.round(s.lv0 * 100) + '% → ' + Math.round(C.torpMaintV673 * 100) + '%。';
+      try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'weap', kind: 'report' }); } catch (e) {}
+    }
+    S = null; $('epMt').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {}
+  }
+  function needle(s, t) { return 0.5 + 0.46 * Math.sin(t * s.sp + s.ph) * (0.85 + 0.15 * Math.sin(t * 0.7 + s.ph * 2)); }
+  function tap() {
+    const s = S; if (!s || s.busy || s.i >= s.n) return;
+    const v = needle(s, s.t), err = Math.abs(v - s.target), sc = clamp(1 - err / 0.18, 0, 1);
+    s.cur.push(sc); s.flash = { sc, t: 0 }; snd(sc > 0.7 ? 'uibeep' : 'uireject');
+    s.msg = sc > 0.85 ? T('딱 맞았습니다.', 'Spot on.', 'ぴったりです。') : sc > 0.5 ? T('조금 어긋났지만 쓸 만합니다.', 'A touch off, but serviceable.', '少しずれたが使える。') : T('빗나갔습니다 — 바늘을 보고 다시.', 'Missed — watch the needle.', '外れた — 針をよく見て。');
+    s.step++; s.target = 0.25 + R() * 0.5; s.sp = 1.6 + R() * 0.9 + s.i * 0.15; s.ph = R() * 6;
+    if (s.step >= STEPS.length) {
+      const q = s.cur.reduce((a, b) => a + b, 0) / s.cur.length; s.scores.push(q); s.cur = []; s.step = 0; s.i++;
+      s.msg = T((s.i) + '번 어뢰 — ' + stars(q) + ' 다시 관에 넣습니다.', 'Fish ' + s.i + ' — ' + stars(q) + ' back in the tube.', s.i + '番魚雷 — ' + stars(q) + ' 発射管へ戻す。');
+      snd('taskdone');
+    }
+    render();
+  }
+  const stars = q => '★★★'.slice(0, q > 0.8 ? 3 : q > 0.5 ? 2 : 1) + '☆☆☆'.slice(0, 3 - (q > 0.8 ? 3 : q > 0.5 ? 2 : 1));
+  function loop(now) {
+    if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; S.t = (S.t || 0) + dt;
+    if (S.flash) { S.flash.t += dt; if (S.flash.t > 0.6) S.flash = null; }
+    draw(); raf = requestAnimationFrame(loop);
+  }
+  function draw() {
+    const cv = $('epMtCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(150, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = '#0d1418'; c.fillRect(0, 0, W, H);
+    /* 어뢰 — 옆에서. 지금 보는 부분이 밝다 */
+    const ty = 26, L = W * 0.86, x0 = (W - L) / 2, rr = 8;
+    const secs = [[0, 0.16, 'warhead'], [0.16, 0.22, 'pistol'], [0.22, 0.44, 'depth'], [0.44, 0.84, 'motor'], [0.84, 1, 'tail']];
+    const hi = S.i < S.n ? ['depth', 'motor', 'pistol'][S.step] : null;
+    for (const [a, b, id] of secs) { c.fillStyle = id === hi ? '#7a6a48' : '#2c3338'; c.fillRect(x0 + L * a, ty - rr, L * (b - a), rr * 2); }
+    c.fillStyle = '#2c3338'; c.beginPath(); c.arc(x0, ty, rr, Math.PI / 2, Math.PI * 1.5); c.fill();
+    c.fillStyle = '#8f9aa1'; c.fillRect(x0 + L + 1, ty - 9, 2, 18); c.fillRect(x0 + L + 5, ty - 7, 2, 14);
+    c.strokeStyle = 'rgba(255,255,255,.18)'; c.strokeRect(x0 - rr, ty - rr, L + rr, rr * 2);
+    /* 계기 — 반원 다이얼 */
+    const cx = W / 2, cy = H - 14, rad = Math.min(W * 0.36, H - 52);
+    c.strokeStyle = 'rgba(220,230,235,.35)'; c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, rad, Math.PI, 0); c.stroke();
+    for (let k = 0; k <= 10; k++) { const a = Math.PI + k / 10 * Math.PI; c.beginPath(); c.moveTo(cx + Math.cos(a) * rad * 0.9, cy + Math.sin(a) * rad * 0.9); c.lineTo(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad); c.stroke(); }
+    if (S.i < S.n) {
+      const ta = Math.PI + S.target * Math.PI, w = 0.18 * Math.PI;
+      c.strokeStyle = 'rgba(120,220,140,.55)'; c.lineWidth = 8; c.beginPath(); c.arc(cx, cy, rad * 0.95, ta - w * 0.35, ta + w * 0.35); c.stroke();
+      c.strokeStyle = '#e8c068'; c.lineWidth = 3; c.beginPath(); c.moveTo(cx + Math.cos(ta) * rad * 0.78, cy + Math.sin(ta) * rad * 0.78); c.lineTo(cx + Math.cos(ta) * rad * 1.04, cy + Math.sin(ta) * rad * 1.04); c.stroke();
+      const v = needle(S, S.t || 0), na = Math.PI + v * Math.PI;
+      c.strokeStyle = '#f2f5f7'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(na) * rad * 0.92, cy + Math.sin(na) * rad * 0.92); c.stroke();
+      c.fillStyle = '#f2f5f7'; c.beginPath(); c.arc(cx, cy, 5, 0, 6.283); c.fill();
+    }
+    if (S.flash) { const a = 1 - S.flash.t / 0.6; c.fillStyle = (S.flash.sc > 0.7 ? 'rgba(120,230,150,' : S.flash.sc > 0.4 ? 'rgba(232,192,104,' : 'rgba(255,120,100,') + (a * 0.25).toFixed(3) + ')'; c.fillRect(0, 0, W, H); }
+  }
+  function render() {
+    if (!S) return; const s = S;
+    const done = s.i >= s.n;
+    $('epMtHd').innerHTML = '<span>' + T('어뢰 ', 'Fish ', '魚雷 ') + '<b>' + Math.min(s.i + 1, s.n) + '/' + s.n + '</b></span><span>' + (done ? '' : T(STEPS[s.step].n[0], STEPS[s.step].n[1], STEPS[s.step].n[2]) + ' · ' + (s.step + 1) + '/3') + '</span><span>' + T('정비 상태 ', 'Condition ', '整備状態 ') + '<b>' + Math.round(level(s.C) * 100) + '%</b></span>';
+    $('epMtDo').textContent = done ? T('모두 끝났습니다.', 'All done.', '全て完了。') : T(STEPS[s.step].d[0], STEPS[s.step].d[1], STEPS[s.step].d[2]);
+    $('epMtMsg').textContent = s.msg || T('바늘이 흔들립니다. 노란 표시선에 올 때 누르십시오.', 'The needle swings. Press when it is on the yellow mark.', '針が揺れます。黄色の標線に来た時に押してください。');
+    $('epMtStars').textContent = s.scores.map(stars).join('  ');
+    $('epMtTap').disabled = done; $('epMtTap').style.display = done ? 'none' : '';
+  }
+  function labels() {
+    $('epMtT').textContent = T('어뢰 정비', 'TORPEDO MAINTENANCE', '魚雷整備');
+    $('epMtTap').innerHTML = T('조정!', 'Set!', '調整！');
+    $('epMtEnd').innerHTML = T('마침', 'Finish', '終了') + '<small>' + T('한 발에 한 시간', 'one hour per fish', '一本一時間') + '</small>';
+  }
+  function build() {
+    if ($('epMt')) return;
+    const st = document.createElement('style'); st.id = 'ep-v673-maint-style';
+    st.textContent = '#epMt{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epMt.on{display:flex}' +
+      '#epMt .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--amber,#e0b060);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epMt h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:var(--amber,#e0b060)}#epMt .hd{display:flex;justify-content:space-between;font-size:12px;color:var(--dim,#8aa);margin-bottom:6px}#epMt .hd b{color:var(--ink,#dfe)}' +
+      '#epMt canvas{display:block;width:100%;aspect-ratio:16/10;border-radius:8px}#epMt .do{font-size:12.5px;color:#9fd4ff;margin:7px 2px 2px}#epMt .msg{font-size:12.5px;min-height:34px;margin:2px 2px;line-height:1.4}#epMt .stars{font-size:14px;color:var(--amber,#e0b060);letter-spacing:.06em;min-height:18px}' +
+      '#epMt .ctl{display:grid;grid-template-columns:2fr 1fr;gap:6px;margin-top:6px}#epMt .ctl .tap{font-size:19px;padding:14px 0}#epMt .ctl button small{display:block;font-size:10px;opacity:.7}' +
+      '#epMtBtn{display:none}#epMtBtn.on{display:block}#epMtBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epMt';
+    el.innerHTML = '<div class="bx"><h3 id="epMtT"></h3><div class="hd" id="epMtHd"></div><canvas id="epMtCv"></canvas><div class="do" id="epMtDo"></div><div class="msg" id="epMtMsg"></div><div class="stars" id="epMtStars"></div>' +
+      '<div class="ctl"><button class="mini go tap" id="epMtTap"></button><button class="mini" id="epMtEnd"></button></div></div>';
+    document.body.appendChild(el);
+    $('epMtTap').addEventListener('pointerdown', e => { e.preventDefault(); tap(); });
+    $('epMtEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epMtBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epMtBtn'; b.textContent = '⚙'; b.title = T('어뢰 정비', 'Torpedo maintenance', '魚雷整備'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), at = C && C.status === 'AT_SEA', lv = at ? level(C) : 1;
+    b.classList.toggle('on', !!at); b.classList.toggle('want', !!at && lv < 0.6);
+  }
+  /* ── 전투로 — 정비 상태가 그 판 어뢰의 로트 품질이 된다 ── */
+  let wrapped = false;
+  function wrap() {
+    const U = window.UBOAT; if (wrapped || !U || !U.newGame) return;
+    const o = U.newGame;
+    const f = function () {
+      const r = o.apply(this, arguments);
+      try { const C = CS(), g = U.state(); if (C && C.status === 'IN_ACTION' && g && C.torpMaintV673 != null) {
+        const m = clamp(C.torpMaintV673, 0, 1); g._torpBatchQuality = {};
+        for (const t of (U.torpedoTypes ? U.torpedoTypes() : [])) g._torpBatchQuality[t.id] = clamp(0.12 + m * 0.8 + (R() - 0.5) * 0.12, 0, 1);
+      } } catch (e) {}
+      return r;
+    };
+    Object.assign(f, o); U.newGame = f; wrapped = true;
+  }
+  function init() { setInterval(() => { try { wrap(); decay(); button(); } catch (e) {} }, 700); window.EP_V673_MAINT = { version: '6.73.0', open, close, tap, state: () => S, level: () => { const C = CS(); return C ? level(C) : null; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v674-snorkel-script">
+/* ══════════ V6.74 스노클 충전 — 머리 밸브를 물 위에 ══════════
+   1944년부터 유보트는 스노클로 잠긴 채 디젤을 돌려 전지를 채웠다. 깊이를 잘못 잡으면 파도가 머리 밸브를 덮어
+   밸브가 닫히고, 디젤이 배 안 공기를 빨아들여 기압이 뚝 떨어진다(귀가 터질 듯 아프다). 너무 얕으면 마스트와 함교가
+   드러나 레이더에 잡힌다. 지도 위의 스노클 항해(자동 충전)와 따로, 함장이 직접 깊이를 잡아 짧고 굵게 채우는 당번이다.
+   · 「올림 / 내림」을 누르고 있으면 잠타가 움직인다. 밸브(마스트 끝)를 파도 위에, 함교는 물 아래로.
+   · 밸브가 열린 동안만 충전된다. 덮이면 기압이 떨어지고, 오래 덮이면 디젤을 멈춘다.
+   · 얕게 떠 있는 동안 레이더 위험이 쌓인다 — 끝나고 나서 비행기가 올 수 있다.
+   · 약 40초 = 3시간. 스노클이 있는 배, 잠항 중, 파도 4 미만일 때. 한 · 영 · 일. */
+(function EP_V674_SNORKEL() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const DUR = 40;
+  let S = null, raf = 0;
+  const can = C => C && C.status === 'AT_SEA' && C.hasSnorkel && !C.surfaced && (C.seaState == null ? 1 : C.seaState) < 4 && (C.battery == null ? 1 : C.battery) < 0.95;
+
+  function open() {
+    const C = CS(); if (!can(C)) return false;
+    S = { C, t: 0, z: 13, vz: 0, hold: 0, b0: C.battery == null ? 1 : C.battery, got: 0, open: true, press: 0, risk: 0, dunk: 0, stop: 0, sea: C.seaState == null ? 1 : C.seaState, ph: R() * 9, msg: '', done: false };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epSn').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop); return true;
+  }
+  function wave(s, x, t) { const a = 0.35 + s.sea * 0.45; return a * Math.sin(x * 0.045 + t * 1.3 + s.ph) + a * 0.6 * Math.sin(x * 0.11 - t * 2.1) + a * 0.3 * Math.sin(x * 0.23 + t * 3.3 + s.ph * 2); }
+  function step(dt) {
+    const s = S; s.t += dt;
+    /* 잠타 — 누르는 동안 올라가거나 내려간다. 놓으면 천천히 서고, 파도가 배를 조금씩 흔든다 */
+    s.vz += (-s.hold * 1.6 - s.vz * 0.8) * dt + (R() - 0.5) * (0.6 + s.sea) * 0.2 * dt * 10;
+    s.z = clamp(s.z + s.vz * dt, 4, 22);
+    /* 머리 밸브 높이 = 마스트 끝: 선체 축(깊이 z)에서 11.5m 위. 함교 꼭대기는 축에서 4.5m 위 */
+    const valveTop = 11.5 - s.z, swell = wave(s, 200, s.t);
+    const wasOpen = s.open; s.open = valveTop > swell + 0.25;
+    if (!s.open) { s.dunk += dt; s.press = clamp(s.press + dt * 0.22, 0, 1); }
+    else { s.dunk = 0; s.press = clamp(s.press - dt * 0.12, 0, 1); }
+    if (wasOpen && !s.open) { snd('uireject'); s.msg = T('밸브가 덮였습니다 — 기압 떨어집니다!', 'Valve under — pressure dropping!', '弁が冠水 — 気圧低下！'); }
+    if (!wasOpen && s.open && s.t > 1) s.msg = T('밸브 열림 — 디젤 돈다.', 'Valve open — diesels running.', '弁開放 — ディーゼル運転。');
+    if (s.press > 0.75 && !s.stopped) { s.stopped = true; s.stop = 2.5; s.msg = T('기관장: 디젤 정지! 귀가 터질 것 같습니다.', 'Chief: diesels stopped! Ears are popping.', '機関長：ディーゼル停止！耳が痛い。'); snd('uireject'); }
+    if (s.stop > 0) { s.stop -= dt; if (s.stop <= 0) { s.stopped = false; s.press = 0.4; } }
+    const running = s.open && !s.stopped;
+    if (running) s.got += dt / DUR * 0.55;
+    /* 너무 얕으면 함교가 드러난다 — 레이더 */
+    if (s.z < 6.8) { s.risk += dt * (6.8 - s.z) * 0.12; if (s.z < 5.5 && R() < dt * 0.4) { s.msg = T('함교가 물 위로 나왔습니다 — 레이더 탐지기가 웁니다!', 'The tower is out of the water — the radar detector is wailing!', '司令塔が露出 — 逆探が鳴っている！'); snd('spotted'); } }
+    if (s.t >= DUR) finish();
+  }
+  function finish() {
+    const s = S; if (!s || s.done) return; s.done = true;
+    const C = s.C, got = clamp(s.got, 0, 1 - s.b0);
+    C.battery = clamp(s.b0 + got, 0, 1); C.hours = (C.hours || 0) + 3; C.surfaced = false;
+    if (s.press > 0.5 && window.EP_MORALE) EP_MORALE.add(C, -0.02);
+    let tail = '';
+    if (s.risk > 0.5) { C.alert = clamp((C.alert || 0) + Math.min(0.2, s.risk * 0.12), 0, 1);
+      if (R() < Math.min(0.6, s.risk * 0.35)) { const dmg = 2 + Math.round(R() * 6); C.hull = clamp((C.hull || 100) - dmg, 1, 100); tail = T(' 레이더에 잡혀 비행기가 왔습니다 — 폭탄 근접, 선체 −' + dmg + '%.', ' Radar picked us up and a plane came — near miss, hull −' + dmg + '%.', ' レーダーに捕まり航空機が来た — 至近弾、船体 −' + dmg + '%。'); snd('airalarm'); } }
+    const ko = '스노클 충전 3시간 — 전지 ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%.', en = 'Snorkel charge, 3 h — battery ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%.', ja = 'シュノーケル充電3時間 — 電池 ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%。';
+    try { C.log.unshift({ h: C.hours, text: ko + tail, variants: { ko: ko + tail, en: en + tail, ja: ja + tail }, who: 'eng', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja) + tail; render();
+    $('epSnUp').style.display = 'none'; $('epSnDn').style.display = 'none'; $('epSnEnd').textContent = T('확인', 'OK', '了解');
+  }
+  function close() { if (S && !S.done && S.t > 3) finish(); cancelAnimationFrame(raf); raf = 0; S = null; $('epSn').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) {
+    if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now;
+    if (!S.done) step(dt); draw(); if (!S.done) render(); raf = requestAnimationFrame(loop);
+  }
+  function draw() {
+    const cv = $('epSnCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(150, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, ppm = H / 26, sy = H * 0.3, Y = d => sy + d * ppm;
+    c.fillStyle = '#2b3c48'; c.fillRect(0, 0, W, H);
+    /* 물 — 파도 */
+    c.fillStyle = '#123446'; c.beginPath(); c.moveTo(0, H);
+    for (let x = 0; x <= W + 4; x += 4) c.lineTo(x, Y(-wave(s, x, s.t))); c.lineTo(W, H); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(220,235,240,.6)'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x <= W + 4; x += 4) { const y = Y(-wave(s, x, s.t)); if (x) c.lineTo(x, y); else c.moveTo(x, y); } c.stroke();
+    /* 배 — 함교 · 마스트 · 머리 밸브 */
+    const bx = W * 0.5, hy = Y(s.z), L = W * 0.7;
+    c.fillStyle = '#2a333a'; c.beginPath(); c.ellipse(bx, hy + ppm * 1.2, L / 2, ppm * 1.6, 0, 0, 6.283); c.fill();
+    c.fillRect(bx - L * 0.06, hy - ppm * 4.5, L * 0.13, ppm * 4.7);                         /* 함교 */
+    const mx = bx - L * 0.1, top = Y(s.z - 11.5);
+    c.strokeStyle = '#4a565e'; c.lineWidth = 4; c.beginPath(); c.moveTo(mx, hy - ppm * 2); c.lineTo(mx + ppm * 1.5, top); c.stroke();
+    c.fillStyle = s.open ? '#8fe0a0' : '#ff8a7a'; c.beginPath(); c.arc(mx + ppm * 1.5, top, 4, 0, 6.283); c.fill();
+    if (s.open && !s.stopped) { c.fillStyle = 'rgba(200,210,215,.35)'; for (let k = 0; k < 5; k++) { c.beginPath(); c.arc(mx + ppm * 1.5 - k * 9 - (s.t * 40 % 9), top - 4 - k * 2, 3 + k, 0, 6.283); c.fill(); } }
+    /* 깊이 · 기압 · 레이더 */
+    c.fillStyle = 'rgba(230,240,245,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
+    c.fillText(T('심도 ', 'Depth ', '深度 ') + s.z.toFixed(1) + 'm', 8, 16);
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.8)'; c.font = '10px system-ui'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, 18, 110, s.press, s.press > 0.6 ? '#ff8a7a' : '#e8c068', T('기압 저하', 'Pressure drop', '気圧低下'));
+    bar(W - 118, 42, 110, clamp(s.risk / 1.5, 0, 1), '#ff8a7a', T('레이더 위험', 'Radar risk', 'レーダー危険'));
+    bar(8, H - 12, W - 16, s.t / DUR, '#7fc8ff', T('충전 ', 'Charge ', '充電 ') + Math.round((s.b0 + Math.min(s.got, 1 - s.b0)) * 100) + '%');
+  }
+  function render() { if (!S) return; $('epSnMsg').textContent = S.msg || T('마스트 끝(밸브)을 파도 위에, 함교는 물 아래로.', 'Keep the mast head (valve) above the waves and the tower under.', 'マスト頂部（弁）を波の上に、司令塔は水面下に。'); }
+  function labels() {
+    $('epSnT').textContent = T('스노클 충전', 'SNORKEL CHARGE', 'シュノーケル充電');
+    $('epSnUp').innerHTML = T('올림 ▲', 'Rise ▲', '浮上 ▲'); $('epSnDn').innerHTML = T('내림 ▼', 'Sink ▼', '沈下 ▼');
+    $('epSnEnd').textContent = T('그만', 'Stop', 'やめる'); $('epSnUp').style.display = ''; $('epSnDn').style.display = '';
+  }
+  function build() {
+    if ($('epSn')) return;
+    const st = document.createElement('style'); st.id = 'ep-v674-snorkel-style';
+    st.textContent = '#epSn{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epSn.on{display:flex}' +
+      '#epSn .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--sky,#8fd0ff);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epSn h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:var(--sky,#8fd0ff)}#epSn canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px}' +
+      '#epSn .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epSn .ctl{display:grid;grid-template-columns:1fr 1fr 0.7fr;gap:6px}#epSn .ctl button{padding:14px 0;font-size:15px;touch-action:none;user-select:none;-webkit-user-select:none}#epSn .ctl button.hold{background:var(--sky,#8fd0ff);color:#081016}' +
+      '#epSnBtn{display:none}#epSnBtn.on{display:block}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epSn';
+    el.innerHTML = '<div class="bx"><h3 id="epSnT"></h3><canvas id="epSnCv"></canvas><div class="msg" id="epSnMsg"></div><div class="ctl"><button class="mini" id="epSnUp" data-h="1"></button><button class="mini" id="epSnDn" data-h="-1"></button><button class="mini" id="epSnEnd"></button></div></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    $('epSnEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epSnBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epSnBtn'; b.textContent = '⇡'; b.title = T('스노클 충전', 'Snorkel charge', 'シュノーケル充電'); b.addEventListener('click', open); z.appendChild(b); }
+    b.classList.toggle('on', !!can(CS()));
+  }
+  function init() { setInterval(() => { try { button(); } catch (e) {} }, 800); window.EP_V674_SNORKEL = { version: '6.74.0', open, close, state: () => S, hold: h => { if (S) S.hold = h; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v675-cow-script">
+/* ══════════ V6.75 보급 잠수함 — 「젖소」와 나란히 ══════════
+   1942년 봄부터 1943년 여름까지, 대서양 한가운데에서 XIV형 보급 잠수함(「젖소」)이 유보트에 연료와 식량,
+   때로는 어뢰를 넘겨주었다. 사령부는 연료가 모자란 보트를 불러 만날 자리를 정해 준다.
+   · 연료가 45% 아래로 떨어지면(대서양 · 그 시기) 무전이 오고 지도 위 ⛽ 단추가 켜진다.
+   · 두 배가 나란히 달리며 호스를 잇는다. 너울이 배를 옆으로 민다 — 「◀ / ▶」로 간격(40~60m)을 지킨다.
+     멀어지면 호스가 팽팽해지다 끊기고, 가까우면 부딪친다. 간격 안에 있는 동안만 연료가 넘어온다.
+   · 그 사이 비행기가 올 수 있다 — 「호스 끊고 잠항」을 빨리 누를수록 안전하다.
+   · 끝나면 연료 · 식량(사기) · 파도가 낮으면 어뢰. 대략 4시간. 한 · 영 · 일. */
+(function EP_V675_COW() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const DUR = 45;
+  let S = null, raf = 0;
+  function era(C) { try { const iso = EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24); return iso >= '1942-04-20' && iso <= '1943-08-31'; } catch (e) { return false; } }
+  function eligible(C) { return C && C.status === 'AT_SEA' && C.theater === 'ATLANTIC' && era(C) && (C.fuel == null ? 1 : C.fuel) < 0.45 && !C.cowUsedV675; }
+  function offer() {
+    const C = CS(); if (!eligible(C) || C.cowOfferV675) return;
+    C.cowOfferV675 = true; const num = 459 + Math.floor(R() * 5) * (R() < 0.5 ? 1 : 3);
+    C.cowIdV675 = 'U-' + num;
+    const ko = '무전 — 사령부: 보급 잠수함 ' + C.cowIdV675 + ' 이 근처에 있다. 만나서 연료를 받아라.', en = 'Radio — HQ: supply boat ' + C.cowIdV675 + ' is nearby. Rendezvous and take on fuel.', ja = '無電 — 司令部：補給潜水艦' + C.cowIdV675 + 'が近くにいる。会合して燃料を受け取れ。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e) {}
+    snd('radio');
+  }
+  function open() {
+    const C = CS(); if (!eligible(C)) return false;
+    S = { C, t: 0, d: 70, vd: 0, hold: 0, fuel0: C.fuel == null ? 1 : C.fuel, got: 0, tens: 0, sea: C.seaState == null ? 1 : C.seaState, hose: false, hoseT: 0, broken: 0, bump: 0, air: R() < 0.35 ? 12 + R() * 22 : null, airOn: false, airLeft: 0, dived: false, dmg: 0, msg: '', done: false };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epCow').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+    S.msg = T(C.cowIdV675 + ' 이 보입니다. 나란히 붙어 호스를 받습니다 — 간격 40~60m.', C.cowIdV675 + ' in sight. Coming alongside for the hose — keep 40 to 60 m.', C.cowIdV675 + '視認。並走してホースを受ける — 間隔40〜60m。');
+    return true;
+  }
+  function step(dt) {
+    const s = S; s.t += dt;
+    if (s.dived) return;
+    /* 너울 — 옆으로 민다. 함장이 키로 잡는다 */
+    s.vd += (s.hold * 9 - s.vd * 0.7) * dt + (Math.sin(s.t * 0.9) * 2.5 + (R() - 0.5) * 9) * (0.5 + s.sea * 0.35) * dt;
+    s.d = clamp(s.d + s.vd * dt, 8, 140);
+    const inBand = s.d >= 40 && s.d <= 60;
+    if (!s.hose && s.d <= 65 && s.broken <= 0) { s.hoseT += dt; if (s.hoseT > 2.5) { s.hose = true; s.msg = T('호스 연결 — 연료가 넘어옵니다.', 'Hose connected — fuel coming across.', 'ホース接続 — 燃料移送中。'); snd('taskdone'); } }
+    if (s.broken > 0) s.broken -= dt;
+    s.tens = clamp((s.d - 40) / 35, 0, 1);
+    if (s.hose) {
+      if (s.d > 75) { s.hose = false; s.hoseT = 0; s.broken = 3; s.msg = T('호스가 끊어졌습니다! 다시 붙습니다.', 'The hose parted! Closing in again.', 'ホースが切れた！再接近。'); snd('uireject'); s.got = Math.max(0, s.got - 0.01); }
+      else if (inBand) s.got += dt / DUR * 0.62;
+      else s.got += dt / DUR * 0.25;
+    }
+    if (s.d < 22) { s.bump += dt; if (s.bump > 0.6) { s.bump = 0; s.dmg += 1; s.vd = 6; s.msg = T('너무 가깝습니다 — 선체가 스쳤습니다!', 'Too close — the hulls scraped!', '近すぎる — 船体が擦れた！'); snd('uireject'); } }
+    /* 비행기 */
+    if (s.air != null && !s.airOn && s.t >= s.air) { s.airOn = true; s.airLeft = 4.5; s.msg = T('비행기! 호스를 끊고 잠항해야 합니다!', 'Aircraft! Cut the hose and dive!', '航空機！ホースを切って潜航！'); snd('airalarm'); render(); }
+    if (s.airOn) { s.airLeft -= dt; if (s.airLeft <= 0) { const dmg = 6 + Math.round(R() * 10); s.dmg += dmg; s.airOn = false; s.dived = true; s.msg = T('늦었습니다 — 폭탄이 두 배 사이에! 선체 −' + dmg + '%. 둘 다 잠항.', 'Too late — bombs between the boats! Hull −' + dmg + '%. Both diving.', '遅かった — 二隻の間に爆弾！船体 −' + dmg + '%。両艦潜航。'); setTimeout(finish, 1800); } }
+    if (s.t >= DUR) finish();
+  }
+  function dive() {
+    const s = S; if (!s || !s.airOn) return;
+    const early = s.airLeft; s.airOn = false; s.dived = true;
+    if (early < 1.5 && R() < 0.5) { const dmg = 2 + Math.round(R() * 4); s.dmg += dmg; s.msg = T('아슬아슬 — 폭탄이 고물 뒤에. 선체 −' + dmg + '%.', 'Close — bombs astern. Hull −' + dmg + '%.', '危うく — 爆弾は艦尾後方。船体 −' + dmg + '%。'); }
+    else s.msg = T('호스를 끊고 잠항 — 폭탄은 빈 바다에 떨어졌습니다.', 'Hose cut, diving — the bombs fell in empty water.', 'ホースを切って潜航 — 爆弾は何もない海に。');
+    snd('divealarm'); render(); setTimeout(finish, 1600);
+  }
+  function finish() {
+    const s = S; if (!s || s.done) return; s.done = true;
+    const C = s.C, got = clamp(s.got, 0, 1 - s.fuel0);
+    C.fuel = clamp(s.fuel0 + got, 0, 1); C.hours = (C.hours || 0) + 4; C.cowUsedV675 = true;
+    if (s.dmg) C.hull = clamp((C.hull || 100) - s.dmg, 1, 100);
+    let torps = 0; if (!s.dived && s.sea <= 2 && s.t >= DUR - 0.5) { torps = 2 + Math.floor(R() * 3); C.torpReserve = (C.torpReserve || 0) + torps; }
+    if (window.EP_MORALE) EP_MORALE.add(C, 0.04);
+    const ko = '보급 ' + (C.cowIdV675 || '') + ' — 연료 ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%, 신선식품' + (torps ? ', 어뢰 ' + torps + '발' : '') + (s.dmg ? ', 선체 −' + s.dmg + '%' : '') + '.';
+    const en = 'Resupply from ' + (C.cowIdV675 || '') + ' — fuel ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%, fresh food' + (torps ? ', ' + torps + ' torpedoes' : '') + (s.dmg ? ', hull −' + s.dmg + '%' : '') + '.';
+    const ja = '補給 ' + (C.cowIdV675 || '') + ' — 燃料 ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%、生鮮食品' + (torps ? '、魚雷' + torps + '本' : '') + (s.dmg ? '、船体 −' + s.dmg + '%' : '') + '。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja); render();
+    $('epCowL').style.display = 'none'; $('epCowR').style.display = 'none'; $('epCowDive').style.display = 'none'; $('epCowEnd').textContent = T('확인', 'OK', '了解');
+  }
+  function close() { if (S && !S.done && S.t > 3) finish(); cancelAnimationFrame(raf); raf = 0; S = null; $('epCow').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) { if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; if (!S.done) step(dt); draw(); render(); raf = requestAnimationFrame(loop); }
+  function boat(c, x, y, L, big, col) {
+    c.fillStyle = col; c.beginPath(); c.moveTo(x, y - L / 2); c.quadraticCurveTo(x + L * (big ? 0.11 : 0.08), y - L * 0.2, x + L * (big ? 0.1 : 0.07), y + L * 0.35);
+    c.quadraticCurveTo(x, y + L / 2, x - L * (big ? 0.1 : 0.07), y + L * 0.35); c.quadraticCurveTo(x - L * (big ? 0.11 : 0.08), y - L * 0.2, x, y - L / 2); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x - L * 0.03, y - L * 0.1, L * 0.06, L * 0.16);
+  }
+  function draw() {
+    const cv = $('epCowCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(160, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, ppm = W / 220;
+    c.fillStyle = '#163240'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(200,225,235,.12)'; c.lineWidth = 1;
+    for (let k = 0; k < 9; k++) { const y = ((k * 40 + s.t * 30) % (H + 40)) - 20; c.beginPath(); for (let x = 0; x <= W; x += 10) { const yy = y + Math.sin(x * 0.05 + k) * 3; if (x) c.lineTo(x, yy); else c.moveTo(x, yy); } c.stroke(); }
+    /* 간격 띠 */
+    const cowX = W * 0.68, cy = H * 0.5, myX = cowX - s.d * ppm;
+    c.fillStyle = 'rgba(120,220,150,.08)'; c.fillRect(cowX - 60 * ppm, 0, 20 * ppm, H);
+    boat(c, cowX, cy, 72 * ppm, true, s.dived ? 'rgba(40,52,60,.35)' : '#3a454d');
+    boat(c, myX, cy + 4, 60 * ppm, false, s.dived ? 'rgba(40,52,60,.35)' : '#2c363d');
+    if (s.hose && !s.dived) { c.strokeStyle = s.tens > 0.8 ? '#ff8a7a' : '#d9c48a'; c.lineWidth = 2; c.beginPath(); c.moveTo(myX + 4, cy - 6); c.quadraticCurveTo((myX + cowX) / 2, cy - 6 + 18 * (1 - s.tens), cowX - 6, cy - 10); c.stroke(); }
+    c.fillStyle = 'rgba(230,240,245,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
+    c.fillText(T('간격 ', 'Gap ', '間隔 ') + Math.round(s.d) + 'm', 8, 16);
+    c.textAlign = 'center'; c.font = '10px system-ui'; c.fillStyle = 'rgba(200,230,210,.6)'; c.fillText('40–60m', cowX - 50 * ppm, H * 0.82);
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.8)'; c.font = '10px system-ui'; c.textAlign = 'left'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, 18, 110, s.tens, s.tens > 0.8 ? '#ff8a7a' : '#e8c068', T('호스 장력', 'Hose tension', 'ホース張力'));
+    bar(W - 118, 42, 110, (s.fuel0 + Math.min(s.got, 1 - s.fuel0)), '#7fc8ff', T('연료 ', 'Fuel ', '燃料 ') + Math.round((s.fuel0 + Math.min(s.got, 1 - s.fuel0)) * 100) + '%');
+    if (s.airOn) { c.fillStyle = 'rgba(255,90,70,' + (0.18 + 0.12 * Math.sin(s.t * 12)).toFixed(3) + ')'; c.fillRect(0, 0, W, H); c.fillStyle = '#fff'; c.font = '700 16px system-ui'; c.textAlign = 'center'; c.fillText('✈ ' + s.airLeft.toFixed(1), W / 2, 40); }
+    bar(8, H - 14, W * 0.4, s.t / DUR, '#9fe0a8', T('시간', 'Time', '時間'));
+  }
+  function render() { if (!S) return; $('epCowMsg').textContent = S.msg; $('epCowDive').style.display = S.airOn ? '' : 'none'; }
+  function labels() {
+    $('epCowT').textContent = T('보급 — 나란히', 'RESUPPLY — ALONGSIDE', '補給 — 並走');
+    $('epCowL').innerHTML = T('◀ 벌린다', '◀ Open out', '◀ 離す'); $('epCowR').innerHTML = T('붙는다 ▶', 'Close in ▶', '寄せる ▶');
+    $('epCowDive').innerHTML = T('호스 끊고 잠항!', 'Cut hose — DIVE!', 'ホース切断 — 潜航！'); $('epCowEnd').textContent = T('그만', 'Stop', 'やめる');
+    $('epCowL').style.display = ''; $('epCowR').style.display = ''; $('epCowDive').style.display = 'none';
+  }
+  function build() {
+    if ($('epCow')) return;
+    const st = document.createElement('style'); st.id = 'ep-v675-cow-style';
+    st.textContent = '#epCow{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epCow.on{display:flex}' +
+      '#epCow .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--amber,#e0b060);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epCow h3{margin:0 0 6px;font-size:15px;letter-spacing:.08em;color:var(--amber,#e0b060)}#epCow canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px}' +
+      '#epCow .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epCow .ctl{display:grid;grid-template-columns:1fr 1fr 0.7fr;gap:6px}#epCow .ctl button{padding:14px 0;font-size:15px;touch-action:none;user-select:none;-webkit-user-select:none}#epCow .ctl button.hold{background:var(--amber,#e0b060);color:#081016}' +
+      '#epCow .dv{grid-column:span 3;background:#a53a2c;border-color:#ff8a7a;color:#fff;font-weight:700}#epCowBtn{display:none}#epCowBtn.on{display:block}#epCowBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epCow';
+    el.innerHTML = '<div class="bx"><h3 id="epCowT"></h3><canvas id="epCowCv"></canvas><div class="msg" id="epCowMsg"></div><div class="ctl"><button class="mini dv" id="epCowDive"></button><button class="mini" id="epCowL" data-h="1"></button><button class="mini" id="epCowR" data-h="-1"></button><button class="mini" id="epCowEnd"></button></div></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    $('epCowDive').addEventListener('click', dive); $('epCowEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epCowBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epCowBtn'; b.textContent = '⛽'; b.title = T('보급 잠수함', 'Supply boat', '補給潜水艦'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), ok = eligible(C) && C.cowOfferV675; b.classList.toggle('on', !!ok); b.classList.toggle('want', !!ok);
+  }
+  function init() { setInterval(() => { try { offer(); button(); } catch (e) {} }, 900); window.EP_V675_COW = { version: '6.75.0', open, close, dive, state: () => S, hold: h => { if (S) S.hold = h; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v676-special-script">
+/* ══════════ V6.76 특수 임무 — 바다마다 다른 밤일 ══════════
+   초계 중 가끔 사령부가 어뢰 공격이 아닌 일을 맡긴다. 밤에, 해안 가까이, 들키면 끝나는 일이다.
+   · 독일(대서양 · 지중해) — 항구 입구에 기뢰 부설: 표시한 세 곳에 기뢰를 내려놓는다.
+   · 미군(태평양) — 구조 당번: 공습 뒤 바다에 떨어진 조종사들의 구명뗏목을 찾아 건진다.
+   · 일본(동태평양) — 「두더지 수송」: 고립된 섬 해안에 보급 드럼통을 떨어뜨린다.
+   · 해도를 누르면 그쪽으로 간다. 순찰정의 탐조등 · 레이더 원 안에 오래 있으면 경계가 오른다 — 가득 차면 잠항해 철수.
+   · 목표 원 안에서 속력을 줄이고 「투하 / 인양」. 새벽(제한 시간) 전에 끝내야 한다. 얕은 곳은 들어갈 수 없다.
+   · 성공하면 사령부 명성 · 승조원 사기 · 함장 성향. 지도 위 🎯 단추(초계마다 한 번 맡겨질 수 있다). 한 · 영 · 일. */
+(function EP_V676_SPECIAL() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random, rnd = (a, b) => a + R() * (b - a);
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const KIND = {
+    MINES: { n: ['기뢰 부설', 'Minelaying', '機雷敷設'], obj: ['기뢰를 내린다', 'Lay mine', '機雷投下'], who: ['어뢰사관', 'Torpedo officer', '水雷長'],
+      brief: ['항구 입구 수로에 기뢰 세 개. 순찰정 탐조등을 피해 표시한 곳에 내려놓는다.', 'Three mines in the harbour channel. Dodge the patrol boat\'s searchlight and lay them at the marks.', '港口の水路に機雷三個。哨戒艇の探照灯を避けて印の場所に置く。'] },
+    LIFEGUARD: { n: ['구조 당번', 'Lifeguard duty', '救難待機'], obj: ['건진다', 'Pick up', '救助'], who: ['갑판장', 'Bosun', '甲板長'],
+      brief: ['공습 뒤 조종사 셋이 뗏목으로 떠 있다. 해안포와 순찰정을 피해 모두 건져라.', 'Three airmen adrift on rafts after the strike. Dodge the shore guns and patrol craft and pick them all up.', '空襲後、搭乗員三名が筏で漂流中。沿岸砲と哨戒艇を避けて全員救助せよ。'] },
+    DRUMS: { n: ['두더지 수송', 'Mole transport', 'モグラ輸送'], obj: ['드럼통 투하', 'Drop drums', 'ドラム缶投下'], who: ['갑판장', 'Bosun', '甲板長'],
+      brief: ['고립된 섬 해안 세 곳에 보급 드럼통을 떨어뜨린다. 어뢰정이 돌고 있다.', 'Drop supply drums at three points off the cut-off island. PT boats are prowling.', '孤立した島の沿岸三か所に補給ドラム缶を投下。魚雷艇が巡回中。'] }
+  };
+  const kindOf = th => th === 'PACIFIC' ? 'LIFEGUARD' : th === 'EASTPAC' ? 'DRUMS' : 'MINES';
+  let S = null, raf = 0;
+
+  function offer() {
+    const C = CS(); if (!C || C.status !== 'AT_SEA' || C.specV676) return;
+    if (C.specRollAtV676 == null) C.specRollAtV676 = (C.hours || 0) + 48 + R() * 96;
+    if ((C.hours || 0) < C.specRollAtV676) return;
+    C.specV676 = R() < 0.45 ? { kind: kindOf(C.theater), state: 'OFFER' } : { state: 'NONE' };
+    if (C.specV676.state !== 'OFFER') return;
+    const K = KIND[C.specV676.kind];
+    const ko = '무전 — 사령부 특별 명령: ' + K.n[0] + '. ' + K.brief[0], en = 'Radio — HQ special order: ' + K.n[1] + '. ' + K.brief[1], ja = '無電 — 司令部特別命令：' + K.n[2] + '。' + K.brief[2];
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e) {}
+    snd('radio');
+  }
+  function open() {
+    const C = CS(); if (!C || !C.specV676 || C.specV676.state !== 'OFFER') return false;
+    const k = C.specV676.kind;
+    /* 무대 — 0..100 정사각. 왼쪽 위가 해안 */
+    const coast = []; for (let i = 0; i <= 10; i++) coast.push([i * 10, 18 + Math.sin(i * 1.3) * 6 + (i > 6 ? (i - 6) * 3 : 0)]);
+    const objs = [];
+    for (let i = 0; i < 3; i++) objs.push({ x: 22 + i * 26 + rnd(-5, 5), y: (k === 'LIFEGUARD' ? 40 : 30) + rnd(0, 18), done: false, vx: k === 'LIFEGUARD' ? rnd(-1.2, 1.2) : 0, vy: k === 'LIFEGUARD' ? rnd(-0.6, 0.8) : 0 });
+    const pat = [{ x: 30, y: 52, a: 0, path: [[15, 55], [85, 48]], seg: 0, sp: 7, beam: 0 }];
+    if (C.escalation > 0.55 || k === 'DRUMS') pat.push({ x: 70, y: 35, a: 0, path: [[85, 30], [40, 38], [60, 62]], seg: 0, sp: 9, beam: Math.PI });
+    S = { C, k, coast, objs, pat, b: { x: 50, y: 94, tx: 50, ty: 94, sp: 0 }, alert: 0, t: 0, dawn: 60, msg: '', done: false, res: null, guns: [] };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epSp').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+    S.msg = T(KIND[k].brief[0], KIND[k].brief[1], KIND[k].brief[2]) + ' ' + T('해도를 누르면 그쪽으로 갑니다.', 'Tap the chart to steer there.', '海図を押すとそちらへ向かう。');
+    return true;
+  }
+  function coastY(S, x) { const i = clamp(Math.floor(x / 10), 0, 9), f = x / 10 - i, a = S.coast[i], b = S.coast[i + 1]; return a[1] + (b[1] - a[1]) * f; }
+  function step(dt) {
+    const s = S, b = s.b; s.t += dt;
+    /* 우리 — 목표점으로, 가까우면 느리게 */
+    const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy);
+    const want = d < 1 ? 0 : d < 6 ? 3 : 7; b.sp += (want - b.sp) * Math.min(1, dt * 1.5);
+    if (d > 0.01) { const mv = Math.min(d, b.sp * dt); b.x += dx / d * mv; b.y += dy / d * mv; }
+    const cy = coastY(s, b.x) + 5; if (b.y < cy) { b.y = cy; b.ty = Math.max(b.ty, cy); if (!s.shoalSaid) { s.shoalSaid = true; s.msg = T('항해사: 얕습니다! 더 들어가면 걸립니다.', 'Navigator: shoaling! Any closer and we\'re aground.', '航海長：浅い！これ以上は座礁する。'); } }
+    /* 뗏목은 떠내려간다 */
+    for (const o of s.objs) if (!o.done && (o.vx || o.vy)) { o.x = clamp(o.x + o.vx * dt * 0.4, 6, 94); o.y = clamp(o.y + o.vy * dt * 0.4, coastY(s, o.x) + 8, 85); }
+    /* 순찰 — 경로를 돌며 탐조등(또는 레이더)을 휘두른다 */
+    let seen = 0;
+    for (const p of s.pat) {
+      const tgt = p.path[(p.seg + 1) % p.path.length], ex = tgt[0] - p.x, ey = tgt[1] - p.y, ed = Math.hypot(ex, ey);
+      if (ed < 1.5) p.seg = (p.seg + 1) % p.path.length; else { p.x += ex / ed * p.sp * dt * 0.5; p.y += ey / ed * p.sp * dt * 0.5; p.a = Math.atan2(ey, ex); }
+      p.beam += dt * 1.1;
+      const rx = b.x - p.x, ry = b.y - p.y, rd = Math.hypot(rx, ry), ang = Math.atan2(ry, rx);
+      let da = Math.abs(((ang - p.beam) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI);
+      if (rd < 30 && da < 0.22) seen += (1 - rd / 30) * 2.2 * (b.sp > 4 ? 1.4 : 1);
+      if (rd < 9) seen += (1 - rd / 9) * 1.2;
+    }
+    if (s.k === 'LIFEGUARD' && R() < dt * 0.35) { const gx = b.x + rnd(-14, 14), gy = b.y + rnd(-10, 10); s.guns.push({ x: gx, y: gy, t: 0 }); if (Math.hypot(gx - b.x, gy - b.y) < 3.5) { s.hit = (s.hit || 0) + 1; s.msg = T('해안포 탄이 바로 옆에!', 'Shore battery shell right alongside!', '沿岸砲弾がすぐ横に！'); snd('uireject'); } }
+    s.guns = s.guns.filter(g => (g.t += dt) < 1.2);
+    s.alert = clamp(s.alert + seen * dt * 0.35 - (seen ? 0 : dt * 0.04), 0, 1);
+    if (seen && !s.lit) { s.lit = true; snd('spotted'); } if (!seen) s.lit = false;
+    if (s.alert >= 1) end('BLOWN');
+    else if (s.t >= s.dawn) end(s.objs.some(o => o.done) ? 'PART' : 'DAWN');
+  }
+  function act() {
+    const s = S; if (!s || s.done) return;
+    const o = s.objs.find(o => !o.done && Math.hypot(o.x - s.b.x, o.y - s.b.y) < 5);
+    if (!o) { s.msg = T('표시한 곳 안으로 들어가야 합니다.', 'We need to be inside the mark.', '印の中に入らないと。'); return; }
+    if (s.b.sp > 3.5) { s.msg = T('너무 빠릅니다 — 속력을 줄이십시오(목표 가까이 찍기).', 'Too fast — slow down (tap close to the mark).', '速すぎる — 減速を（目標の近くを押す）。'); return; }
+    o.done = true; snd('taskdone');
+    const n = s.objs.filter(x => x.done).length;
+    s.msg = s.k === 'MINES' ? T('기뢰 ' + n + ' 내려놓았습니다.', 'Mine ' + n + ' laid.', '機雷' + n + '投下。') : s.k === 'LIFEGUARD' ? T('조종사 ' + n + ' 건졌습니다 — 덜덜 떨면서 웃습니다.', 'Airman ' + n + ' aboard — shivering and grinning.', '搭乗員' + n + '救助 — 震えながら笑っている。') : T('드럼통 ' + n + ' 투하 — 해안에서 불빛이 깜박입니다.', 'Drums ' + n + ' away — a light blinks from shore.', 'ドラム缶' + n + '投下 — 岸から灯火が瞬く。');
+    if (n >= s.objs.length) end('OK');
+  }
+  function end(res) {
+    const s = S; if (!s || s.done) return; s.done = true; s.res = res;
+    const C = s.C, n = s.objs.filter(o => o.done).length, K = KIND[s.k];
+    C.specV676.state = 'DONE'; C.hours = (C.hours || 0) + 8; C.surfaced = false;
+    let fame = res === 'OK' ? 3 : n ? 1 : 0, mor = res === 'OK' ? 0.05 : res === 'BLOWN' ? -0.03 : 0.01, dmg = 0;
+    if (res === 'BLOWN') { dmg = 3 + Math.round(R() * 6); C.hull = clamp((C.hull || 100) - dmg, 1, 100); C.alert = clamp((C.alert || 0) + 0.25, 0, 1); }
+    if (s.hit) { const d2 = s.hit * 3; dmg += d2; C.hull = clamp((C.hull || 100) - d2, 1, 100); }
+    try { const w = window.War && War.state && War.state(); if (w && w.captain && fame) { w.captain.prestige = (w.captain.prestige || 0) + fame; War.save(); } } catch (e) {}
+    try { if (window.EP_MORALE) EP_MORALE.add(C, mor); } catch (e) {}
+    try { if (window.EP_CAPT) { if (res === 'OK') EP_CAPT.note(s.k === 'LIFEGUARD' ? 'W_MOURN' : 'TR_REPORT'); if (s.k === 'LIFEGUARD' && n) EP_CAPT.note('LB_MED'); if (res === 'BLOWN') EP_CAPT.note('B_PRESS'); } } catch (e) {}
+    const word = { OK: ['완수', 'completed', '完遂'], PART: [n + '/3 하고 새벽에 철수', n + '/3 done, withdrew at dawn', n + '/3で夜明けに撤収'], DAWN: ['새벽까지 못 함', 'dawn came first', '夜明けまでに未了'], BLOWN: ['들켜서 잠항 철수', 'spotted — dived and withdrew', '発見され潜航撤収'] }[res];
+    const ko = K.n[0] + ' — ' + word[0] + (fame ? ', 명성 +' + fame : '') + (dmg ? ', 선체 −' + dmg + '%' : '') + '.', en = K.n[1] + ' — ' + word[1] + (fame ? ', fame +' + fame : '') + (dmg ? ', hull −' + dmg + '%' : '') + '.', ja = K.n[2] + ' — ' + word[2] + (fame ? '、名声 +' + fame : '') + (dmg ? '、船体 −' + dmg + '%' : '') + '。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja); if (res === 'BLOWN') snd('divealarm');
+    $('epSpAct').style.display = 'none'; $('epSpEnd').textContent = T('확인', 'OK', '了解'); render();
+  }
+  function close() { if (S && !S.done && S.t > 2) end(S.objs.some(o => o.done) ? 'PART' : 'DAWN'); cancelAnimationFrame(raf); raf = 0; S = null; $('epSp').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) { if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; if (!S.done) step(dt); draw(); render(); raf = requestAnimationFrame(loop); }
+  function draw() {
+    const cv = $('epSpCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = W;
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, k = W / 100, X = v => v * k;
+    c.fillStyle = '#06121a'; c.fillRect(0, 0, W, H);
+    /* 육지 */
+    c.fillStyle = '#1d2a1f'; c.beginPath(); c.moveTo(0, 0); for (const p of s.coast) c.lineTo(X(p[0]), X(p[1])); c.lineTo(W, 0); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(160,190,150,.35)'; c.setLineDash([3, 3]); c.beginPath(); s.coast.forEach((p, i) => { if (i) c.lineTo(X(p[0]), X(p[1] + 5)); else c.moveTo(X(p[0]), X(p[1] + 5)); }); c.stroke(); c.setLineDash([]);
+    /* 목표 */
+    for (const o of s.objs) { c.strokeStyle = o.done ? 'rgba(140,230,160,.6)' : 'rgba(232,192,104,.9)'; c.lineWidth = 1.5; c.beginPath(); c.arc(X(o.x), X(o.y), 5 * k, 0, 6.283); c.stroke();
+      c.fillStyle = o.done ? 'rgba(140,230,160,.8)' : 'rgba(232,192,104,.9)'; c.font = '700 ' + Math.round(10 + k) + 'px system-ui'; c.textAlign = 'center'; c.fillText(o.done ? '✓' : s.k === 'LIFEGUARD' ? '◉' : s.k === 'MINES' ? '✕' : '▣', X(o.x), X(o.y) + 4); }
+    /* 순찰 · 탐조등 */
+    for (const p of s.pat) {
+      const g = c.createRadialGradient(X(p.x), X(p.y), 0, X(p.x), X(p.y), 30 * k); g.addColorStop(0, 'rgba(255,250,210,.32)'); g.addColorStop(1, 'rgba(255,250,210,0)');
+      c.fillStyle = g; c.beginPath(); c.moveTo(X(p.x), X(p.y)); c.arc(X(p.x), X(p.y), 30 * k, p.beam - 0.22, p.beam + 0.22); c.closePath(); c.fill();
+      c.strokeStyle = 'rgba(255,120,100,.25)'; c.beginPath(); c.arc(X(p.x), X(p.y), 9 * k, 0, 6.283); c.stroke();
+      c.save(); c.translate(X(p.x), X(p.y)); c.rotate(p.a); c.fillStyle = '#7a8790'; c.fillRect(-2.6 * k, -0.9 * k, 5.2 * k, 1.8 * k); c.restore();
+    }
+    for (const gg of s.guns) { c.fillStyle = 'rgba(240,245,250,' + (1 - gg.t / 1.2).toFixed(3) + ')'; c.beginPath(); c.arc(X(gg.x), X(gg.y), (1 + gg.t * 2) * k, 0, 6.283); c.fill(); }
+    /* 우리 */
+    const b = s.b, ang = Math.atan2(b.ty - b.y, b.tx - b.x);
+    c.strokeStyle = 'rgba(143,208,255,.35)'; c.setLineDash([2, 3]); c.beginPath(); c.moveTo(X(b.x), X(b.y)); c.lineTo(X(b.tx), X(b.ty)); c.stroke(); c.setLineDash([]);
+    c.save(); c.translate(X(b.x), X(b.y)); c.rotate(ang); c.fillStyle = s.lit ? '#ff8a7a' : '#5ae0a6'; c.beginPath(); c.moveTo(3 * k, 0); c.lineTo(-2.5 * k, 1.4 * k); c.lineTo(-2.5 * k, -1.4 * k); c.closePath(); c.fill(); c.restore();
+    /* 계기 */
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.85)'; c.font = '10px system-ui'; c.textAlign = 'left'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, H - 34, 110, s.alert, s.alert > 0.6 ? '#ff8a7a' : '#e8c068', T('경계', 'Alert', '警戒'));
+    bar(W - 118, H - 12, 110, s.t / s.dawn, '#9fd4ff', T('새벽까지', 'Until dawn', '夜明けまで'));
+  }
+  function render() { if (!S) return; $('epSpMsg').textContent = S.msg; }
+  function labels() {
+    const C = CS(), k = C && C.specV676 ? C.specV676.kind : 'MINES', K = KIND[k];
+    $('epSpT').textContent = T(K.n[0], K.n[1], K.n[2]);
+    $('epSpAct').innerHTML = T(K.obj[0], K.obj[1], K.obj[2]); $('epSpAct').style.display = '';
+    $('epSpEnd').textContent = T('철수', 'Withdraw', '撤収');
+  }
+  function build() {
+    if ($('epSp')) return;
+    const st = document.createElement('style'); st.id = 'ep-v676-special-style';
+    st.textContent = '#epSp{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epSp.on{display:flex}' +
+      '#epSp .bx{width:min(94vw,420px);max-height:96vh;overflow:auto;background:var(--panel,#0e1a22);border:1px solid #9fe0a8;border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epSp h3{margin:0 0 6px;font-size:15px;letter-spacing:.08em;color:#9fe0a8}#epSp canvas{display:block;width:100%;aspect-ratio:1/1;border-radius:8px;touch-action:none}' +
+      '#epSp .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epSp .ctl{display:grid;grid-template-columns:2fr 1fr;gap:6px}#epSp .ctl button{padding:13px 0;font-size:15px}#epSpBtn{display:none}#epSpBtn.on{display:block}#epSpBtn.want{border-color:#9fe0a8!important;color:#9fe0a8!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epSp';
+    el.innerHTML = '<div class="bx"><h3 id="epSpT"></h3><canvas id="epSpCv"></canvas><div class="msg" id="epSpMsg"></div><div class="ctl"><button class="mini go" id="epSpAct"></button><button class="mini" id="epSpEnd"></button></div></div>';
+    document.body.appendChild(el);
+    $('epSpCv').addEventListener('pointerdown', e => { if (!S || S.done) return; const r = e.currentTarget.getBoundingClientRect(); S.b.tx = clamp((e.clientX - r.left) / r.width * 100, 2, 98); S.b.ty = clamp((e.clientY - r.top) / r.height * 100, 2, 98); });
+    $('epSpAct').addEventListener('click', act); $('epSpEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epSpBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epSpBtn'; b.textContent = '🎯'; b.title = T('특수 임무', 'Special mission', '特殊任務'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), ok = C && C.status === 'AT_SEA' && C.specV676 && C.specV676.state === 'OFFER'; b.classList.toggle('on', !!ok); b.classList.toggle('want', !!ok);
+  }
+  function init() { setInterval(() => { try { offer(); button(); } catch (e) {} }, 900); window.EP_V676_SPECIAL = { version: '6.76.0', open, close, act, state: () => S, steer: (x, y) => { if (S) { S.b.tx = x; S.b.ty = y; } } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
 </body>
