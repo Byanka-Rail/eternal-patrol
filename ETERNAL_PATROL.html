@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.54.1 Quick Scope</title>
-<script id="ep-build">window.EP_BUILD='6.54.1';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.55.0 Wolfpack Radio</title>
+<script id="ep-build">window.EP_BUILD='6.55.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -35989,6 +35989,7 @@ window.Lang.add('ja', {
     if(C.log.length>120)C.log.length=120;
   }
   function advanceSeaActivityUIV6252(){
+    if(window.EP_FLEET){try{EP_FLEET.tick();}catch(e){}}
     if(!window.War||!War.seaActivityAdvance)return null;const r=War.seaActivityAdvance(currentSeaActivityDayV6252());if(r&&r.news&&r.news.length)pushSeaActivityNewsV6252(r.news);return r;
   }
   /* v6.41 — 지도 글자 관리자. 글자를 모아 두었다가 맨 마지막에 중요한 것부터 놓는다.
@@ -36334,44 +36335,28 @@ window.Lang.add('ja', {
           if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) > 200) continue; c.strokeStyle = 'rgba(160,220,200,' + Math.max(0.05, 0.42 * (1 - age / 72)).toFixed(3) + ')'; c.lineWidth = 1.4;
           c.beginPath(); c.moveTo(p0[0], p0[1]); c.lineTo(p1[0], p1[1]); c.stroke(); }
         const pz = wpx(sc, tr[tr.length - 1].x, tr[tr.length - 1].y), pb = wpx(sc, C.x, C.y); c.strokeStyle = 'rgba(160,220,200,.42)'; c.beginPath(); c.moveTo(pz[0], pz[1]); c.lineTo(pb[0], pb[1]); c.stroke(); c.restore(); } }
+    /* v6.55 — 아군 잠수함 (마지막 전문 위치) */
+    if (window.EP_FLEET) { try { EP_FLEET.draw(c, sc, C, wpx, LBL); } catch (e) {} }
     /* 자함 — v6.41: 은은한 빛무리와 두 겹 고리, 긴 뱃머리 선으로 한눈에 */
     const b = wpx(sc, C.x, C.y), hr = C.course * Math.PI / 180, own = C.surfaced ? '61,255,160' : '143,208,255';
     { const gl = c.createRadialGradient(b[0], b[1], 2, b[0], b[1], 26); gl.addColorStop(0, 'rgba(' + own + ',.30)'); gl.addColorStop(1, 'rgba(' + own + ',0)'); c.fillStyle = gl; c.beginPath(); c.arc(b[0], b[1], 26, 0, 7); c.fill(); }
-    /* v6.54.1 — 자함 기호: 위에서 본 유보트 선체. 뱃머리가 침로를 가리킨다.
-       부상 = 채운 선체(녹색) · 잠항 = 비운 점선 선체(청색) — 색과 모양 두 가지로 구분 */
-    { const L = 34, Bm = 3.9;
-      c.save(); c.translate(b[0], b[1]); c.rotate(hr);
-      /* 선체 — 길고 가는 몸통, 날카로운 뱃머리, 가늘어지는 고물 */
-      const hull = () => { c.beginPath();
-        c.moveTo(0, -L * 0.5);
-        c.quadraticCurveTo(Bm * 0.95, -L * 0.30, Bm, -L * 0.08);
-        c.lineTo(Bm * 0.95, L * 0.16);
-        c.quadraticCurveTo(Bm * 0.75, L * 0.40, Bm * 0.22, L * 0.5);
-        c.lineTo(-Bm * 0.22, L * 0.5);
-        c.quadraticCurveTo(-Bm * 0.75, L * 0.40, -Bm * 0.95, L * 0.16);
-        c.lineTo(-Bm, -L * 0.08);
-        c.quadraticCurveTo(-Bm * 0.95, -L * 0.30, 0, -L * 0.5);
-        c.closePath(); };
-      hull(); c.fillStyle = 'rgba(6,14,20,.85)'; c.fill();
-      if (C.surfaced) { c.fillStyle = 'rgba(' + own + ',.45)'; c.fill(); }
-      c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 1.5;
-      if (!C.surfaced) c.setLineDash([3, 2]);
-      hull(); c.stroke(); c.setLineDash([]);
-      /* 갑판 중심선 */
-      c.strokeStyle = 'rgba(' + own + ',.45)'; c.lineWidth = 0.8;
-      c.beginPath(); c.moveTo(0, -L * 0.40); c.lineTo(0, L * 0.40); c.stroke();
-      /* 함교탑 — 가운데 조금 앞, 갑판포 — 그 앞 */
-      c.fillStyle = C.surfaced ? 'rgb(' + own + ')' : 'rgba(' + own + ',.85)';
-      c.beginPath(); c.ellipse(0, -L * 0.02, Bm * 0.55, L * 0.11, 0, 0, 7); c.fill();
-      c.beginPath(); c.arc(0, -L * 0.24, 1.1, 0, 7); c.fill();
-      /* 고물 키·프로펠러 */
-      c.strokeStyle = 'rgba(' + own + ',.8)'; c.lineWidth = 1.1;
-      c.beginPath(); c.moveTo(-Bm * 0.7, L * 0.5 + 0.5); c.lineTo(Bm * 0.7, L * 0.5 + 0.5); c.stroke();
-      /* 뱃머리 앞 침로 표시 */
-      c.strokeStyle = 'rgba(' + own + ',.75)'; c.lineWidth = 1.4;
-      c.beginPath(); c.moveTo(0, -L * 0.5 - 3); c.lineTo(0, -L * 0.5 - 11); c.stroke();
-      c.beginPath(); c.moveTo(-3, -L * 0.5 - 8); c.lineTo(0, -L * 0.5 - 12); c.lineTo(3, -L * 0.5 - 8); c.stroke();
-      c.restore(); }
+    /* v6.55 — 자함 기호: 작전도식. 부상 = 원(수상), 잠항 = 아래 반원 「∪」(수중).
+       가운데 점 + 침로 막대. 아군 잠수함과 같은 문법이되 크고 두 겹이다. */
+    { const R = 8.5;
+      const frame = () => { c.beginPath();
+        if (C.surfaced) c.arc(b[0], b[1], R, 0, 7);
+        else { c.moveTo(b[0] - R, b[1] - R * 0.25); c.lineTo(b[0] + R, b[1] - R * 0.25);
+               c.arc(b[0], b[1] - R * 0.25, R, 0, Math.PI); c.closePath(); } };
+      /* 침로 막대 — 기호 테두리에서 뻗는다 */
+      c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(b[0] + Math.sin(hr) * (R + 1), b[1] - Math.cos(hr) * (R + 1));
+      c.lineTo(b[0] + Math.sin(hr) * (R + 15), b[1] - Math.cos(hr) * (R + 15)); c.stroke();
+      frame(); c.fillStyle = 'rgba(' + own + ',.22)'; c.fill();
+      c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 2; c.stroke();
+      /* 바깥 얇은 테 — 「나」 */
+      c.save(); c.translate(b[0], b[1]); c.scale(1.45, 1.45); c.translate(-b[0], -b[1]);
+      frame(); c.restore(); c.strokeStyle = 'rgba(' + own + ',.45)'; c.lineWidth = 1; c.stroke();
+      c.fillStyle = 'rgb(' + own + ')'; c.beginPath(); c.arc(b[0], b[1] + (C.surfaced ? 0 : R * 0.15), 2, 0, 7); c.fill(); }
     LBL.add({ x: b[0], y: b[1], lines: ['\u2003\u2003\u2003'], lh: 28, pri: 100, cands: [[-14, -14]], font: '10px system-ui', color: 'rgba(0,0,0,0)' });   /* 내 배 둘레는 글자가 덮지 않게 */
     if (C.waveDir != null) {
       const wa=(C.waveDir||0)*Math.PI/180, wl=10+Math.min(10,(C.seaState||1)*2.2);
@@ -48252,5 +48237,213 @@ html[data-skin="rust"]:not([data-lamp]) .epCrt::after, html[data-skin="brass"]:n
   window.EP_V653_GAUGE = { version: '6.53.0' };
 })();
 </script>
+<script id="ep-v655-fleet">
+/* ═══════════════════════════════════════════════════════════════
+   v6.55 — 아군 잠수함과 전문(電文)
+   ───────────────────────────────────────────────────────────────
+   같은 바다에 나만 있는 것이 아니다. 전역의 라이벌 함장 셋과 번호만 아는
+   몇 척이 함께 초계를 돈다. 우리가 아는 것은 **그들이 마지막으로 보낸 전문**
+   뿐이다 — 지도에는 그 자리만 찍히고, 오래될수록 흐려진다.
+
+   · 전술 화면에는 그리지 않는다(규칙). 월드맵과 항해 일지에만 나온다.
+   · 엔진 난수(rnd)를 건드리지 않는다 — Math.random 만 쓴다.
+   · 라이벌의 전과·손실은 초계 종료 때 War 가 정한다. 여기서는 숫자를
+     지어내지 않는다(위치·접촉·피격·귀항만). 손실은 번호만 있는 배에만.
+   · 상태는 Campaign 상태(C.fleetV655)에 들어가 초계와 함께 저장된다.
+   ═══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  const HULLS = {
+    ATLANTIC: ['U-603','U-406','U-221','U-338','U-91','U-616','U-758','U-230','U-608','U-454'],
+    MEDITERRANEAN: ['U-81','U-371','U-565','U-593','U-596','U-73','U-375','U-407'],
+    PACIFIC: ['Wahoo','Tang','Harder','Flasher','Barb','Jack','Bowfin','Silversides'],
+    EASTPAC: ['I-17','I-25','I-26','I-21','I-19','I-10'],
+  };
+  const COUNT = { ATLANTIC: 6, MEDITERRANEAN: 4, PACIFIC: 5, EASTPAC: 3 };
+  const HQ = { ATLANTIC: 'BdU', MEDITERRANEAN: 'BdU', PACIFIC: 'ComSubPac', EASTPAC: '제6함대' };
+  const HQ_EN = { ATLANTIC: 'BdU', MEDITERRANEAN: 'BdU', PACIFIC: 'ComSubPac', EASTPAC: '6th Fleet' };
+  const R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  const TH = () => window.THEATERS;
+  const LANG = () => (window.Lang && Lang.get ? Lang.get() : 'ko');
+
+  function theater(C) { return TH() && TH().THEATERS[C.theater]; }
+  function sea(C, x, y) {
+    const t = theater(C); x = Math.max(0.1, Math.min(t.grid.w - 0.1, x)); y = Math.max(0.1, Math.min(t.grid.h - 0.1, y));
+    const q = TH().nearestSeaPoint ? TH().nearestSeaPoint(C.theater, x, y) : null;
+    return q ? { x: q.x, y: q.y } : { x: x, y: y };
+  }
+  function grid(C, x, y) { return TH().gridName ? TH().gridName(C.theater, x, y) : '??'; }
+  function routePoint(t) {
+    const rt = pick(t.routes), i = Math.floor(R() * (rt.pts.length - 1)), u = R();
+    const a = rt.pts[i], b = rt.pts[i + 1];
+    return { x: a[0] + (b[0] - a[0]) * u + (R() - 0.5) * 1.6, y: a[1] + (b[1] - a[1]) * u + (R() - 0.5) * 1.6 };
+  }
+  function homePorts(t) { const h = (t.ports || []).filter(p => p.role === 'HOME' || p.role === 'FORWARD'); return h.length ? h : t.ports || []; }
+  function brg(x0, y0, x1, y1) { return ((Math.atan2(x1 - x0, -(y1 - y0)) * 180 / Math.PI) + 360) % 360; }
+
+  function rivalsFor(C) {
+    try { const W = window.War && War.state && War.state(); if (!W || !Array.isArray(W.rivals)) return [];
+      return W.rivals.filter(r => r && r.status === 'ACTIVE'); } catch (e) { return []; }
+  }
+
+  function ensure(C) {
+    const t = theater(C); if (!t || !t.routes || !t.routes.length) return null;
+    if (C.fleetV655 && C.fleetV655.theater === C.theater) return C.fleetV655;
+    const pool = (HULLS[C.theater] || HULLS.ATLANTIC).slice(), boats = [];
+    const rivals = rivalsFor(C);
+    const n = COUNT[C.theater] || 4;
+    for (let i = 0; i < n; i++) {
+      const hull = pool.splice(Math.floor(R() * pool.length), 1)[0];
+      const rv = rivals[i] || null;
+      const home = pick(homePorts(t));
+      const b = { id: hull, hull: hull, capt: rv ? rv.shortName : null, rival: !!rv, home: home.id,
+        x: home.x, y: home.y, st: 'PORT', left: 0, tx: home.x, ty: home.y, crs: 0,
+        rep: null, nextRep: 0, contact: null, lost: false };
+      /* 시작 상태를 흩어 놓는다 — 모두 항구에서 시작하면 바다가 텅 빈다 */
+      const z = R();
+      if (z < 0.55) { const q = sea(C, ...Object.values(routePoint(t))); b.x = q.x; b.y = q.y; b.st = 'PATROL'; b.left = 48 + R() * 160; }
+      else if (z < 0.78) { b.st = 'OUT'; const q = sea(C, ...Object.values(routePoint(t))); b.tx = q.x; b.ty = q.y;
+        b.x = home.x + (q.x - home.x) * R() * 0.6; b.y = home.y + (q.y - home.y) * R() * 0.6; }
+      else if (z < 0.9) { b.st = 'HOME'; const q = sea(C, ...Object.values(routePoint(t))); b.x = q.x; b.y = q.y; b.tx = home.x; b.ty = home.y; }
+      else { b.st = 'PORT'; b.left = 24 + R() * 120; }
+      if (b.st !== 'PORT') b.rep = { x: b.x, y: b.y, h: (C.hours || 0) - R() * 30, crs: R() * 360, kind: 'POS' };
+      b.nextRep = (C.hours || 0) + 6 + R() * 30;
+      boats.push(b);
+    }
+    C.fleetV655 = { theater: C.theater, boats: boats, last: C.hours || 0, lastLog: -99 };
+    return C.fleetV655;
+  }
+
+  function name(b) { return b.capt ? b.hull + '(' + b.capt + ')' : b.hull; }
+  function log(C, F, b, ko, en, force) {
+    if (!force && (C.hours || 0) - F.lastLog < 8) return false;   /* 일지가 전문으로 덮이지 않게 */
+    F.lastLog = C.hours || 0;
+    const hq = HQ[C.theater] || 'BdU', hqe = HQ_EN[C.theater] || 'BdU';
+    const k = name(b) + ' → ' + hq + ': ' + ko, e = name(b) + ' → ' + hqe + ': ' + en;
+    C.log.unshift({ h: C.hours, text: k, variants: { ko: k, en: e, ja: k }, who: 'radio', kind: 'report' });
+    if (C.log.length > 120) C.log.length = 120;
+    return true;
+  }
+  function report(C, F, b, kind, extra) {
+    b.rep = Object.assign({ x: b.x, y: b.y, h: C.hours || 0, crs: b.crs, kind: kind }, extra || {});
+    b.nextRep = (C.hours || 0) + 14 + R() * 26;
+  }
+
+  function enemyConvoys() {
+    try { const s = War.seaActivity && War.seaActivity(); if (!s) return [];
+      const W = War.state(), side = { ATLANTIC: 'AXIS', MEDITERRANEAN: 'AXIS', PACIFIC: 'ALLIED', EASTPAC: 'JAPAN' }[W.theater];
+      return (s.packets || []).filter(p => p.faction !== side && p.kind === 'CONVOY'); } catch (e) { return []; }
+  }
+
+  function step(C, F, b, dt) {
+    const t = theater(C), kn2c = 1 / t.grid.nmPerCell;
+    if (b.lost) return;
+    const move = (kn) => { const dx = b.tx - b.x, dy = b.ty - b.y, d = Math.hypot(dx, dy), v = kn * kn2c * dt;
+      if (d > 1e-4) b.crs = brg(b.x, b.y, b.tx, b.ty);
+      if (d <= v) { b.x = b.tx; b.y = b.ty; return true; } b.x += dx / d * v; b.y += dy / d * v; return false; };
+    if (b.st === 'PORT') {
+      b.left -= dt;
+      if (b.left <= 0) { const q = sea(C, ...Object.values(routePoint(t))); b.st = 'OUT'; b.tx = q.x; b.ty = q.y;
+        const hp = (t.ports || []).find(p => p.id === b.home); if (hp) { b.x = hp.x; b.y = hp.y; }
+        b.crs = brg(b.x, b.y, b.tx, b.ty); report(C, F, b, 'SAIL');
+        log(C, F, b, '출항. 초계 해역 ' + grid(C, b.tx, b.ty) + '로 향함.', 'Sailed. Proceeding to ' + grid(C, b.tx, b.ty) + '.'); }
+      return;
+    }
+    if (b.st === 'OUT') {
+      if (move(9)) { b.st = 'PATROL'; b.left = 96 + R() * 200; report(C, F, b, 'POS');
+        log(C, F, b, grid(C, b.x, b.y) + ' 도착. 초계 개시.', 'On station at ' + grid(C, b.x, b.y) + '.'); }
+    } else if (b.st === 'PATROL' || b.st === 'SHADOW') {
+      b.left -= dt;
+      if (b.st === 'SHADOW') {
+        const cv = b.contact;
+        if (cv) { b.tx = cv.x; b.ty = cv.y; move(11); }
+        b.shadow -= dt;
+        if (b.shadow <= 0) {
+          b.st = 'PATROL'; b.contact = null;
+          const z = R();
+          if (z < 0.22) { report(C, F, b, 'DC'); log(C, F, b, '공격 후 폭뢰 공격 받음. 이탈, 수리 중.', 'Depth-charged after attack. Breaking off, repairing.'); b.left = Math.min(b.left, 30); }
+          else if (z < 0.55) { report(C, F, b, 'POS'); log(C, F, b, '접촉 상실. 초계 복귀.', 'Contact lost. Resuming patrol.'); }
+          else report(C, F, b, 'POS');
+          /* 번호만 아는 배는 드물게 돌아오지 않는다 */
+          if (!b.rival && R() < 0.05) { b.lost = true; b.lostAt = C.hours || 0; }
+        }
+      } else {
+        if (Math.hypot(b.tx - b.x, b.ty - b.y) < 0.05 || move(4)) {
+          const q = sea(C, b.x + (R() - 0.5) * 2.2, b.y + (R() - 0.5) * 2.2); b.tx = q.x; b.ty = q.y; }
+        /* 선단 접촉 — 바다 활동의 적 선단이 2칸 안에 있으면 */
+        for (const p of enemyConvoys()) {
+          const d = Math.hypot(p.x - b.x, p.y - b.y);
+          if (d < 2.2 && R() < dt * 0.06) {
+            b.st = 'SHADOW'; b.shadow = 8 + R() * 18; b.contact = { x: p.x, y: p.y, crs: p.course };
+            report(C, F, b, 'CONTACT', { cx: p.x, cy: p.y, ccrs: p.course });
+            const crs = String(Math.round(p.course || 0)).padStart(3, '0');
+            log(C, F, b, '선단 발견 ' + grid(C, p.x, p.y) + ' · 침로 ' + crs + ' · 추적 중.',
+                'Convoy sighted ' + grid(C, p.x, p.y) + ', course ' + crs + '. Shadowing.', true);
+            break;
+          }
+        }
+      }
+      if (b.left <= 0 && b.st === 'PATROL') { const hp = (t.ports || []).find(p => p.id === b.home) || pick(homePorts(t));
+        b.st = 'HOME'; b.tx = hp.x; b.ty = hp.y; report(C, F, b, 'HOME');
+        log(C, F, b, '연료 부족. 귀항함.', 'Fuel low. Returning to base.'); }
+    } else if (b.st === 'HOME') {
+      if (move(9)) { b.st = 'PORT'; b.left = 96 + R() * 140; b.rep = null; }
+    }
+    if (b.st !== 'PORT' && (C.hours || 0) >= b.nextRep) report(C, F, b, b.st === 'SHADOW' ? 'CONTACT' : 'POS',
+      b.st === 'SHADOW' && b.contact ? { cx: b.contact.x, cy: b.contact.y, ccrs: b.contact.crs } : null);
+  }
+
+  function tick() {
+    const C = window.Campaign && Campaign.state(); if (!C || !C.theater || !Array.isArray(C.log)) return;
+    const F = ensure(C); if (!F) return;
+    let dt = (C.hours || 0) - F.last; F.last = C.hours || 0;
+    if (!(dt > 0)) return; dt = Math.min(dt, 72);
+    while (dt > 0) { const s = Math.min(1, dt); for (const b of F.boats) step(C, F, b, s); dt -= s; }
+    /* 응답 없음 — 사라진 배는 이틀 뒤에야 안다 */
+    for (const b of F.boats) if (b.lost && !b.lostLogged && (C.hours || 0) - b.lostAt > 48) {
+      b.lostLogged = true; b.rep = null;
+      const hq = HQ[C.theater] || 'BdU', k = hq + ': ' + b.hull + ' — 호출에 응답 없음.';
+      C.log.unshift({ h: C.hours, text: k, variants: { ko: k, en: (HQ_EN[C.theater] || 'BdU') + ': ' + b.hull + ' — no reply to calls.', ja: k }, who: 'radio', kind: 'report' });
+    }
+  }
+
+  /* ── 그리기 — 작전도식 「∪」(수중), 아군 청색. 마지막 전문 자리, 오래될수록 흐리다 ── */
+  function draw(c, sc, C, wpx, LBL) {
+    const F = C.fleetV655; if (!F || F.theater !== C.theater) return;
+    const now = C.hours || 0, lang = LANG();
+    for (const b of F.boats) {
+      const r = b.rep; if (!r || b.lostLogged) continue;
+      const age = now - r.h; if (age > 96) continue;
+      const a = Math.max(0.28, 0.95 - age / 96 * 0.7);
+      const p = wpx(sc, r.x, r.y), Rr = 5.5, col = '125,190,255';
+      c.save(); c.globalAlpha = a;
+      /* 침로 막대 */
+      const hr = (r.crs || 0) * Math.PI / 180;
+      c.strokeStyle = 'rgb(' + col + ')'; c.lineWidth = 1.3;
+      c.beginPath(); c.moveTo(p[0] + Math.sin(hr) * (Rr + 1), p[1] - Math.cos(hr) * (Rr + 1));
+      c.lineTo(p[0] + Math.sin(hr) * (Rr + 9), p[1] - Math.cos(hr) * (Rr + 9)); c.stroke();
+      /* 「∪」 */
+      c.beginPath(); c.moveTo(p[0] - Rr, p[1] - Rr * 0.25); c.lineTo(p[0] + Rr, p[1] - Rr * 0.25);
+      c.arc(p[0], p[1] - Rr * 0.25, Rr, 0, Math.PI); c.closePath();
+      c.fillStyle = 'rgba(' + col + ',.20)'; c.fill(); c.strokeStyle = 'rgb(' + col + ')'; c.lineWidth = 1.3; c.stroke();
+      /* 선단 접촉 — 호박색 선과 삼각 */
+      if (r.kind === 'CONTACT' && Number.isFinite(r.cx)) {
+        const q = wpx(sc, r.cx, r.cy);
+        c.setLineDash([2, 3]); c.strokeStyle = 'rgba(255,176,32,.85)'; c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(q[0], q[1]); c.stroke(); c.setLineDash([]);
+        c.fillStyle = 'rgba(255,176,32,.9)'; c.beginPath(); c.moveTo(q[0], q[1] - 5); c.lineTo(q[0] + 4.5, q[1] + 3.5); c.lineTo(q[0] - 4.5, q[1] + 3.5); c.closePath(); c.fill();
+      }
+      if (r.kind === 'DC') { c.strokeStyle = 'rgba(255,106,90,.9)'; c.lineWidth = 1.2; c.beginPath(); c.arc(p[0], p[1] - 1, Rr + 4, 0, 7); c.stroke(); }
+      c.restore();
+      const hh = Math.round(age), ageTxt = hh < 1 ? (lang === 'en' ? 'now' : '방금') : hh + (lang === 'en' ? 'h' : '시간');
+      const lbl = b.hull + (b.capt && sc.z > 1.6 ? ' ' + b.capt : '') + ' · ' + ageTxt;
+      if (LBL && LBL.add) LBL.add({ x: p[0], y: p[1], lines: [lbl], color: 'rgba(' + col + ',' + a.toFixed(2) + ')', font: '9px system-ui', pri: r.kind === 'CONTACT' ? 6 : 2, gap: 7 });
+    }
+  }
+
+  window.EP_FLEET = { tick: tick, draw: draw, state: () => { const C = Campaign.state(); return C && C.fleetV655; },
+    _force: (k) => { const C = Campaign.state(), F = C && ensure(C); return F; } };
+})();
+</script>
+
 </body>
 </html>
