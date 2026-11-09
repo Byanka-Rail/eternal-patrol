@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.49.0 Contact Keeper</title>
-<script id="ep-build">window.EP_BUILD='6.49.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.50.0 Wolfpack</title>
+<script id="ep-build">window.EP_BUILD='6.50.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -47373,6 +47373,7 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
       est: { x: cx + rnd(-1.5, 1.5), y: cy + rnd(-1.5, 1.5), crs: norm((e.course || 90) + rnd(-25, 25)), kn: (e.speedKn || 8) + rnd(-2, 2), unc: 3, seenAt: 0, conf: 0.15, sightings: 0 },
       wp: null, mode: 'SHADOW', ts: 1, fuel0: C.fuel, burned: 0,
       detectedAt: -99, chaser: null, lost: false, msgs: [], ahead: false,
+      /* 3단계 */ boats: [], packStage: 0, alarmUntil: -1, lastPackHit: -99,
       /* 2단계 */ reports: 0, lastReport: -99, pack: null, dfAt: null, air: null, nextAir: rnd(0.6, 2.5), warnedDawn: false, hullHit: 0,
     };
     say('부장', '선단을 놓치지 않게 붙습니다. 연기 끝을 수평선에 걸어 두고 따라가겠습니다.');
@@ -47432,7 +47433,7 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
       if (s.lost && est.unc > 40) { finish('LOST'); return; }
     }
     /* 들키는가 — 호위 고리 바깥으로 들키는 거리 안 */
-    const ring = SCREEN(), dr = detRange({ vis: s.vis, night, dive, moon: s.moon, era: s.era, esc: s.esc });
+    const ring = SCREEN(), dr = detRange({ vis: s.vis, night, dive, moon: s.moon, era: s.era, esc: s.esc }) * (s.t < s.alarmUntil ? 1.25 : 1);
     const gap = dist - ring;
     if (gap < dr && !s.chaser && s.t - s.detectedAt > 1.2) {
       const p = 0.9 * (1 - clamp(gap / dr, 0, 1)) * (s.esc > 0 ? 1 : 0.35);
@@ -47441,6 +47442,8 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     if (gap < 0.8 && !dive) { if (s.t - s.detectedAt > 0.5) detected(night); }
     /* 쫓아오는 호위함 */
     if (s.chaser) chaserStep(dt, night, dive);
+    /* 3단계 — 늑대떼 */
+    packStep(dt, night);
     /* 2단계 — 방향탐지에 걸린 송신: 호위함이 송신 자리로 온다 */
     if (s.dfAt && s.t >= s.dfAt.at) { const df = s.dfAt; s.dfAt = null;
       if (s.esc > 0 && !s.chaser) { const c = s.cv, brg = Math.atan2(df.x - c.x, df.y - c.y);
@@ -47515,6 +47518,52 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     const dx = tx - ch.x, dy = ty - ch.y, dd = hyp(dx, dy) || 1, mv = Math.min(dd, kn * KN * dt); ch.x += dx / dd * mv; ch.y += dy / dd * mv;
     if (!dive && d < 3.2 && ch.mode === 'CHASE') { b.speed = 'DIVE'; s.detectedAt = s.t; say('부장', '긴급 잠항! 놈이 너무 가깝다 — 내려가서 지나가게 둔다.'); try { window.Snd && Snd.event && Snd.event('divealarm', {}); } catch (e) {} }
   }
+  /* ══ 3단계 — 늑대떼: 보고를 받고 모여든 다른 보트가 이 화면에 보이고, 밤에 선단을 친다 ══
+     전술 판에는 띄우지 않는다(「전술 화면에 다른 잠수함은 없다」는 원칙). 그 결과 — 줄어든 선단, 끌려간 호위,
+     경계가 오른 대열 — 만 우리 전투로 이어진다. */
+  const PK = { ATLANTIC: { n: 2.4, p: 0.34, pre: 'U-' }, MEDITERRANEAN: { n: 0.9, p: 0.30, pre: 'U-' }, PACIFIC: { n: 1.2, p: 0.30, pre: 'SS-' }, EASTPAC: { n: 0.45, p: 0.26, pre: 'I-' } };
+  function packStep(dt, night) {
+    const s = S, pack = s.pack; if (!pack || pack.done) { moveBoats(dt, night); return; }
+    const P = PK[s.C.theater] || PK.ATLANTIC, now = s.h0 + s.t;
+    if (s.packStage === 0 && now >= pack.due - 2.5 && s.t - s.lastReport < 6) {
+      s.packStage = 1; const mean = P.n * (0.55 + 0.7 * pack.q); let n = 0; for (let i = 0; i < 6; i++) if (Math.random() < mean / 6) n++;
+      if (!n) { pack.done = true; say('통신사', '사령부 — 근처 보트들이 선단에 닿지 못했다고 합니다. 우리뿐입니다.'); return; }
+      const used = new Set();
+      for (let i = 0; i < n; i++) { const a = norm(s.est.crs + rnd(-110, 110)) * d2r, r = rnd(35, 55); let num; do { num = P.pre === 'I-' ? Math.round(rnd(8, 58)) : Math.round(rnd(84, 690)); } while (used.has(num)); used.add(num);
+        s.boats.push({ id: P.pre + num, x: s.cv.x + Math.sin(a) * r, y: s.cv.y + Math.cos(a) * r, state: 'IN', wait: 0 }); }
+      say('통신사', '사령부 — ' + s.boats.map(b => b.id).join(' · ') + ', ' + n + '척이 이 선단으로 옵니다. 계속 보고하라는 지시입니다.');
+    }
+    moveBoats(dt, night);
+  }
+  function moveBoats(dt, night) {
+    const s = S, P = PK[s.C.theater] || PK.ATLANTIC;
+    for (const u of s.boats) {
+      if (u.state === 'GONE') continue;
+      const tgt = u.state === 'OUT' ? { x: u.x + (u.x - s.cv.x), y: u.y + (u.y - s.cv.y) } : fromFrame(s.cv, 7, (u.id.length % 2 ? 1 : -1) * 4);
+      const dx = tgt.x - u.x, dy = tgt.y - u.y, dd = hyp(dx, dy) || 1, kn = u.state === 'OUT' ? 6 : u.state === 'WAIT' ? s.cv.kn : 15, mv = Math.min(dd, kn * KN * dt);
+      u.x += dx / dd * mv; u.y += dy / dd * mv;
+      const dc = hyp(s.cv.x - u.x, s.cv.y - u.y);
+      if (u.state === 'IN' && dc < 11) { u.state = 'WAIT'; u.wait = 0; }
+      if (u.state === 'WAIT') { u.wait += dt; if (night > 0.55 || u.wait > 4) boatAttack(u, P, night); }
+      if (u.state === 'OUT') { u.out = (u.out || 0) + dt; if (u.out > 1.5) u.state = 'GONE'; }
+    }
+  }
+  function boatAttack(u, P, night) {
+    const s = S; u.state = 'OUT'; s.lastPackHit = s.t; s.alarmUntil = s.t + 2.5;
+    let sunk = 0; for (let k = 0; k < 2; k++) if (Math.random() < P.p) sunk++;
+    sunk = Math.min(sunk, Math.max(0, s.merchants - 1));
+    const pulled = s.esc > 0 && Math.random() < 0.45 ? 1 : 0;
+    s.merchants -= sunk; s.esc = Math.max(0, s.esc - pulled);
+    s.cv.base = norm(s.cv.base + (Math.random() < 0.5 ? 1 : -1) * rnd(25, 45));          /* 비상 변침 */
+    s.flashes = (s.flashes || []); s.flashes.push({ x: s.cv.x + rnd(-1.5, 1.5), y: s.cv.y + rnd(-1.5, 1.5), t: s.t });
+    const seen = hyp(s.cv.x - s.boat.x, s.cv.y - s.boat.y) < seeRange({ vis: s.vis, night, dive: s.boat.speed === 'DIVE', moon: s.moon }) * 1.6;
+    say(seen ? '견시' : '통신사', (seen ? (night > 0.5 ? '선단 쪽에 섬광! ' : '선단 쪽에서 물기둥! ') : '') + u.id + (sunk ? ' — ' + sunk + '척 격침 보고.' : ' — 공격했지만 맞히지 못했다고 합니다.') + (pulled ? ' 호위함 하나가 그 보트를 쫓아 대열을 떠났습니다.' : ''));
+    try { window.Snd && Snd.event && Snd.event(seen ? 'distantboom' : 'radio', {}); } catch (e) {}
+    try { const C = s.C; C.log.unshift({ h: C.hours + s.t, text: '무전 — ' + u.id + ' 공격' + (sunk ? ', ' + sunk + '척 격침' : ', 전과 없음') + (pulled ? ', 호위 하나 끌려감' : '') + '.', who: 'radio', kind: 'report' });
+      C.disruption = (C.disruption || 0) + sunk * 2; C.intel = (C.intel || 0) + 1; } catch (e) {}
+    if (s.pack && !s.boats.some(b => b.state === 'IN' || b.state === 'WAIT')) s.pack.done = true;      /* 지도 쪽 결산이 두 번 나지 않게 */
+    if (s.merchants <= 0) { say('부장', '선단이 남지 않았습니다.'); }
+  }
   function airRate(night) {   /* 시간당 비행기가 올 기대 횟수 */
     let ap = 0.5; try { ap = TH().THEATERS[S.C.theater].airPatrol || 0.5; } catch (e) {}
     const leigh = S.era > 0.6 ? (S.era - 0.6) / 0.4 : 0;               /* 리 라이트 — 밤에도 온다 */
@@ -47569,6 +47618,9 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
   function finish(why) {
     if (!S) return; clearInterval(timer); timer = null;
     const s = S; applyCampaign();
+    /* 아직 치지 않은 보트들은 지도 쪽 결산이 맡는다 — 지금 남은 선단과 호위로 */
+    if (s.pack && !s.pack.done) { const tot = s.boats.length, left = s.boats.filter(u => u.state === 'IN' || u.state === 'WAIT').length;
+      s.pack.ships = Math.max(0, s.merchants); s.pack.escorts = s.esc; if (tot) s.pack.q = +(s.pack.q * left / tot).toFixed(2); if (tot && !left) s.pack.done = true; }
     const log = t => { try { s.C.log.unshift({ h: s.C.hours, text: t, who: 'exec', kind: 'encounter' }); } catch (e) {} };
     if (why === 'ATTACK') {
       const night = nightOf(s.h0 + s.t), fr = frame(s.boat, s.cv), ang = Math.abs(Math.atan2(fr.s, fr.a) / d2r);
@@ -47583,7 +47635,10 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
         startSolution: [clamp(0.25 + 0.45 * c, 0.2, 0.75), clamp(0.4 + 0.45 * c, 0.3, 0.88)],
         escortGrace: recent ? 120 : Math.round(300 * (0.8 + 0.6 * night)),
         preCombat: { kind, quality: +q.toFixed(3), night: +night.toFixed(2), vis: s.vis, era: +s.era.toFixed(2), escorts: s.esc, tracked: true },
+        ships: Math.max(1, s.merchants), escorts: s.esc,
       };
+      /* 늑대떼가 방금 친 대열 — 호위가 흩어져 있다 */
+      if (s.t - s.lastPackHit < 2) window.EP_TRACK_OVR.escortGrace += 150;
       log('추적 ' + s.t.toFixed(1) + '시간 — ' + ({ AHEAD: '선단 앞', BEAM: '선단 옆', MIXED: '선단 뒤쪽' })[aspect] + '에서 ' + (night > 0.5 ? '밤' : '낮') + ' 공격' + (recent ? ' (들킨 채)' : '') + '.');
       close(); const go = $('encGo'); if (go) go.click();
     } else {
@@ -47633,7 +47688,8 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     const hh = Math.floor(((hr % 24) + 24) % 24), mm = Math.floor((hr * 60) % 60);
     const hd = ((hr % 24) + 24) % 24, toDawn = (5 - hd + 24) % 24, toDusk = (19 - hd + 24) % 24;
     $('epTrkClk').textContent = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' · ' + (night > 0.75 ? '밤 · 새벽까지 ' + toDawn.toFixed(1) + 'h' : night > 0.05 ? '박명' : '낮 · 해 질 때까지 ' + toDusk.toFixed(1) + 'h') + ' · 추적 ' + s.t.toFixed(1) + 'h';
-    const rw = $('epTrkRepW'); if (rw) rw.textContent = s.reports ? '보고 ' + s.reports + '회' + (s.pack ? ' · 보트 집결 중' : '') : '방향탐지 위험';
+    const live = s.boats.filter(u => u.state === 'IN' || u.state === 'WAIT').length;
+    const rw = $('epTrkRepW'); if (rw) rw.textContent = s.reports ? '보고 ' + s.reports + '회' + (live ? ' · 보트 ' + live + '척 접근' : s.pack && !s.pack.done ? ' · 집결 대기' : '') : '방향탐지 위험';
     $('epTrkTs').textContent = s.ts === 0 ? '정지' : '×' + s.ts;
     const dist = hyp(s.cv.x - b.x, s.cv.y - b.y), seen = s.t - est.seenAt < 0.1;
     const dE = $('epTrkD'); dE.textContent = seen ? dist.toFixed(1) + 'km' : '약 ' + hyp(est.x - b.x, est.y - b.y).toFixed(0) + 'km?'; dE.className = seen ? 'good' : 'warn';
@@ -47681,6 +47737,13 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     if (s.t - est.seenAt < 0.1) { const [cx2, cy2] = P(s.cv.x, s.cv.y); c.fillStyle = 'rgba(220,220,210,.75)'; for (let i = 0; i < Math.min(9, 2 + s.merchants); i++) { const a = i * 2.4, r = 2 + (i % 3) * 3; c.beginPath(); c.arc(cx2 + Math.cos(a) * r, cy2 + Math.sin(a) * r, 2, 0, 6.283); c.fill(); } }
     /* 쫓아오는 호위함 */
     if (s.chaser) { const [hx, hy] = P(s.chaser.x, s.chaser.y); c.fillStyle = '#ff6a5a'; c.beginPath(); c.moveTo(hx, hy - 6); c.lineTo(hx + 6, hy); c.lineTo(hx, hy + 6); c.lineTo(hx - 6, hy); c.closePath(); c.fill(); c.fillText('호위함', hx + 9, hy + 4); }
+    /* 3단계 — 다른 보트 · 공격 섬광 */
+    for (const u of s.boats) { if (u.state === 'GONE') continue; const [ux, uy] = P(u.x, u.y);
+      c.fillStyle = u.state === 'OUT' ? 'rgba(143,208,255,.45)' : '#8fd0ff'; c.beginPath(); c.moveTo(ux, uy - 5); c.lineTo(ux + 4, uy + 4); c.lineTo(ux - 4, uy + 4); c.closePath(); c.fill();
+      c.font = '10.5px system-ui'; c.textAlign = 'left'; c.fillText(u.id, ux + 6, uy + 3); }
+    for (const f of (s.flashes || [])) { const age = s.t - f.t; if (age > 0.6) continue; const [fx, fy] = P(f.x, f.y), a = 1 - age / 0.6;
+      const g2 = c.createRadialGradient(fx, fy, 0, fx, fy, 26); g2.addColorStop(0, 'rgba(255,200,120,' + (0.9 * a).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(255,120,40,0)'); c.fillStyle = g2; c.beginPath(); c.arc(fx, fy, 26, 0, 6.283); c.fill(); }
+    c.font = '11px system-ui';
     /* 2단계 — 비행기 */
     if (s.air) { const ang = (s.air.brg + (s.t - s.air.at) * 900) * d2r, rr = s.air.until ? 2.5 : Math.max(1.5, 10 - (s.t - (s.air.at - 0.045)) / 0.045 * 9);
       const [px, py] = P(b.x + Math.sin(ang) * rr, b.y + Math.cos(ang) * rr); c.fillStyle = '#ffd36b'; c.font = '14px system-ui'; c.textAlign = 'center'; c.fillText('✈', px, py + 5); c.font = '11px system-ui'; }
@@ -47710,6 +47773,8 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
             const g2 = c.createRadialGradient(xs, yy, 0, xs, yy, rr); g2.addColorStop(0, 'rgba(62,62,66,' + ((0.28 + 0.25 * sc) * (1 - j / 10) * (1 - night)).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(62,62,66,0)');
             c.fillStyle = g2; c.beginPath(); c.arc(xs, yy, rr, 0, 6.283); c.fill(); } }
         if (d < 15) { c.fillStyle = night > 0.5 ? 'rgba(0,0,0,.9)' : 'rgba(30,30,32,.9)'; c.fillRect(xx - 0.5, hy - 3 - 8 * sc, 1.2, 3 + 8 * sc); if (d < 9) c.fillRect(xx - 4 * sc, hy - 3 * sc, 8 * sc, 3 * sc); } } }
+    for (const f of (s.flashes || [])) { const age = s.t - f.t; if (age > 0.15 || dive) continue; const x = px(norm(Math.atan2(f.x - b.x, f.y - b.y) / d2r)), a = 1 - age / 0.15;
+      const g3 = c.createRadialGradient(x, hy, 0, x, hy, 40); g3.addColorStop(0, 'rgba(255,210,140,' + (0.9 * a).toFixed(3) + ')'); g3.addColorStop(1, 'rgba(255,140,60,0)'); c.fillStyle = g3; c.fillRect(x - 40, 0, 80, H); }
     if (s.chaser && !dive) { const ch = s.chaser, dc = hyp(ch.x - b.x, ch.y - b.y); if (dc < 14) { const x = px(norm(Math.atan2(ch.x - b.x, ch.y - b.y) / d2r)), sc = clamp(1 - dc / 14, 0.2, 1);
       c.fillStyle = 'rgba(10,10,12,.95)'; c.fillRect(x - 6 * sc, hy - 5 * sc, 12 * sc, 5 * sc); c.fillRect(x - 1, hy - 11 * sc, 2, 6 * sc); c.fillStyle = 'rgba(240,240,240,.6)'; c.fillRect(x - 9 * sc, hy - 1, 5 * sc, 1.5); } }
   }
