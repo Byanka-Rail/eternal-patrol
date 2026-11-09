@@ -16662,7 +16662,7 @@ window.UBOAT = (function () {
     logMsg('발사! ' + (useAft ? '함미 ' : '함수 ') + n + '발 ' + kinds + ' · ' + fz.name +
            ' — 자이로각 ' + gyro.toFixed(0) + '° 주행심도 ' + runDepth + 'm', 'torp');
     if (wakeShot) report('P1', 'weap', '증기어뢰입니다 — 흰 자국이 우리 쪽을 가리킵니다.');
-    emit('fire', { count: n });
+    emit('fire', { count: n, aft: !!useAft });
     markSnap('어뢰를 쏘기 직전');
     replayEvent('FIRE', b.x, b.y, (useAft ? '함미 ' : '함수 ') + n + '발 발사 (' + kinds + ')');
     /* 발사음 — 호위함이 눈치챈다 */
@@ -52311,6 +52311,150 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
     C.dcPendingV670 = false; setTimeout(() => { if (!busy()) open(false); else C.dcPendingV670 = true; }, 900);
   }
   function init() { setInterval(watch, 700); window.EP_V670_DC = { version: '6.70.0', open, close, state: () => S, assign, hour, KIND, COMP }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+<script id="ep-v671-trim-script">
+/* ══════════ V6.71 트림 — 쏘고 나면 이물이 뜬다 ══════════
+   잠망경 심도에서 어뢰를 쏘면 한 발에 1.5톤 남짓이 앞에서 빠져나간다. 보상 탱크에 바로 물을 받지 않으면
+   이물이 들리고, 배가 떠올라 함교탑이 물 위로 튀어나온다(브로칭) — 막 쏜 자리에서 가장 보이면 안 될 때다.
+   · 함수 발사 → 이물이 가볍다. 함미 발사 → 고물이 가볍다.
+   · 「앞 탱크 주수」를 누르고 있으면 이물이 무거워지고, 「뒤로 옮김」은 그 반대. 수평과 잠망경 심도(11~17m)를 지키면 끝.
+   · 손대지 않아도 기관장이 잡는다 — 다만 숙련만큼 느리게. 많이 쏠수록 위험하다.
+   · 너무 뜨면 함교탑이 드러나 가까운 호위함이 우리를 본다. 너무 무거우면 잠망경이 물에 잠긴다(잠깐 못 본다).
+   · 시간이 멈춰 있으면 트림도 멈춘다. 깊이 잠항해 쏜 경우에는 열리지 않는다. 한 · 영 · 일. */
+(function EP_V671_TRIM() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const U = () => window.UBOAT;
+  let S = null, raf = 0, hooked = false;
+
+  function skill() {
+    try { const C = window.Campaign && Campaign.state && Campaign.state(); const q = C && C.crewCareer && (C.crewCareer.engine || C.crewCareer.eng); if (q && Number.isFinite(q.skill)) return q.skill; } catch (e) {}
+    try { const w = window.War && War.state && War.state(); const q = w && w.crewCareer && (w.crewCareer.engine || w.crewCareer.eng); if (q && Number.isFinite(q.skill)) return q.skill; } catch (e) {}
+    return 0.55;
+  }
+  function onFire(d) {
+    const g = U() && U().state(); if (!g || !g.boat) return;
+    const b = g.boat, n = (d && d.count) || 1;
+    if (b.depth < 8 || b.depth > 22) return;                     /* 부상 · 깊은 잠항 발사는 트림 장면 없음 */
+    const M = (d && d.aft ? -1 : 1) * n * 1.5;
+    if (S && !S.done) { S.M += M; S.left = 25; return; }          /* 연달아 쏘면 쌓인다 */
+    S = { M, comp: 0, th: 0, z: b.depth, z0: clamp(b.depth, 11, 17), t: 0, left: 25, hold: 0, ok: 0, broach: false, sunk: 0, done: false, lastG: g.time, sk: skill(), aft: !!(d && d.aft) };
+    build(); $('epTrim').classList.add('on'); say(S.aft ? T('고물이 가볍습니다 — 트림!', 'Stern is light — trim!', '艦尾が軽い — トリム！') : T('이물이 뜹니다 — 트림!', 'Bow is coming up — trim!', '艦首が浮く — トリム！'));
+    cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+  }
+  function loop(now) {
+    if (!S) return;
+    const g = U() && U().state(); if (!g || !g.boat) { end(); return; }
+    let dt = Math.min(0.05, (now - S.last) / 1000); S.last = now;
+    /* 시계가 멈추면 트림도 멈춘다 — 엔진은 화면보다 드물게 걸으니 잠깐의 정지는 흘려 본다 */
+    if (g.time > S.lastG) { S.stall = 0; S.lastG = g.time; } else { S.stall = (S.stall || 0) + dt; if (S.stall > 0.3) dt = 0; }
+    if (dt > 0 && !S.done) step(dt, g);
+    draw();
+    raf = requestAnimationFrame(loop);
+  }
+  function step(dt, g) {
+    const s = S, b = g.boat;
+    s.t += dt; s.left -= dt;
+    /* 손 — 누르고 있는 동안 보상량이 움직인다 */
+    if (s.hold) s.comp += s.hold * 1.2 * dt;
+    /* 기관장 — 숙련만큼, 늦게 */
+    if (s.t > 1.8 - s.sk) s.comp += clamp(s.M - s.comp, -1, 1) * (0.15 + s.sk * 0.35) * dt;
+    const N = s.M - s.comp;
+    const spd = clamp((Math.abs(b.speed || 0) / 0.5144) / 4, 0.6, 2);
+    s.th += (N * 1.1 - s.th) * 0.6 * dt;
+    s.z += (-s.th * 0.18 * spd + (s.z0 - s.z) * 0.06) * dt;
+    if (s.broach) { s.bt -= dt; if (s.bt <= 0) { s.broach = false; } else s.z = Math.min(s.z, 6.5); }
+    b.depth = s.z;
+    if (!s.broached && s.z < 9) broach(g);
+    if (s.z > 22 && !s.sunk) { s.sunk = 1; say(T('너무 무겁다 — 잠망경이 잠겼습니다!', 'Too heavy — the periscope has dipped under!', '重すぎる — 潜望鏡が沈んだ！')); }
+    if (s.z < 20 && s.sunk === 1) s.sunk = 2;
+    const good = Math.abs(N) < 0.3 && Math.abs(s.th) < 1 && s.z >= 11 && s.z <= 17.5;
+    s.ok = good ? s.ok + dt : 0;
+    if (s.ok > 2) { s.done = true; say(T('트림 잡았습니다. 수평, 잠망경 심도.', 'Trim caught. Level, at periscope depth.', 'トリム良し。水平、潜望鏡深度。')); setTimeout(end, 1600); }
+    else if (s.left <= 0) { s.done = true; s.comp = s.M; say(T('기관장이 잡았습니다.', 'The Chief has her.', '機関長が押さえました。')); setTimeout(end, 1400); }
+  }
+  function broach(g) {
+    const s = S; s.broached = true; s.broach = true; s.bt = 3.5; s.z = 6.5;
+    say(T('함교탑이 물 위로 나왔습니다! 다 봤을 겁니다!', 'The tower has broken the surface! They\'ve seen us!', '司令塔が水面に出た！見られたぞ！'), true);
+    try { const u = U(), b = g.boat;
+      for (const e of (g.escorts || [])) { if (e.sunk || e.alive === false) continue; const r = Math.hypot(e.x - b.x, e.y - b.y);
+        if (r < 4500) u.pushEscortContact(e, { x: b.x + (R() - 0.5) * 300, y: b.y + (R() - 0.5) * 300 }, clamp(0.75 - r / 9000, 0.25, 0.75), 'visual'); }
+      if (u.report) u.report('P0', 'exec', T('브로칭 — 함교탑이 드러났다. 호위가 이쪽을 본다.', 'Broached — the tower showed. The escorts are looking this way.', 'ブローチング — 司令塔が露出。護衛がこちらを見ている。'));
+    } catch (e) {}
+    try { window.Snd && Snd.event && Snd.event('spotted', {}); } catch (e) {}
+  }
+  function end() { cancelAnimationFrame(raf); raf = 0; S = null; const el = $('epTrim'); if (el) el.classList.remove('on'); }
+
+  /* ── 그림 ── */
+  function say(t, bad) { const el = $('epTrimMsg'); if (el) { el.textContent = t; el.classList.toggle('bad', !!bad); } }
+  function draw() {
+    const cv = $('epTrimCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(160, r.width), H = Math.max(70, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+    const s = S, surfY = 10, zp = d => surfY + d * (H - surfY - 6) / 30;
+    /* 물 · 잠망경 심도 띠 */
+    c.fillStyle = '#0c2230'; c.fillRect(0, surfY, W, H - surfY); c.fillStyle = '#2e4656'; c.fillRect(0, 0, W, surfY);
+    c.fillStyle = 'rgba(120,220,150,.12)'; c.fillRect(0, zp(11), W * 0.72, zp(17.5) - zp(11));
+    c.strokeStyle = 'rgba(200,230,240,.5)'; c.beginPath(); c.moveTo(0, surfY); c.lineTo(W, surfY); c.stroke();
+    /* 배 — 기울기 · 심도 */
+    const bx = W * 0.36, by = zp(s.z), L = W * 0.46, th = clamp(s.th, -14, 14) * Math.PI / 180;
+    c.save(); c.translate(bx, by); c.rotate(-th);
+    c.fillStyle = s.broach ? '#7a5048' : '#3a4650'; c.beginPath(); c.ellipse(0, 0, L / 2, 5, 0, 0, 6.283); c.fill();
+    c.fillRect(-L * 0.04, -12, L * 0.12, 8); c.fillStyle = '#9fb3bf'; c.fillRect(L * 0.02, -22, 1.5, 10);
+    c.fillStyle = 'rgba(200,220,230,.7)'; c.font = '600 9px system-ui'; c.textAlign = 'right'; c.fillText(T('이물 ▸', 'bow ▸', '艦首 ▸'), L / 2 - 2, 15);
+    c.restore();
+    /* 수평계 — 기포 */
+    const lx = W * 0.8, lw = W * 0.17, ly = H * 0.32;
+    c.fillStyle = 'rgba(255,255,255,.06)'; c.fillRect(lx, ly - 7, lw, 14); c.strokeStyle = 'rgba(255,255,255,.3)'; c.strokeRect(lx, ly - 7, lw, 14);
+    c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(lx + lw / 2 - 0.5, ly - 7, 1, 14);
+    const bub = lx + lw / 2 + clamp(s.th / 6, -1, 1) * (lw / 2 - 6);
+    c.fillStyle = Math.abs(s.th) < 1 ? '#8fe0a0' : Math.abs(s.th) < 3.5 ? '#e8c068' : '#ff8a7a'; c.beginPath(); c.arc(bub, ly, 5, 0, 6.283); c.fill();
+    c.fillStyle = 'rgba(220,235,240,.85)'; c.font = '600 11px system-ui'; c.textAlign = 'center';
+    c.fillText((s.th >= 0 ? '+' : '') + s.th.toFixed(1) + '°', lx + lw / 2, ly + 22);
+    c.fillText(s.z.toFixed(1) + 'm', lx + lw / 2, ly + 37);
+    /* 남은 무게 막대 */
+    const N = s.M - s.comp, nx = W * 0.8, ny = H - 12;
+    c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(nx, ny, lw, 5); c.fillStyle = Math.abs(N) < 0.25 ? '#8fe0a0' : '#e8c068';
+    const nw = clamp(N / 6, -1, 1) * lw / 2; c.fillRect(nx + lw / 2 + Math.min(0, nw), ny, Math.abs(nw), 5);
+    c.textAlign = 'left'; c.font = '10px system-ui'; c.fillStyle = 'rgba(200,220,230,.6)'; c.fillText(T('잠망경 심도', 'periscope depth', '潜望鏡深度'), 4, zp(11) + 10);
+  }
+  function build() {
+    if ($('epTrim')) { labels(); return; }
+    const st = document.createElement('style'); st.id = 'ep-v671-trim-style';
+    st.textContent = '#epTrim{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 58px);transform:translateX(-50%);z-index:600;width:min(94vw,380px);display:none;background:rgba(8,14,18,.95);border:1px solid var(--amber,#e0b060);border-radius:11px;padding:7px;box-shadow:0 6px 24px rgba(0,0,0,.55);color:var(--ink,#dfe)}' +
+      '#epTrim.on{display:block}#epTrim .hd{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;margin-bottom:4px}#epTrim .hd b{color:var(--amber,#e0b060);letter-spacing:.08em}' +
+      '#epTrim canvas{display:block;width:100%;height:96px;border-radius:7px}#epTrim .msg{font-size:12.5px;min-height:18px;margin:5px 2px}#epTrim .msg.bad{color:#ff8a7a;font-weight:700}' +
+      '#epTrim .bt{display:grid;grid-template-columns:1fr 1fr;gap:6px}#epTrim .bt button{padding:10px 4px;font-size:13px;touch-action:none;user-select:none;-webkit-user-select:none}#epTrim .bt button small{display:block;font-size:10px;opacity:.7}#epTrim .bt button.hold{background:var(--amber,#e0b060);color:#081016}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epTrim';
+    el.innerHTML = '<div class="hd"><b id="epTrimT"></b><small id="epTrimS"></small></div><canvas id="epTrimCv"></canvas><div class="msg" id="epTrimMsg"></div>' +
+      '<div class="bt"><button class="mini" id="epTrimF" data-h="1"></button><button class="mini" id="epTrimA" data-h="-1"></button></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    labels();
+  }
+  function labels() {
+    $('epTrimT').textContent = T('트 림', 'T R I M', 'ト リ ム');
+    $('epTrimS').textContent = T('누르고 있는 동안 물을 옮깁니다', 'Hold to move water', '押している間、水を移す');
+    $('epTrimF').innerHTML = T('앞 탱크 주수', 'Flood forward', '前部注水') + '<small>' + T('이물을 무겁게 ▼', 'bow heavier ▼', '艦首を重く ▼') + '</small>';
+    $('epTrimA').innerHTML = T('뒤로 옮김', 'Pump aft', '後部へ移送') + '<small>' + T('이물을 가볍게 ▲', 'bow lighter ▲', '艦首を軽く ▲') + '</small>';
+  }
+  function hook() {
+    if (hooked) return; const u = U(); if (!u || !u.on) return;
+    u.on((kind, d) => { if (kind === 'fire') { try { onFire(d); } catch (e) {} } else if (kind === 'end') end(); });
+    hooked = true;
+  }
+  function init() { setInterval(hook, 800); hook(); window.EP_V671_TRIM = { version: '6.71.0', state: () => S, fire: onFire, end, hold: h => { if (S) S.hold = h; } }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
