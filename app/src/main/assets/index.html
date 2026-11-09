@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.53.0 Gauges</title>
-<script id="ep-build">window.EP_BUILD='6.53.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.54.0 Quick Scope</title>
+<script id="ep-build">window.EP_BUILD='6.54.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -15047,10 +15047,22 @@ window.UBOAT = (function () {
          그 뒤로 끌리는 물줄기이고, 그 물줄기를 만드는 것은 속력이다.
          기어가듯 가면 거의 남지 않고, 4노트로 밀면 흰 줄이 길게 남는다. */
       const spd = 1 + clamp(b.speed / (4 * KNOT), 0, 1) * 2.6;
-      b.periscopeExposure = clamp(b.periscopeExposure + dt * 0.009 * spd / G.weather.sea *
+      /* v6.54 — 「쏙 올렸다 내리기」. 실제 함장들의 교범은 한 번에 6~10초였다.
+         견시가 물 위에 막 솟은 머리를 알아채는 데는 시간이 걸리고, 진짜 위험은
+         잠망경을 **세워 둔 채 있는 것**이다. 그래서 신호가 쌓이는 속도를
+         올린 시간에 따라 키운다:  0~8초 ×0.2 · 8~25초 ×0.2→1 · 25~60초 ×1 · 60초+ ×1.4
+         잠깐 내렸다 바로 올리는 것으로 시계를 되돌릴 수는 없다 — 10초 이상
+         내려 두어야 다음 올림이 「새 올림」이 된다. */
+      if (G._periUpAt == null || (G._periDownAt != null && G.time - G._periDownAt >= 10)) G._periUpAt = G.time;
+      G._periDownAt = null;
+      const upSec = G.time - G._periUpAt;
+      const ramp = upSec < 8 ? 0.2 : upSec < 25 ? 0.2 + (upSec - 8) / 17 * 0.8 : upSec < 60 ? 1 : 1.4;
+      b.periscopeExposure = clamp(b.periscopeExposure + dt * 0.009 * spd * ramp / G.weather.sea *
                                   ((G.mods && G.mods.exposeMul) || 1), 0, 1);
     } else {
-      b.periscopeExposure = clamp(b.periscopeExposure - dt * 0.05, 0, 1);
+      if (G._periUpAt != null && G._periDownAt == null) G._periDownAt = G.time;
+      /* 내리면 빨리 꺼진다 — 물 위에 남은 것은 잠깐의 물줄기뿐이다 */
+      b.periscopeExposure = clamp(b.periscopeExposure - dt * 0.09, 0, 1);
     }
     /* 재장전 */
     const job = b.torp.reloadJobs[0];
@@ -16412,8 +16424,12 @@ window.UBOAT = (function () {
         return { ok: true, note: '관측 기록. 침로 산출에는 20초 이상 간격이 필요합니다. ' + readableNote(c) };
       }
     }
-    /* 관측 자체가 잠망경 노출을 키운다 */
-    b.periscopeExposure = clamp(b.periscopeExposure + 0.05, 0, 1);
+    /* 관측 자체는 잠망경을 더 드러내지 않는다 — 방위를 읽는 것은 눈금이지 머리가 아니다.
+       다만 잠망경을 돌려 가며 연달아 재면 머리가 흔들리며 물을 가른다: 6초에 한 번 아주 조금. */
+    if (G.time - (G._obsCostAt || -99) >= 6) {
+      G._obsCostAt = G.time;
+      b.periscopeExposure = clamp(b.periscopeExposure + 0.012, 0, 1);
+    }
     motionEvidence(c);
     reident(c);
     return { ok: true, note: '관측 완료 — 거리 약 ' + Math.round(rEst) + 'm. ' + readableNote(c) };
@@ -39823,7 +39839,9 @@ window.Lang.add('ja', {
         $('periBrg').textContent = String(Math.round(periBrg())).padStart(3, '0');
         const t = periTarget();
         $('periTgt').textContent = t ? (t.vis.identified ? (t.vis.tag + ' ' + L(t.vis.label)) : LL('미식별 표적', 'Unidentified target', '未識別目標')) : '—';
-        $('periExp').textContent = surfaceView ? '100%' : Math.round(b.periscopeExposure * 100) + '%';
+        { const upS = (b.periscope && b.depth <= 16) ? Math.max(0, U.state().time - (U.state()._periUpAt || U.state().time)) : null;
+          $('periExp').textContent = surfaceView ? '100%' : Math.round(b.periscopeExposure * 100) + '%' +
+            (upS != null ? ' · ' + Math.floor(upS) + LL('초', 's', '秒') + (upS < 8 ? ' ✓' : upS >= 25 ? ' !' : '') : ''); }
         $('btnPeri').disabled = surfaceView;
         $('btnPeri').textContent = surfaceView ? LL('부상 · 함교 시야', 'Surfaced · bridge view', '浮上・艦橋視界') : (b.periscope ? L('잠망경 내림') : L('잠망경 올림'));
         $('btnPeriMag').disabled = surfaceView;
