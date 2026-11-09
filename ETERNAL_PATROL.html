@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.54.0 Quick Scope</title>
-<script id="ep-build">window.EP_BUILD='6.54.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.54.1 Quick Scope</title>
+<script id="ep-build">window.EP_BUILD='6.54.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -36337,21 +36337,51 @@ window.Lang.add('ja', {
     /* 자함 — v6.41: 은은한 빛무리와 두 겹 고리, 긴 뱃머리 선으로 한눈에 */
     const b = wpx(sc, C.x, C.y), hr = C.course * Math.PI / 180, own = C.surfaced ? '61,255,160' : '143,208,255';
     { const gl = c.createRadialGradient(b[0], b[1], 2, b[0], b[1], 26); gl.addColorStop(0, 'rgba(' + own + ',.30)'); gl.addColorStop(1, 'rgba(' + own + ',0)'); c.fillStyle = gl; c.beginPath(); c.arc(b[0], b[1], 26, 0, 7); c.fill(); }
-    c.strokeStyle = 'rgba(' + own + ',.45)'; c.lineWidth = 1; c.beginPath(); c.arc(b[0], b[1], 11, 0, 7); c.stroke();
-    c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 2.4;
-    c.beginPath(); c.moveTo(b[0] + Math.sin(hr) * 5, b[1] - Math.cos(hr) * 5);
-    c.lineTo(b[0] + Math.sin(hr) * 24, b[1] - Math.cos(hr) * 24); c.stroke();
-    c.beginPath(); c.arc(b[0], b[1], 5, 0, 7); c.stroke();
+    /* v6.54.1 — 자함 기호: 위에서 본 유보트 선체. 뱃머리가 침로를 가리킨다.
+       부상 = 채운 선체(녹색) · 잠항 = 비운 점선 선체(청색) — 색과 모양 두 가지로 구분 */
+    { const L = 34, Bm = 3.9;
+      c.save(); c.translate(b[0], b[1]); c.rotate(hr);
+      /* 선체 — 길고 가는 몸통, 날카로운 뱃머리, 가늘어지는 고물 */
+      const hull = () => { c.beginPath();
+        c.moveTo(0, -L * 0.5);
+        c.quadraticCurveTo(Bm * 0.95, -L * 0.30, Bm, -L * 0.08);
+        c.lineTo(Bm * 0.95, L * 0.16);
+        c.quadraticCurveTo(Bm * 0.75, L * 0.40, Bm * 0.22, L * 0.5);
+        c.lineTo(-Bm * 0.22, L * 0.5);
+        c.quadraticCurveTo(-Bm * 0.75, L * 0.40, -Bm * 0.95, L * 0.16);
+        c.lineTo(-Bm, -L * 0.08);
+        c.quadraticCurveTo(-Bm * 0.95, -L * 0.30, 0, -L * 0.5);
+        c.closePath(); };
+      hull(); c.fillStyle = 'rgba(6,14,20,.85)'; c.fill();
+      if (C.surfaced) { c.fillStyle = 'rgba(' + own + ',.45)'; c.fill(); }
+      c.strokeStyle = 'rgb(' + own + ')'; c.lineWidth = 1.5;
+      if (!C.surfaced) c.setLineDash([3, 2]);
+      hull(); c.stroke(); c.setLineDash([]);
+      /* 갑판 중심선 */
+      c.strokeStyle = 'rgba(' + own + ',.45)'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(0, -L * 0.40); c.lineTo(0, L * 0.40); c.stroke();
+      /* 함교탑 — 가운데 조금 앞, 갑판포 — 그 앞 */
+      c.fillStyle = C.surfaced ? 'rgb(' + own + ')' : 'rgba(' + own + ',.85)';
+      c.beginPath(); c.ellipse(0, -L * 0.02, Bm * 0.55, L * 0.11, 0, 0, 7); c.fill();
+      c.beginPath(); c.arc(0, -L * 0.24, 1.1, 0, 7); c.fill();
+      /* 고물 키·프로펠러 */
+      c.strokeStyle = 'rgba(' + own + ',.8)'; c.lineWidth = 1.1;
+      c.beginPath(); c.moveTo(-Bm * 0.7, L * 0.5 + 0.5); c.lineTo(Bm * 0.7, L * 0.5 + 0.5); c.stroke();
+      /* 뱃머리 앞 침로 표시 */
+      c.strokeStyle = 'rgba(' + own + ',.75)'; c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(0, -L * 0.5 - 3); c.lineTo(0, -L * 0.5 - 11); c.stroke();
+      c.beginPath(); c.moveTo(-3, -L * 0.5 - 8); c.lineTo(0, -L * 0.5 - 12); c.lineTo(3, -L * 0.5 - 8); c.stroke();
+      c.restore(); }
     LBL.add({ x: b[0], y: b[1], lines: ['\u2003\u2003\u2003'], lh: 28, pri: 100, cands: [[-14, -14]], font: '10px system-ui', color: 'rgba(0,0,0,0)' });   /* 내 배 둘레는 글자가 덮지 않게 */
     if (C.waveDir != null) {
       const wa=(C.waveDir||0)*Math.PI/180, wl=10+Math.min(10,(C.seaState||1)*2.2);
-      const sx=b[0]-Math.sin(wa)*wl*.55, sy=b[1]+Math.cos(wa)*wl*.55;
-      const ex=b[0]+Math.sin(wa)*wl*.55, ey=b[1]-Math.cos(wa)*wl*.55;
+      const ox=b[0]-26, oy=b[1]+22;   /* v6.54.1 — 선체를 가리지 않게 옆으로 */
+      const sx=ox-Math.sin(wa)*wl*.55, sy=oy+Math.cos(wa)*wl*.55;
+      const ex=ox+Math.sin(wa)*wl*.55, ey=oy-Math.cos(wa)*wl*.55;
       c.strokeStyle='rgba(126,190,202,.72)'; c.lineWidth=1.2; c.beginPath(); c.moveTo(sx,sy); c.lineTo(ex,ey); c.stroke();
       c.beginPath(); c.moveTo(ex,ey); c.lineTo(ex-Math.sin(wa-.55)*4,ey+Math.cos(wa-.55)*4);
       c.moveTo(ex,ey); c.lineTo(ex-Math.sin(wa+.55)*4,ey+Math.cos(wa+.55)*4); c.stroke();
     }
-    if (!C.surfaced) { c.setLineDash([2, 3]); c.beginPath(); c.arc(b[0], b[1], 9, 0, 7); c.stroke(); c.setLineDash([]); }
     /* v6.41 — 모아 둔 글자를 마지막에 한꺼번에 놓는다 */
     LBL.draw(c, W, H); window.__WLBL = null;
     /* 안내 */
