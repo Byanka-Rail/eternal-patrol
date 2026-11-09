@@ -16194,6 +16194,8 @@ window.UBOAT = (function () {
         v.sideFactor = 0.28 + 0.72 * side;
         v.silClass = (u.classRef && u.classRef.id) || null;
         v.silType = u.shipType || null;
+        /* v6.68 — 채색용: 같은 배는 늘 같은 도장, 속력은 이물 물결 */
+        v.unitId = u.id; v.speed = (u.speed || 0) / KNOT;
       }
       out.push(v);
     }
@@ -32005,6 +32007,10 @@ window.Lang.add('ja',{"0초": "0秒", "14 — 잠망경 심도 표적": "14 — 
     const m = opt.mirror ? -1 : 1;
     const X = ax => opt.x + (ax - SIL_ART.w / 2) * sx * m;
     const Y = ay => opt.waterlineY + (ay - SIL_ART.water) * sy;
+    /* v6.68 — 칠해서 그리기(도장·명암·물결). 도형은 같다. 실패하면 예전 실루엣으로 */
+    if (opt.paint && window.EP_SHIPPAINT && window.EP_SHIPPAINT.enabled) {
+      try { if (window.EP_SHIPPAINT.draw(ctx, spec, parts, opt, { X, Y, sx, sy, m, lim })) return true; } catch (e) {}
+    }
     ctx.save();
     ctx.fillStyle = opt.color; ctx.strokeStyle = opt.color;
     ctx.lineWidth = Math.max(1, Math.min(2.4, 1.8 * sy));
@@ -38495,10 +38501,16 @@ window.Lang.add('ja', {
       const rangeFade = Math.max(0.25, Math.min(1,
         1 - (v.range / Math.max(1, 8000 * g.weather.vis)) * 0.48));
       c.save();
-      c.globalAlpha = Math.max(0.16, Math.min(1,
+      /* v6.68 — 채색 그림은 거리·날씨를 제 색으로 먹는다(대기 원근). 실루엣만 투명도로 흐린다. */
+      const painted = !!(window.EP_SHIPPAINT && window.EP_SHIPPAINT.enabled);
+      c.globalAlpha = painted ? 1 : Math.max(0.16, Math.min(1,
         (0.42 + g.weather.vis * 0.58) * rangeFade));
+      const fxp = env && env._fx && env._fx.pal;
       if (!silCanvas(c, spec, { x: x0, waterlineY: waterline, width: w, height: h,
-                                mirror: !!v.mirror, detail: detail, color: '#050809' })) {
+                                mirror: !!v.mirror, detail: detail, color: '#050809',
+                                paint: { seed: v.unitId != null ? v.unitId : (v.contactId || v.silClass), range: v.range, speed: v.speed,
+                                         night: g.night || 0, wx: g.weather.id, vis: g.weather.vis, sea: g.weather.sea, theater: g.theater,
+                                         hor: fxp ? fxp.hor : null, dusk: fxp ? fxp.dusk : null, time: now } })) {
         c.fillStyle = '#050809'; c.fillRect(x0 - w / 2, waterline - h, w, h);
         c.fillRect(x0 - w * 0.08, waterline - h * 1.9, w * 0.16, h * 0.9);
       }
@@ -45404,7 +45416,7 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
   function onSplash(sp) { column(sp.x, sp.y, 16, 7, 14, 8, 0.9); }
   function onSunk(g, u) {
     const L = lenOf(u), big = Math.min(1, L / 180);
-    wrecks.push({ x: u.x, y: u.y, heading: u.heading || 0, mast: u.mast || 20, len: L, spec: { cls: (u.classRef && u.classRef.id) || null, type: u.shipType || null },
+    wrecks.push({ x: u.x, y: u.y, heading: u.heading || 0, mast: u.mast || 20, len: L, spec: { cls: (u.classRef && u.classRef.id) || null, type: u.shipType || null }, uid: u.id,
       t: 0, dur: 40 + 50 * big, pitch: (Math.random() < 0.5 ? -1 : 1) * rnd(8, 22), roll: rnd(-6, 6),
       /* v6.47 — 큰 배는 가운데가 꺾여 두 동강으로 가라앉는다 */
       brk: L >= 125 && Math.random() < 0.7 });
@@ -45452,6 +45464,11 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
     const half = surfaced ? 90 : (mb && /6×|6x/.test(mb.textContent) ? 5 : 20);
     return { brg: b.periscopeBearing, half, ppd: (W / 2 - 10) / half, bx: b.x, by: b.y };
   }
+  /* v6.68 — 가라앉는 배도 살아 있던 때와 같은 도장으로, 그을려서 */
+  function wrPaint(g, wr, q, vis, night) {
+    return { seed: wr.uid != null ? wr.uid : wr.spec.cls, range: q.r, damaged: true, noWater: true, night, vis,
+             wx: g.weather && g.weather.id, sea: g.weather && g.weather.sea, theater: g.theater };
+  }
   function draw(c, W, H, env) {
     /* v6.68 — 전투 잠망경에만 그린다. 전투가 끝난 뒤에도 남아 있던 상태가 항해 함교·식별 훈련 화면에
        그대로 그려져, 격침한 배의 연기가 수평선에 몇 날 며칠 떠 있었다. */
@@ -45477,10 +45494,10 @@ body.epTutOn #epDock, body.epTutOn #epAtk{ display:none; }
         c.rotate(-tilt * d2r);
         for (const s of [-1, 1]) { c.save(); c.beginPath(); c.rect(s < 0 ? -w : 0, -h * 3, w, h * 6); c.clip();
           c.translate(s * gap, h * 0.15 * v2); c.rotate(s * -bend * d2r * 0.5 + tilt * d2r * 0.4);
-          try { window.Sil.canvas(c, spec, { x: 0, waterlineY: 0, width: w, height: h, mirror: aspB > 0, detail: 2, color: '#050809' }); } catch (e) {}
+          try { window.Sil.canvas(c, spec, { x: 0, waterlineY: 0, width: w, height: h, mirror: aspB > 0, detail: 2, color: '#050809', paint: wrPaint(g, wr, q, vis, night) }); } catch (e) {}
           c.restore(); }
       } else {
-      try { window.Sil.canvas(c, spec, { x: 0, waterlineY: 0, width: w, height: h, mirror: aspB > 0, detail: 2, color: '#050809' }); } catch (e) {}
+      try { window.Sil.canvas(c, spec, { x: 0, waterlineY: 0, width: w, height: h, mirror: aspB > 0, detail: 2, color: '#050809', paint: wrPaint(g, wr, q, vis, night) }); } catch (e) {}
       }
       c.restore();
     }
@@ -47868,7 +47885,11 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
         const hz = clamp(o.d / (30 * vis), 0, 0.85), col = night > 0.7 ? 'rgba(2,3,5,' + (0.75 * (1 - o.d / 5)).toFixed(2) + ')' : 'rgb(' + mix([34, 38, 42], mix(skyHz, [170, 176, 180], haze), hz) + ')';
         const spec = window.Sil && window.Sil.typeSpec ? window.Sil.typeSpec(o.f.type) : null;
         const bob = Math.sin(s.t * 40 + o.f.ph) * Math.min(1.2, hpx * 0.04);
-        if (spec) { try { window.Sil.canvas(c, spec, { x, waterlineY: hy + sink + bob, width: wpx, height: hpx, mirror: asp > 0, detail: hpx > 22 ? 4 : hpx > 10 ? 3 : 2, color: col }); } catch (e) {} }
+        if (spec) { try { window.Sil.canvas(c, spec, { x, waterlineY: hy + sink + bob, width: wpx, height: hpx, mirror: asp > 0, detail: hpx > 22 ? 4 : hpx > 10 ? 3 : 2, color: col,
+          /* v6.68 — 채색: 쌍안경은 먼 수평선을 보므로 대기 원근을 길게 잡는다 */
+          paint: { seed: 'trk' + (o.f.ph != null ? o.f.ph : '') + (o.f.type || ''), range: o.d * 1000, hazeL: 30000, night: night, vis: vis, dusk: dusk ? 0.6 : 0,
+                   wx: haze > 0.3 ? 'haze' : 'clear', sea: 2, speed: o.chase ? 26 : 8, time: s.t * 60, hor: mix(skyHz, [170, 176, 180], haze),
+                   theater: (window.Campaign && Campaign.state && Campaign.state() && Campaign.state().theater) || '' } }); } catch (e) {} }
         if (o.chase && o.d < Dh && night < 0.8) { c.fillStyle = 'rgba(235,240,242,.75)'; const bx = x + (asp > 0 ? -1 : 1) * wpx * 0.45 * (side > 0.3 ? 1 : 0); c.beginPath(); c.moveTo(bx - 3, hy); c.lineTo(bx + 3, hy); c.lineTo(bx, hy - Math.max(1.5, hpx * 0.12)); c.closePath(); c.fill(); } }
       c.restore();
       /* 늑대떼 공격 섬광 */
@@ -51058,5 +51079,533 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
 #epTrack .wait span{ flex:1; }
 #epTrack .wait button{ flex:0 0 auto; padding:7px 12px; font-weight:700; }
 </style>
+<script id="ep-v668-shippaint-script">
+(function () {
+  'use strict';
+  /* ══════════ V6.68 함선 채색 ══════════
+     함급 도형(Sil)은 하나도 바꾸지 않는다. 같은 도형을 **칠한다**.
+     - 나라·함종·바다에 따라 그 시절의 도장(서방접근로 흰 위장, 해군청 분할 위장, 미 해군 Measure 21·22,
+       일본 해군 회색, 이탈리아 Claudus 위장, 전시 회색 상선, 전쟁 전 검은 선체의 상선, 일본 마루선 등)
+     - 선체: 흘수선 띠(boot-topping), 갑판 끝 빛, 녹물, 현창, 아래쪽 그늘과 물빛 반사
+     - 상부 구조물: 함교 창, 구명정, 굴뚝의 회사 띠와 그을음
+     - 물: 흘수선 거품, 속력에 따른 이물 물결과 고물 항적
+     - 빛: 낮·해질녘·밤, 날씨, 거리(대기 원근) — 멀수록 수평선 빛에 녹고 밤에는 검은 실루엣으로 돌아간다.
+     잠망경 화면이 작아도 읽히도록, 그림이 작아질수록 세부를 덜고 덩어리의 명암만 남긴다. */
+  const KEY = 'ep.shipPaint.v668';
+  let enabled = true;
+  try { if (localStorage.getItem(KEY) === '0') enabled = false; } catch (e) {}
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const mul = (a, k) => [a[0] * k, a[1] * k, a[2] * k];
+  const rgb = (c, al) => {
+    const r = clamp(c[0], 0, 255) | 0, g = clamp(c[1], 0, 255) | 0, b = clamp(c[2], 0, 255) | 0;
+    return al == null || al >= 1 ? 'rgb(' + r + ',' + g + ',' + b + ')' : 'rgba(' + r + ',' + g + ',' + b + ',' + clamp(al, 0, 1).toFixed(3) + ')';
+  };
+  function hash(s) { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+  function rng(seed) { let a = (seed >>> 0) || 1; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const pick = (R, arr) => arr[Math.floor(R() * arr.length) % arr.length];
+  function wpick(R, list) { let s = 0; for (const it of list) s += it[0]; let u = R() * s; for (const it of list) { u -= it[0]; if (u <= 0) return it[1]; } return list[list.length - 1][1]; }
+
+  /* ── 나라 ── 함급 이름으로 정한다. 상선·함형 대표 그림은 바다로 정한다. */
+  const NAT = {};
+  const natList = (n, s) => s.split(' ').forEach(k => { NAT[k] = n; });
+  natList('JP', 'escort_kaibokan escort_chaser dd_fubuki dd_kagero dd_yugumo cl_agano ca_myoko ca_tone bc_kongo bb_yamato cv_shokaku cv_hiyo cv_zuiho av_chitose av_nisshin av_akitsu');
+  natList('US', 'escort_sc dd_clemson dd_mahan dd_fletcher cl_omaha cl_brooklyn ca_neworleans ca_pensacola bb_colorado bb_northcarolina cv_lexington cv_yorktown cve_bogue av_curtiss av_tangier');
+  natList('UK', 'escort_flower escort_river escort_blackswan escort_hunt dd_vw dd_town4 dd_jkn dd_tribal cl_dido cl_leander cl_town ca_county bb_qe bb_kgv bc_renown cv_illustrious cve_attacker');
+  natList('IT', 'dd_soldati cl_condot ca_zara bb_littorio');
+  const isMerchant = spec => spec.kind === 'merchant' || spec.kind === 'tanker' || /^(merchant|tanker)/.test(spec.profile || '');
+  function nationOf(spec, theater) {
+    const p = spec.profile || '';
+    if (NAT[p]) return NAT[p];
+    if (theater === 'PACIFIC') return 'JP';
+    if (theater === 'EASTPAC') return 'US';
+    return isMerchant(spec) ? 'AL' : 'UK';
+  }
+
+  /* ── 물감 ── 낮의 중립광 아래 색. 빛·밤·대기는 tone() 이 입힌다. */
+  const K = {
+    wa_white: [204, 212, 212], wa_blue: [128, 166, 188], wa_green: [146, 180, 166], wa_dblue: [82, 112, 138],
+    rn_a: [98, 106, 112], rn_b: [134, 142, 148], rn_c: [176, 182, 184], rn_b5: [80, 98, 116], rn_mb: [148, 122, 132], rn_home: [92, 98, 104],
+    us_navy: [50, 62, 84], us_haze: [146, 154, 162], us_ocean: [98, 108, 118], us_pale: [176, 182, 186], us_black: [40, 44, 48],
+    ijn_kure: [98, 104, 106], ijn_mai: [118, 124, 124], ijn_sase: [110, 116, 114], ijn_yoko: [104, 110, 114],
+    ijn_green: [80, 94, 72], ijn_dgreen: [52, 64, 50], ijn_deck: [138, 112, 76],
+    it_light: [174, 178, 176], it_dark: [84, 92, 98], it_blue: [108, 124, 138],
+    m_black: [34, 36, 38], m_dark: [62, 66, 70], m_gray: [100, 106, 110], m_lgray: [140, 144, 146], m_white: [212, 210, 200],
+    m_buff: [196, 164, 112], m_red: [168, 62, 42], m_blue: [96, 138, 168], m_rust: [122, 70, 40], m_green: [70, 86, 66],
+    boot_black: [26, 28, 30], boot_red: [126, 50, 40], gun: [62, 68, 72], glass: [20, 26, 30], boat: [206, 206, 196], deck_dark: [56, 60, 62]
+  };
+
+  /* ── 도장 고르기 ── 같은 배는 언제 보아도 같은 옷을 입는다(씨앗). */
+  const livCache = new Map();
+  function livery(spec, P) {
+    const theater = P.theater || '';
+    const nat = nationOf(spec, theater);
+    const key = (spec.profile || spec.kind) + '|' + nat + '|' + theater + '|' + (P.seed == null ? '' : P.seed);
+    let L = livCache.get(key); if (L) return L;
+    const R = rng(hash(key));
+    const kind = spec.kind || 'merchant';
+    const big = kind === 'battleship' || kind === 'heavy_cruiser' || kind === 'carrier' || kind === 'light_cruiser';
+    const escortish = kind === 'escort' || (kind === 'destroyer' && /town4|clemson|vw|hunt/.test(spec.profile || ''));
+    L = { nat, kind, gun: K.gun, mast: null, boot: K.boot_black, bootH: 0.9, camo: null, rust: 0, fun: null, funTop: K.m_black, funBand: null, boats: false, ports: 0.5, windows: true };
+    if (isMerchant(spec)) {
+      L.boats = true; L.ports = 0.45;
+      L.boot = K.boot_red; L.bootH = 0.8 + R() * 1.6;                 /* 짐을 덜 실은 배는 붉은 밑칠이 더 드러난다 */
+      L.rust = 0.25 + R() * 0.75;
+      const tank = kind === 'tanker' || /^tanker/.test(spec.profile || '');
+      let s;
+      if (nat === 'JP') s = wpick(R, [[5, 'maru_gray'], [3, 'maru_black'], [2, 'maru_green']]);
+      else s = wpick(R, [[6, 'war_gray'], [2, 'pre_black'], [2, 'war_dark']]);
+      L.scheme = s;
+      if (s === 'war_gray') { L.hull = mix(K.m_gray, K.m_dark, R() * 0.5); L.sup = mix(K.m_lgray, K.m_gray, R() * 0.4); L.fun = L.sup; L.funTop = K.m_black; L.boatCol = K.m_lgray; }
+      else if (s === 'war_dark') { L.hull = mix(K.m_dark, K.m_black, R() * 0.6); L.sup = mix(K.m_gray, K.m_lgray, R()); L.fun = K.m_dark; L.funTop = K.m_black; L.boatCol = K.m_lgray; }
+      else if (s === 'pre_black') {
+        L.hull = K.m_black; L.sup = tank ? mix(K.m_white, K.m_buff, R() * 0.3) : K.m_white;
+        const f = pick(R, [[K.m_buff, null], [K.m_red, null], [K.m_blue, null], [K.m_black, K.m_red], [K.m_black, K.m_white], [K.m_buff, K.m_red]]);
+        L.fun = f[0]; L.funBand = f[1]; L.funTop = K.m_black; L.boatCol = K.boat;
+      }
+      else if (s === 'maru_gray') { L.hull = mix(K.m_gray, K.ijn_kure, 0.5); L.sup = K.m_lgray; L.fun = K.m_black; L.funBand = pick(R, [K.m_white, K.m_red, null]); L.boatCol = K.m_lgray; }
+      else if (s === 'maru_black') { L.hull = K.m_black; L.sup = K.m_white; L.fun = K.m_black; L.funBand = pick(R, [K.m_white, K.m_red]); L.boatCol = K.boat; }
+      else { L.hull = K.m_green; L.sup = mix(K.m_green, K.m_lgray, 0.35); L.fun = K.ijn_dgreen; L.camo = { type: 'blot', cols: [K.ijn_dgreen, mix(K.m_green, K.m_lgray, 0.2)], n: 7 }; L.boatCol = K.m_gray; }
+      if (tank && R() < 0.5 && s !== 'pre_black') L.sup = mix(L.sup, K.m_white, 0.5);
+      L.mast = mix(L.sup, K.m_dark, 0.45);
+    } else if (nat === 'UK') {
+      const atl = theater !== 'MEDITERRANEAN';
+      let s = escortish && atl ? wpick(R, [[6, 'wa'], [2, 'adm'], [2, 'g507c']])
+        : kind === 'destroyer' ? wpick(R, [[4, 'adm'], [2, 'mb'], [3, 'g507b'], [atl ? 2 : 0, 'wa']])
+        : wpick(R, [[5, 'adm'], [3, 'g507b'], [2, 'home']]);
+      L.scheme = s;
+      if (s === 'wa') { L.hull = K.wa_white; L.camo = { type: 'wa', cols: [K.wa_blue, K.wa_green, K.wa_dblue], n: 4 }; }
+      else if (s === 'adm') { L.hull = K.rn_c; L.camo = { type: 'dazzle', cols: [K.rn_b, K.rn_b5, K.rn_a], n: big ? 7 : 5 }; }
+      else if (s === 'mb') L.hull = K.rn_mb;
+      else if (s === 'g507c') L.hull = K.rn_c;
+      else if (s === 'home') L.hull = K.rn_home;
+      else L.hull = K.rn_b;
+    } else if (nat === 'US') {
+      const s = wpick(R, [[5, 'm22'], [3, 'm21'], [2, 'm14'], [big || kind === 'destroyer' ? 2 : 0, 'm32']]);
+      L.scheme = s;
+      if (s === 'm22') { L.hull = K.us_haze; L.camo = { type: 'split', low: K.us_navy }; }
+      else if (s === 'm21') L.hull = K.us_navy;
+      else if (s === 'm14') L.hull = K.us_ocean;
+      else { L.hull = K.us_pale; L.camo = { type: 'dazzle', cols: [K.us_black, K.us_ocean, K.us_haze, K.us_navy], n: big ? 9 : 7 }; }
+    } else if (nat === 'IT') {
+      const s = wpick(R, [[6, 'claudus'], [4, 'gray']]);
+      L.scheme = s; L.hull = K.it_light;
+      if (s === 'claudus') L.camo = { type: 'saw', cols: [K.it_dark, K.it_blue], n: big ? 6 : 5 };
+    } else if (nat === 'JP') {
+      L.scheme = pick(R, ['kure', 'mai', 'sase', 'yoko']);
+      L.hull = K['ijn_' + L.scheme];
+      if ((kind === 'carrier' || kind === 'seaplane') && R() < 0.3) { L.hull = K.ijn_green; L.camo = { type: 'blot', cols: [K.ijn_dgreen, mix(K.ijn_green, K.ijn_kure, 0.5)], n: 8 }; L.scheme = 'green'; }
+      L.deck = K.ijn_deck;
+    } else { L.hull = K.rn_b; L.scheme = 'gray'; }
+    if (!L.sup) L.sup = L.hull;
+    if (!L.fun) L.fun = L.sup;
+    if (!L.mast) L.mast = mix(L.hull, K.m_dark, 0.35);
+    if (!L.boatCol) L.boatCol = mix(L.sup, [220, 220, 214], 0.4);
+    if (!isMerchant(spec)) { L.rust = R() < 0.35 ? 0.15 + R() * 0.25 : 0; L.ports = kind === 'escort' || kind === 'destroyer' ? 0.25 : 0.6; }
+    L.R = hash(key + '#detail');
+    if (livCache.size > 400) livCache.clear();
+    livCache.set(key, L);
+    return L;
+  }
+
+  /* ── 위장 무늬 — 선체 좌표(0..220 × 0..64)로 만든다 ── */
+  const camoCache = new Map();
+  function camoShapes(L, x0, x1) {
+    const key = L.R + '|' + L.camo.type + '|' + Math.round(x0) + '|' + Math.round(x1);
+    let out = camoCache.get(key); if (out) return out;
+    const R = rng(L.R ^ 0x9e3779b9), C = L.camo, len = x1 - x0;
+    out = [];
+    if (C.type === 'dazzle' || C.type === 'wa' || C.type === 'saw') {
+      let x = x0 - 6, i = 0;
+      while (x < x1 + 6) {
+        const w = len / C.n * (0.55 + R() * 0.9);
+        const t1 = (R() - 0.5) * (C.type === 'saw' ? 46 : 30), t2 = (R() - 0.5) * (C.type === 'saw' ? 46 : 26);
+        const skip = C.type === 'wa' ? R() < 0.5 : (i % 2 === 0 && R() < 0.45);
+        if (!skip) {
+          const midY = 30 + R() * 22;
+          if (C.type === 'saw') {
+            out.push({ col: pick(R, C.cols), pts: [[x + t1, 8], [x + w * 0.5, midY], [x + w + t2, 8], [x + w + t2 * 0.3, 64], [x - t1 * 0.4, 64]] });
+          } else if (R() < 0.35) {
+            out.push({ col: pick(R, C.cols), pts: [[x + t1, 8], [x + w + t2, 8], [x + w * (0.3 + R() * 0.5), midY]] });
+            out.push({ col: pick(R, C.cols), pts: [[x - t1 * 0.5, 64], [x + w * (0.2 + R() * 0.5), midY - 6], [x + w + t2 * 0.6, 64]] });
+          } else {
+            out.push({ col: pick(R, C.cols), pts: [[x + t1, 8], [x + w + t2, 8], [x + w - t2 * 0.5, 64], [x - t1 * 0.6, 64]] });
+          }
+        }
+        x += w; i++;
+      }
+      if (C.type === 'wa') out.forEach(p => { p.col = R() < 0.7 ? C.cols[(R() * 2) | 0] : C.cols[2]; });
+    } else if (C.type === 'blot') {
+      for (let i = 0; i < C.n * 2; i++) {
+        const cx = x0 + R() * len, cy = 30 + R() * 26, rx = len / C.n * (0.3 + R() * 0.5), ry = 3 + R() * 7, pts = [];
+        for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, j = 0.7 + R() * 0.5; pts.push([cx + Math.cos(a) * rx * j, cy + Math.sin(a) * ry * j]); }
+        out.push({ col: pick(R, C.cols), pts });
+      }
+    }
+    if (camoCache.size > 300) camoCache.clear();
+    camoCache.set(key, out);
+    return out;
+  }
+
+  /* ── 빛 ── 낮의 노출 · 해질녘 붉은 기 · 밤 · 날씨 · 거리 */
+  const EXPO = { clear: 1, haze: 0.93, fog: 0.86, gale: 0.74, squall: 0.7 };
+  const HOR = { clear: [150, 170, 181], haze: [168, 172, 168], fog: [146, 152, 151], gale: [92, 102, 108], squall: [82, 94, 102] };
+  function lightOf(P) {
+    const wx = HOR[P.wx] ? P.wx : 'clear';
+    const night = clamp(+P.night || 0, 0, 1), n = clamp((night - 0.35) / 0.4, 0, 1);
+    const dusk = P.dusk != null ? +P.dusk : Math.exp(-Math.pow((night - 0.5) / 0.14, 2)) * (wx === 'clear' ? 1 : 0.5);
+    let hor = P.hor && P.hor.length === 3 ? P.hor : mix(mix(HOR[wx], wx === 'clear' ? [16, 25, 34] : [11, 15, 19], n), [206, 128, 78], dusk * 0.55);
+    const vis = clamp(+P.vis || 1, 0.2, 1), range = Math.max(0, +P.range || 1500);
+    let hz = 1 - Math.exp(-range / ((+P.hazeL || 6800) * vis));
+    if (wx === 'fog') hz = Math.min(1, hz * 1.3);
+    hz = clamp(hz * 0.9, 0, 0.9);
+    const moon = clamp(P.moon == null ? 0.4 : +P.moon, 0, 1);
+    /* 잘게 나눠 둔다 — 같은 장면이면 같은 값이어야 그려 둔 배를 다시 쓸 수 있다 */
+    const q = (v, s) => Math.round(v * s) / s;
+    hz = q(hz, 40); const nq = q(n * (0.9 - 0.12 * moon), 40), dq = q(dusk, 20);
+    hor = [Math.round(hor[0] / 3) * 3, Math.round(hor[1] / 3) * 3, Math.round(hor[2] / 3) * 3];
+    return { expo: q(EXPO[wx] * (1 - 0.15 * dq), 100), dusk: dq, n: nq, hor, hz, night, wx, contrast: (1 - n * 0.9) * (1 - hz * 0.85) * (wx === 'gale' || wx === 'squall' ? 0.75 : 1) };
+  }
+  const NIGHT = [8, 11, 15];
+  /* 잠망경 화면은 어둡고 차분하다. 배는 하늘보다 늘 한 톤 어둡게, 채도는 덜어 — 읽히는 것이 먼저다. */
+  const BASE_EXPO = 0.66, DESAT = 0.18;
+  function tone(c, E, s) {
+    const l = c[0] * 0.3 + c[1] * 0.55 + c[2] * 0.15;
+    let o = mul(mix(c, [l, l, l], DESAT), (s == null ? 1 : s) * E.expo * BASE_EXPO);
+    if (E.dusk > 0.02) o = mix(o, [o[0] * 1.22, o[1] * 0.96, o[2] * 0.8], E.dusk * 0.7);
+    if (E.n > 0) o = mix(o, NIGHT, E.n);
+    if (E.hz > 0) o = mix(o, E.hor, E.hz);
+    return o;
+  }
+
+  /* ── 도형 ── */
+  function parsePts(q) { return q._pp || (q._pp = q.pts.split(' ').map(s => { const a = s.split(','); return [+a[0], +a[1]]; })); }
+  function makePath(q, X, Y, sy) {
+    const p = new Path2D();
+    if (q.t === 'poly') { const pts = parsePts(q); for (let i = 0; i < pts.length; i++) { const x = X(pts[i][0]), y = Y(pts[i][1]); if (i) p.lineTo(x, y); else p.moveTo(x, y); } p.closePath(); }
+    else if (q.t === 'rect') { const a = X(q.x), b = X(q.x + q.w); p.rect(Math.min(a, b), Y(q.y), Math.max(1, Math.abs(b - a)), Math.max(1, q.h * sy)); }
+    return p;
+  }
+  function bboxArt(q) {
+    if (q.t === 'poly') { let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9; for (const p of parsePts(q)) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); } return { x0, x1, y0, y1 }; }
+    if (q.t === 'rect') return { x0: q.x, x1: q.x + q.w, y0: q.y, y1: q.y + q.h };
+    return { x0: Math.min(q.x1, q.x2), x1: Math.max(q.x1, q.x2), y0: Math.min(q.y1, q.y2), y1: Math.max(q.y1, q.y2) };
+  }
+  /* 선체 윗선(갑판 끝) — 물에 닿은 점을 뺀 꼭짓점을 이어 x 로 보간 */
+  function sheerOf(hullQ) {
+    let pts = parsePts(hullQ).filter(p => p[1] < 58.5);
+    if (pts.length > 1 && pts[0][0] > pts[pts.length - 1][0]) pts = pts.slice().reverse();
+    return ax => {
+      if (!pts.length) return 48;
+      if (ax <= pts[0][0]) return pts[0][1];
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        if (b[0] > a[0] && ax >= a[0] && ax <= b[0]) return a[1] + (ax - a[0]) / (b[0] - a[0]) * (b[1] - a[1]);
+      }
+      return pts[pts.length - 1][1];
+    };
+  }
+  /* 윗면(빛)·아랫면(그늘) 띠: 자기 자신과 위아래로 민 자신의 차이 */
+  function edgeBand(ctx, path, dy, style) {
+    if (typeof DOMMatrix === 'undefined') return;
+    const q = new Path2D(); q.addPath(path); q.addPath(path, new DOMMatrix([1, 0, 0, 1, 0, dy]));
+    ctx.save(); ctx.clip(path); ctx.fillStyle = style; ctx.fill(q, 'evenodd'); ctx.restore();
+  }
+
+  const sprites = new Map(), SPR_MAX = 56;
+  const SOLID = { HULL: 'hull', SUPER: 'sup', BRIDGE: 'bridge', FUNNEL: 'fun', FLIGHT_DECK: 'fdeck', DECK: 'fit', GUN: 'fit', TORPEDO_TUBES: 'fit', AIRCRAFT: 'fit', CATAPULT: 'fit', STERN_CRANE: 'fit', DECK_TANKS: 'fit' };
+
+  function draw(ctx, spec, parts, opt, G) {
+    ctx.save();
+    try { return drawInner(ctx, spec, parts, opt, G); } finally { ctx.restore(); }
+  }
+  function drawInner(ctx, spec, parts, opt, G) {
+    const P = opt.paint;
+    if (!enabled || !P || typeof Path2D === 'undefined') return false;
+    const X = G.X, Y = G.Y, sx = G.sx, sy = G.sy, lim = G.lim, m = G.m;
+    const T = ctx.getTransform ? ctx.getTransform() : null;
+    const dpr = T ? Math.max(0.5, Math.hypot(T.c, T.d)) : 1;
+    const ppa = sy * dpr;                                  /* 화면 픽셀(장치) / 도형 1칸 */
+    let L = livery(spec, P);
+    const E = lightOf(P), k = E.contrast;
+    /* 흐릿하게만 보일 때(세부 1단계 이하)는 도장도 뭉개진다 — 무늬·띠로 나라를 먼저 알려 주지 않는다 */
+    if (lim <= 1) {
+      const N = [100, 104, 108];
+      L = Object.assign({}, L, { hull: mix(L.hull, N, 0.6), sup: mix(L.sup, mix(N, [255, 255, 255], 0.1), 0.6), fun: mix(L.fun, N, 0.6), mast: mix(L.mast, N, 0.6),
+        camo: null, funBand: null, boot: mix(L.boot, L.hull, 0.7), rust: 0, boats: false, ports: 0, windows: false });
+    }
+    const tnow = P.time != null ? +P.time : performance.now() / 1000;
+    const list = parts.filter(q => (q.d || 0) <= lim);
+    const hullQ = list.find(q => q.f === 'HULL' && q.t === 'poly');
+    if (!hullQ) return false;
+    const hb = bboxArt(hullQ), bowA = hb.x0, sternA = hb.x1, sheer = sheerOf(hullQ);
+    let lowDeck = 0; for (const p of parsePts(hullQ)) if (p[1] < 58.5) lowDeck = Math.max(lowDeck, p[1]);
+    const px = v => v / dpr;                               /* 장치 픽셀 → 그리기 단위 */
+    const tiny = ppa < 0.55, small = ppa < 1.15;
+    const dmg = !!P.damaged, seaS = clamp(+P.sea || 0, 0, 6), spd = clamp(+P.speed || 0, 0, 36);
+    const wl = Y(59);
+    ctx.save();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+    /* 0) 물빛 반사 — 선체 아래 어둑한 띠가 물결에 끊긴다 */
+    if (!tiny && !P.noWater && k > 0.12) {
+      const xa = X(bowA), xb = X(sternA), x0 = Math.min(xa, xb), w = Math.abs(xb - xa), hh = (59 - hb.y0) * sy * 0.55;
+      const strips = small ? 3 : 6, refl = tone(mix(L.hull, [10, 16, 20], 0.5), E, 0.6);
+      for (let i = 0; i < strips; i++) {
+        const y = wl + 1 + i * hh / strips, a = 0.32 * k * (1 - i / strips), off = Math.sin(tnow * 1.4 + i * 1.9) * w * 0.015;
+        ctx.fillStyle = rgb(refl, a); ctx.fillRect(x0 + off + w * 0.02 * i, y, w * (1 - 0.04 * i), Math.max(px(1), hh / strips * 0.6));
+      }
+    }
+
+    /* 배 몸체(1·2)는 한 번 그려 두고 다시 쓴다 — 크기·빛이 바뀔 때만 새로 칠한다. 물(0·3)은 매번 움직인다. */
+    const bodyFn = (ctx, X, Y) => {
+    const wl = Y(59);
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    /* 1) 단단한 덩어리 — 선체 · 비행갑판 · 상부구조 · 굴뚝 · 의장 */
+    const order = ['hull', 'fdeck', 'sup', 'bridge', 'fun', 'fit'];
+    const solids = order.map(cat => list.filter(q => q.t !== 'line' && SOLID[q.f] === cat));
+    const camo = L.camo && !tiny ? (L.camo.type === 'split' ? null : camoShapes(L, bowA, sternA)) : null;
+    const camoFill = (path) => {
+      if (!L.camo || tiny) return;
+      ctx.save(); ctx.clip(path);
+      if (L.camo.type === 'split') { ctx.fillStyle = rgb(tone(L.camo.low, E)); ctx.fillRect(-1e4, Y(lowDeck + 0.2), 2e4, 1e4); }
+      else for (const s of camo) {
+        ctx.beginPath(); s.pts.forEach((p, i) => { const x = X(p[0]), y = Y(p[1]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.closePath();
+        ctx.fillStyle = rgb(tone(s.col, E)); ctx.fill();
+      }
+      ctx.restore();
+    };
+    const dark = (a) => 'rgba(0,0,0,' + clamp(a, 0, 1).toFixed(3) + ')';
+    const lite = (a) => rgb(mix(E.hor, [255, 255, 255], 0.5), a);
+    const hiA = 0.26 * k, aoA = 0.5 * k;
+    const R = rng(L.R);
+
+    /* 선체 */
+    for (const q of solids[0]) {
+      const path = makePath(q, X, Y, sy);
+      ctx.fillStyle = rgb(tone(dmg ? mul(L.hull, 0.6) : L.hull, E)); ctx.fill(path);
+      camoFill(path);
+      ctx.save(); ctx.clip(path);
+      /* 흘수선 띠 */
+      if (!tiny) { ctx.fillStyle = rgb(tone(L.boot, E)); ctx.fillRect(-1e4, Y(59 - L.bootH), 2e4, L.bootH * sy + 2); }
+      if (!small) {
+        /* 녹물 — 갑판 끝 배수구와 닻줄 구멍에서 흘러내린다 */
+        const nR = Math.round(L.rust * 14);
+        if (nR && k > 0.15) for (let i = 0; i < nR; i++) {
+          const ax = bowA + 6 + R() * (sternA - bowA - 12), y0 = sheer(ax) + 0.4, len = 2 + R() * 6.5, w = Math.max(px(1), (0.45 + R() * 0.7) * sx);
+          const g = ctx.createLinearGradient(0, Y(y0), 0, Y(y0 + len));
+          g.addColorStop(0, rgb(tone(K.m_rust, E, 1.25), 0.8 * k * L.rust)); g.addColorStop(1, rgb(tone(K.m_rust, E), 0));
+          ctx.fillStyle = g; ctx.fillRect(X(ax) - w / 2, Y(y0), w, len * sy);
+        }
+        /* 닻줄 구멍 */
+        const hx = bowA + (sternA - bowA) * 0.035 + 2, hy = sheer(hx) + 1.8;
+        ctx.fillStyle = rgb(tone(K.m_black, E), 0.8 * k + 0.2); ctx.beginPath(); ctx.ellipse(X(hx), Y(hy), Math.max(px(1), 0.7 * sx), Math.max(px(1), 0.6 * sy), 0, 0, 6.283); ctx.fill();
+        if (L.rust > 0.3) { const g = ctx.createLinearGradient(0, Y(hy), 0, Y(hy + 6)); g.addColorStop(0, rgb(tone(K.m_rust, E), 0.6 * k)); g.addColorStop(1, rgb(tone(K.m_rust, E), 0)); ctx.fillStyle = g; ctx.fillRect(X(hx) - 0.4 * sx, Y(hy), 0.8 * sx, 6 * sy); }
+        /* 현창 */
+        if (ppa >= 2.2 && L.ports > 0) {
+          ctx.fillStyle = rgb(tone(K.glass, E), 0.75);
+          const step = 4.4;
+          for (let ax = bowA + 14; ax < sternA - 8; ax += step) {
+            const seg = Math.floor((ax - bowA) / 26); if (((hash(L.R + ':' + seg) % 100) / 100) > L.ports) continue;
+            const y = sheer(ax) + 2.1; if (y > 59 - L.bootH - 1.2) continue;
+            ctx.beginPath(); ctx.arc(X(ax), Y(y), Math.max(px(0.7), 0.32 * sy), 0, 6.283); ctx.fill();
+          }
+        }
+        /* 외판 이음새 — 아주 엷게 */
+        if (ppa >= 1.8) { ctx.strokeStyle = dark(0.12 * k); ctx.lineWidth = px(1); ctx.beginPath();
+          for (let ax = bowA; ax <= sternA; ax += 2) { const y = sheer(ax) + (59 - sheer(ax)) * 0.5; if (ax === bowA) ctx.moveTo(X(ax), Y(y)); else ctx.lineTo(X(ax), Y(y)); } ctx.stroke(); }
+      }
+      /* 명암 — 위는 하늘빛, 물에 가까울수록 그늘 */
+      const g = ctx.createLinearGradient(0, Y(hb.y0), 0, wl);
+      g.addColorStop(0, lite(0.06 * k)); g.addColorStop(0.4, 'rgba(0,0,0,0)'); g.addColorStop(1, dark(0.42 * k));
+      ctx.fillStyle = g; ctx.fillRect(-1e4, Y(hb.y0) - 2, 2e4, wl - Y(hb.y0) + 4);
+      /* 갑판 끝 바로 아래 그늘 — 현측 난간이 드리운다 */
+      if (!tiny) { ctx.strokeStyle = dark(0.28 * k); ctx.lineWidth = Math.max(px(1), 0.5 * sy); ctx.beginPath();
+        for (let ax = bowA; ax <= sternA; ax += 1.5) { const y = sheer(ax) + 0.9; if (ax === bowA) ctx.moveTo(X(ax), Y(y)); else ctx.lineTo(X(ax), Y(y)); } ctx.stroke(); }
+      if (dmg) { ctx.fillStyle = dark(0.35); ctx.fillRect(-1e4, -1e4, 2e4, 2e4); }
+      ctx.restore();
+      if (!tiny) edgeBand(ctx, path, Math.max(px(1), 0.42 * sy), lite(hiA));
+    }
+
+    /* 비행갑판 — 옆에서 보면 짙은 그늘 띠, 윗면 끝이 밝다 */
+    for (const q of solids[1]) {
+      const path = makePath(q, X, Y, sy);
+      ctx.fillStyle = rgb(tone(mix(L.hull, K.deck_dark, 0.55), E, 0.8)); ctx.fill(path);
+      if (!tiny) {
+        edgeBand(ctx, path, Math.max(px(1), 0.6 * sy), rgb(tone(L.deck || mix(L.hull, [200, 200, 196], 0.3), E), 0.85));
+        ctx.save(); ctx.clip(path); ctx.strokeStyle = dark(0.4 * k); ctx.lineWidth = Math.max(px(1), 0.35 * sx);
+        for (let ax = q.x + 6; ax < q.x + q.w - 2; ax += 11) { ctx.beginPath(); ctx.moveTo(X(ax), Y(q.y + q.h * 0.3)); ctx.lineTo(X(ax), Y(q.y + q.h)); ctx.stroke(); }
+        ctx.restore();
+      }
+    }
+
+    /* 상부 구조물·함교 */
+    const supCol = dmg ? mul(L.sup, 0.6) : L.sup;
+    for (const cat of [2, 3]) for (const q of solids[cat]) {
+      const path = makePath(q, X, Y, sy), bb = bboxArt(q);
+      ctx.fillStyle = rgb(tone(supCol, E, cat === 3 ? 1.04 : 1)); ctx.fill(path);
+      camoFill(path);
+      ctx.save(); ctx.clip(path);
+      /* 창 — 함교 맨 위 줄. 상선 상부구조에는 현창 줄 */
+      if (L.windows && ppa >= 1.5 && (cat === 3 || (isMerchant(spec) && ppa >= 2.4))) {
+        const y0 = bb.y0 + (cat === 3 ? 0.9 : 1.6), hh = cat === 3 ? 1.1 : 0.8, ww = cat === 3 ? 1.3 : 0.9, gap = cat === 3 ? 0.7 : 1.8;
+        ctx.fillStyle = rgb(tone(K.glass, E), 0.85);
+        for (let ax = bb.x0 + 1.2; ax + ww < bb.x1 - 0.8; ax += ww + gap) { const a = X(ax), b = X(ax + ww); ctx.fillRect(Math.min(a, b), Y(y0), Math.max(px(1), Math.abs(b - a)), Math.max(px(1), hh * sy)); }
+      }
+      const g = ctx.createLinearGradient(0, Y(bb.y0), 0, Y(bb.y1));
+      g.addColorStop(0, lite(0.12 * k)); g.addColorStop(1, dark(0.22 * k));
+      ctx.fillStyle = g; ctx.fillRect(-1e4, Y(bb.y0) - 1, 2e4, (bb.y1 - bb.y0) * sy + 2);
+      if (dmg) { ctx.fillStyle = dark(0.35); ctx.fillRect(-1e4, -1e4, 2e4, 2e4); }
+      ctx.restore();
+      if (!tiny) { edgeBand(ctx, path, Math.max(px(1), 0.4 * sy), lite(hiA)); edgeBand(ctx, path, -Math.max(px(1), 0.55 * sy), dark(aoA)); }
+    }
+
+    /* 굴뚝 — 원통의 명암, 검은 테, 회사 띠, 그을음 */
+    for (const q of solids[4]) {
+      const path = makePath(q, X, Y, sy), bb = bboxArt(q), H = bb.y1 - bb.y0, tall = H > 6;
+      ctx.fillStyle = rgb(tone(dmg ? mul(L.fun, 0.6) : L.fun, E)); ctx.fill(path);
+      if (!tiny) {
+        if (!isMerchant(spec)) camoFill(path);
+        ctx.save(); ctx.clip(path);
+        if (tall) {
+          if (L.funBand) { ctx.fillStyle = rgb(tone(L.funBand, E)); ctx.fillRect(-1e4, Y(bb.y0 + H * 0.3), 2e4, H * 0.13 * sy); }
+          ctx.fillStyle = rgb(tone(L.funTop, E)); ctx.fillRect(-1e4, Y(bb.y0) - 1, 2e4, H * (isMerchant(spec) ? 0.2 : 0.1) * sy + 1);
+          const sg = ctx.createLinearGradient(0, Y(bb.y0), 0, Y(bb.y0 + H * 0.5));
+          sg.addColorStop(0, dark(0.4 * k)); sg.addColorStop(1, dark(0)); ctx.fillStyle = sg; ctx.fillRect(-1e4, Y(bb.y0), 2e4, H * 0.5 * sy);
+        }
+        /* 원통 — 가로로 빛이 돈다 */
+        const xa = X(bb.x0), xb = X(bb.x1), cg = ctx.createLinearGradient(Math.min(xa, xb), 0, Math.max(xa, xb), 0);
+        cg.addColorStop(0, dark(0.3 * k)); cg.addColorStop(0.3, lite(0.07 * k)); cg.addColorStop(0.6, 'rgba(0,0,0,0)'); cg.addColorStop(1, dark(0.4 * k));
+        ctx.fillStyle = cg; ctx.fillRect(Math.min(xa, xb) - 1, Y(bb.y0) - 1, Math.abs(xb - xa) + 2, H * sy + 2);
+        ctx.restore();
+      }
+    }
+
+    /* 포·발사관·비행기·기중기 받침 */
+    const gunCol = tone(dmg ? mul(L.gun, 0.6) : mix(L.gun, L.hull, 0.3), E, 0.9);
+    for (const q of solids[5]) {
+      const path = makePath(q, X, Y, sy);
+      ctx.fillStyle = rgb(gunCol); ctx.fill(path);
+      if (!small) edgeBand(ctx, path, Math.max(px(1), 0.35 * sy), lite(hiA * 0.8));
+    }
+
+    /* 2) 선 — 돛대·기중기·삭구 */
+    const mastCol = rgb(tone(L.mast, E, 0.62)), rigCol = rgb(tone(L.mast, E, 0.7), 0.6 + 0.35 * (1 - E.hz));
+    for (const q of list) {
+      if (q.t !== 'line') continue;
+      const vert = Math.abs(q.x1 - q.x2) < 0.6, horiz = Math.abs(q.y1 - q.y2) < 0.6;
+      const solidish = q.f === 'GUN' || q.f === 'CATAPULT' || q.f === 'AIRCRAFT';
+      ctx.strokeStyle = solidish ? rgb(gunCol) : (vert ? mastCol : rigCol);
+      ctx.lineWidth = solidish ? clamp(0.9 * sy, 1, 2.4) : vert ? clamp(0.8 * sy, 1, 2.0) : horiz ? clamp(0.6 * sy, 0.9, 1.5) : clamp(0.38 * sy, 0.7, 1.1);
+      ctx.beginPath(); ctx.moveTo(X(q.x1), Y(q.y1)); ctx.lineTo(X(q.x2), Y(q.y2)); ctx.stroke();
+    }
+    /* 큰 그림에만 — 앞 돛대 꼭대기에서 이물까지 버팀줄, 상선의 구명정 */
+    if (ppa >= 1.7) {
+      const masts = list.filter(q => q.t === 'line' && q.f === 'MAST' && Math.abs(q.x1 - q.x2) < 0.6).sort((a, b) => a.x1 - b.x1);
+      if (masts.length) {
+        const fm = masts[0], top = Math.min(fm.y1, fm.y2), lm = masts[masts.length - 1], ltop = Math.min(lm.y1, lm.y2);
+        ctx.strokeStyle = rgb(tone(L.mast, E), 0.45 * (1 - E.hz)); ctx.lineWidth = px(0.9);
+        ctx.beginPath(); ctx.moveTo(X(fm.x1), Y(top + 0.5)); ctx.lineTo(X(bowA + 1.5), Y(sheer(bowA + 1.5)));
+        if (masts.length > 1) { ctx.moveTo(X(fm.x1), Y(top + 0.8)); ctx.lineTo(X(lm.x1), Y(ltop + 0.8)); }
+        ctx.moveTo(X(lm.x1), Y(ltop + 0.5)); ctx.lineTo(X(sternA - 1.5), Y(sheer(sternA - 1.5))); ctx.stroke();
+      }
+      if (L.boats) for (const q of solids[2]) {
+        const bb = bboxArt(q); if (bb.x1 - bb.x0 < 14) continue;
+        ctx.fillStyle = rgb(tone(L.boatCol, E));
+        for (const ax of [bb.x0 + 1.5, bb.x1 - 7.5]) { const a = X(ax), b = X(ax + 6); ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(Math.min(a, b), Y(bb.y0 - 1.5), Math.abs(b - a), 1.5 * sy, 0.7 * sy); else ctx.rect(Math.min(a, b), Y(bb.y0 - 1.5), Math.abs(b - a), 1.5 * sy);
+          ctx.fill(); }
+        ctx.strokeStyle = mastCol; ctx.lineWidth = px(0.9); ctx.beginPath();
+        for (const ax of [bb.x0 + 2, bb.x0 + 6.5, bb.x1 - 7, bb.x1 - 2.5]) { ctx.moveTo(X(ax), Y(bb.y0)); ctx.lineTo(X(ax), Y(bb.y0 - 2.4)); }
+        ctx.stroke();
+      }
+    }
+
+    };
+    const affine = !T || (Math.abs(T.b) < 1e-6 && Math.abs(T.c) < 1e-6);
+    let drawn = false;
+    if (affine && P.cache !== false && typeof document !== 'undefined') {
+      const X0 = ax => (ax - 110) * sx * m, Y0 = ay => (ay - 59) * sy;
+      const l = Math.min(X0(-8), X0(228)), r = Math.max(X0(-8), X0(228)), t = Y0(0), b = Y0(60.5);
+      const W2 = Math.ceil((r - l) * dpr) + 2, H2 = Math.ceil((b - t) * dpr) + 2;
+      if (W2 * H2 < 1.5e6 && W2 > 2 && H2 > 2) {
+        const key = (spec.profile || spec.kind) + '|' + (spec.funnels || '') + '|' + L.R + '|' + m + '|' + lim + '|' + W2 + 'x' + H2 + '|' + dpr.toFixed(2) + '|' +
+          E.n + '|' + E.hz + '|' + E.dusk + '|' + E.expo.toFixed(3) + '|' + E.hor.join(',') + '|' + (dmg ? 1 : 0);
+        let spr = sprites.get(key);
+        if (spr) { sprites.delete(key); sprites.set(key, spr); }
+        else {
+          const cv = document.createElement('canvas'); cv.width = W2; cv.height = H2;
+          const c2 = cv.getContext('2d');
+          if (c2) {
+            c2.setTransform(dpr, 0, 0, dpr, -l * dpr + 1, -t * dpr + 1);
+            bodyFn(c2, X0, Y0);
+            spr = { cv, l, t, W2, H2 }; sprites.set(key, spr);
+            while (sprites.size > SPR_MAX) sprites.delete(sprites.keys().next().value);
+          }
+        }
+        if (spr) {
+          const sx0 = Math.round((opt.x + spr.l) * dpr - 1) / dpr, sy0 = Math.round((opt.waterlineY + spr.t) * dpr - 1) / dpr;
+          ctx.drawImage(spr.cv, sx0, sy0, spr.W2 / dpr, spr.H2 / dpr); drawn = true;
+        }
+      }
+    }
+    if (!drawn) { ctx.save(); bodyFn(ctx, X, Y); ctx.restore(); }
+
+    /* 3) 물 — 흘수선 거품, 이물 물결, 고물 항적 */
+    if (!P.noWater) {
+      const foam = mix(E.hor, [236, 242, 244], 0.6), fa = (0.22 + seaS * 0.05 + spd * 0.012) * (1 - E.n * 0.8) * (1 - E.hz * 0.6);
+      const xa = X(bowA), xb = X(sternA), dir = Math.sign(xb - xa) || 1;
+      if (fa > 0.03) {
+        /* 흘수선 거품 — 이물 쪽이 짙고 고물로 갈수록 엷어진다 */
+        const fg = ctx.createLinearGradient(xa, 0, xb, 0);
+        fg.addColorStop(0, rgb(foam, Math.min(0.9, fa * 1.6))); fg.addColorStop(0.35, rgb(foam, fa * 0.7)); fg.addColorStop(1, rgb(foam, fa));
+        ctx.strokeStyle = fg; ctx.lineWidth = Math.max(px(1), 0.55 * sy); ctx.beginPath();
+        const n = Math.max(4, Math.round(Math.abs(xb - xa) / 5));
+        for (let i = 0; i <= n; i++) { const t = i / n, x = xa + (xb - xa) * t, y = wl + 0.15 * sy + Math.sin(tnow * 2.2 + i * 1.3) * 0.22 * sy;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+        ctx.stroke();
+      }
+      if (spd > 2.5 && fa > 0.03) {
+        /* 이물 물결 — 속력의 제곱으로 자란다(뼈를 문 이빨) */
+        const bh = Math.min(7, 0.5 + spd * spd * 0.0085), bl = 4 + bh * 3.2, flick = 1 + Math.sin(tnow * 5.3) * 0.08;
+        const g = ctx.createLinearGradient(xa, 0, xa + dir * bl * sx, 0);
+        g.addColorStop(0, rgb(foam, Math.min(0.95, fa * 3.2) * (1 - E.n * 0.6))); g.addColorStop(1, rgb(foam, 0));
+        ctx.fillStyle = g; ctx.beginPath();
+        ctx.moveTo(xa - dir * 1.2 * sx * flick, wl + 0.3 * sy);
+        ctx.quadraticCurveTo(xa - dir * 0.6 * sx, wl - bh * sy * flick, xa + dir * 1.6 * sx, wl - bh * 0.75 * sy * flick);
+        ctx.quadraticCurveTo(xa + dir * bl * 0.45 * sx, wl - bh * 0.25 * sy, xa + dir * bl * sx, wl + 0.2 * sy);
+        ctx.closePath(); ctx.fill();
+        /* 고물 항적 — 낮게 끓는 흰 물 */
+        const wlen = (6 + spd * 0.9) * sx, gw = ctx.createLinearGradient(xb, 0, xb + dir * wlen, 0);
+        gw.addColorStop(0, rgb(foam, Math.min(0.85, fa * 2.4))); gw.addColorStop(1, rgb(foam, 0));
+        ctx.fillStyle = gw; ctx.beginPath();
+        ctx.moveTo(xb - dir * 3 * sx, wl + 0.4 * sy);
+        ctx.quadraticCurveTo(xb + dir * wlen * 0.25, wl - (0.8 + spd * 0.05) * sy * (1 + Math.sin(tnow * 3.1) * 0.15), xb + dir * wlen, wl + 0.2 * sy);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+    return true;
+  }
+
+  /* ── 옵션 — 함선 그림: 채색 / 실루엣 ── */
+  function buildOpt() {
+    const anchor = document.getElementById('voiceOptV6241'); if (!anchor || document.getElementById('epShipPaintOpt')) return;
+    const lang = window.Lang && window.Lang.get ? window.Lang.get() : 'ko', li = lang === 'en' ? 1 : lang === 'ja' ? 2 : 0;
+    const T = { lab: ['함선 그림', 'Ship rendering', '艦船の描画'], on: ['채색 — 도장·명암·물결', 'Painted — camouflage, light, bow wave', '彩色 — 迷彩・陰影・波'], off: ['실루엣', 'Silhouette', 'シルエット'],
+      note: ['나라와 바다에 맞는 그 시절 도장으로 칠합니다. 멀수록 수평선 빛에 녹고, 밤에는 검은 실루엣이 됩니다.', 'Ships wear period paint for their navy and sea. Distance fades them into the horizon; at night they are black shapes again.', '国と海に合った当時の塗装で描きます。遠いほど水平線に溶け、夜は黒い影に戻ります。'] };
+    const d = document.createElement('div'); d.className = 'startOpt'; d.id = 'epShipPaintOpt';
+    d.innerHTML = '<label>' + T.lab[li] + '</label><div class="lampRow"><button class="mini" data-sp="1">' + T.on[li] + '</button><button class="mini" data-sp="0">' + T.off[li] + '</button></div><div class="startOptNote">' + T.note[li] + '</div>';
+    anchor.parentNode.insertBefore(d, anchor);
+    const sync = () => d.querySelectorAll('[data-sp]').forEach(b => b.classList.toggle('on', (b.dataset.sp === '1') === enabled));
+    d.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (!b) return; enabled = b.dataset.sp === '1'; try { localStorage.setItem(KEY, enabled ? '1' : '0'); } catch (err) {} sync(); });
+    sync();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildOpt, { once: true }); else buildOpt();
+
+  window.EP_SHIPPAINT = { version: '6.68.0', draw, livery, nationOf, get enabled() { return enabled; }, set enabled(v) { enabled = !!v; } };
+})();
+</script>
 </body>
 </html>
