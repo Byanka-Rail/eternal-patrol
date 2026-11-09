@@ -52844,5 +52844,131 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<script id="ep-v674-snorkel-script">
+/* ══════════ V6.74 스노클 충전 — 머리 밸브를 물 위에 ══════════
+   1944년부터 유보트는 스노클로 잠긴 채 디젤을 돌려 전지를 채웠다. 깊이를 잘못 잡으면 파도가 머리 밸브를 덮어
+   밸브가 닫히고, 디젤이 배 안 공기를 빨아들여 기압이 뚝 떨어진다(귀가 터질 듯 아프다). 너무 얕으면 마스트와 함교가
+   드러나 레이더에 잡힌다. 지도 위의 스노클 항해(자동 충전)와 따로, 함장이 직접 깊이를 잡아 짧고 굵게 채우는 당번이다.
+   · 「올림 / 내림」을 누르고 있으면 잠타가 움직인다. 밸브(마스트 끝)를 파도 위에, 함교는 물 아래로.
+   · 밸브가 열린 동안만 충전된다. 덮이면 기압이 떨어지고, 오래 덮이면 디젤을 멈춘다.
+   · 얕게 떠 있는 동안 레이더 위험이 쌓인다 — 끝나고 나서 비행기가 올 수 있다.
+   · 약 40초 = 3시간. 스노클이 있는 배, 잠항 중, 파도 4 미만일 때. 한 · 영 · 일. */
+(function EP_V674_SNORKEL() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const DUR = 40;
+  let S = null, raf = 0;
+  const can = C => C && C.status === 'AT_SEA' && C.hasSnorkel && !C.surfaced && (C.seaState == null ? 1 : C.seaState) < 4 && (C.battery == null ? 1 : C.battery) < 0.95;
+
+  function open() {
+    const C = CS(); if (!can(C)) return false;
+    S = { C, t: 0, z: 13, vz: 0, hold: 0, b0: C.battery == null ? 1 : C.battery, got: 0, open: true, press: 0, risk: 0, dunk: 0, stop: 0, sea: C.seaState == null ? 1 : C.seaState, ph: R() * 9, msg: '', done: false };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epSn').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop); return true;
+  }
+  function wave(s, x, t) { const a = 0.35 + s.sea * 0.45; return a * Math.sin(x * 0.045 + t * 1.3 + s.ph) + a * 0.6 * Math.sin(x * 0.11 - t * 2.1) + a * 0.3 * Math.sin(x * 0.23 + t * 3.3 + s.ph * 2); }
+  function step(dt) {
+    const s = S; s.t += dt;
+    /* 잠타 — 누르는 동안 올라가거나 내려간다. 놓으면 천천히 서고, 파도가 배를 조금씩 흔든다 */
+    s.vz += (-s.hold * 1.6 - s.vz * 0.8) * dt + (R() - 0.5) * (0.6 + s.sea) * 0.2 * dt * 10;
+    s.z = clamp(s.z + s.vz * dt, 4, 22);
+    /* 머리 밸브 높이 = 마스트 끝: 선체 축(깊이 z)에서 11.5m 위. 함교 꼭대기는 축에서 4.5m 위 */
+    const valveTop = 11.5 - s.z, swell = wave(s, 200, s.t);
+    const wasOpen = s.open; s.open = valveTop > swell + 0.25;
+    if (!s.open) { s.dunk += dt; s.press = clamp(s.press + dt * 0.22, 0, 1); }
+    else { s.dunk = 0; s.press = clamp(s.press - dt * 0.12, 0, 1); }
+    if (wasOpen && !s.open) { snd('uireject'); s.msg = T('밸브가 덮였습니다 — 기압 떨어집니다!', 'Valve under — pressure dropping!', '弁が冠水 — 気圧低下！'); }
+    if (!wasOpen && s.open && s.t > 1) s.msg = T('밸브 열림 — 디젤 돈다.', 'Valve open — diesels running.', '弁開放 — ディーゼル運転。');
+    if (s.press > 0.75 && !s.stopped) { s.stopped = true; s.stop = 2.5; s.msg = T('기관장: 디젤 정지! 귀가 터질 것 같습니다.', 'Chief: diesels stopped! Ears are popping.', '機関長：ディーゼル停止！耳が痛い。'); snd('uireject'); }
+    if (s.stop > 0) { s.stop -= dt; if (s.stop <= 0) { s.stopped = false; s.press = 0.4; } }
+    const running = s.open && !s.stopped;
+    if (running) s.got += dt / DUR * 0.55;
+    /* 너무 얕으면 함교가 드러난다 — 레이더 */
+    if (s.z < 6.8) { s.risk += dt * (6.8 - s.z) * 0.12; if (s.z < 5.5 && R() < dt * 0.4) { s.msg = T('함교가 물 위로 나왔습니다 — 레이더 탐지기가 웁니다!', 'The tower is out of the water — the radar detector is wailing!', '司令塔が露出 — 逆探が鳴っている！'); snd('spotted'); } }
+    if (s.t >= DUR) finish();
+  }
+  function finish() {
+    const s = S; if (!s || s.done) return; s.done = true;
+    const C = s.C, got = clamp(s.got, 0, 1 - s.b0);
+    C.battery = clamp(s.b0 + got, 0, 1); C.hours = (C.hours || 0) + 3; C.surfaced = false;
+    if (s.press > 0.5 && window.EP_MORALE) EP_MORALE.add(C, -0.02);
+    let tail = '';
+    if (s.risk > 0.5) { C.alert = clamp((C.alert || 0) + Math.min(0.2, s.risk * 0.12), 0, 1);
+      if (R() < Math.min(0.6, s.risk * 0.35)) { const dmg = 2 + Math.round(R() * 6); C.hull = clamp((C.hull || 100) - dmg, 1, 100); tail = T(' 레이더에 잡혀 비행기가 왔습니다 — 폭탄 근접, 선체 −' + dmg + '%.', ' Radar picked us up and a plane came — near miss, hull −' + dmg + '%.', ' レーダーに捕まり航空機が来た — 至近弾、船体 −' + dmg + '%。'); snd('airalarm'); } }
+    const ko = '스노클 충전 3시간 — 전지 ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%.', en = 'Snorkel charge, 3 h — battery ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%.', ja = 'シュノーケル充電3時間 — 電池 ' + Math.round(s.b0 * 100) + '% → ' + Math.round(C.battery * 100) + '%。';
+    try { C.log.unshift({ h: C.hours, text: ko + tail, variants: { ko: ko + tail, en: en + tail, ja: ja + tail }, who: 'eng', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja) + tail; render();
+    $('epSnUp').style.display = 'none'; $('epSnDn').style.display = 'none'; $('epSnEnd').textContent = T('확인', 'OK', '了解');
+  }
+  function close() { if (S && !S.done && S.t > 3) finish(); cancelAnimationFrame(raf); raf = 0; S = null; $('epSn').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) {
+    if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now;
+    if (!S.done) step(dt); draw(); if (!S.done) render(); raf = requestAnimationFrame(loop);
+  }
+  function draw() {
+    const cv = $('epSnCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(150, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, ppm = H / 26, sy = H * 0.3, Y = d => sy + d * ppm;
+    c.fillStyle = '#2b3c48'; c.fillRect(0, 0, W, H);
+    /* 물 — 파도 */
+    c.fillStyle = '#123446'; c.beginPath(); c.moveTo(0, H);
+    for (let x = 0; x <= W + 4; x += 4) c.lineTo(x, Y(-wave(s, x, s.t))); c.lineTo(W, H); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(220,235,240,.6)'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x <= W + 4; x += 4) { const y = Y(-wave(s, x, s.t)); if (x) c.lineTo(x, y); else c.moveTo(x, y); } c.stroke();
+    /* 배 — 함교 · 마스트 · 머리 밸브 */
+    const bx = W * 0.5, hy = Y(s.z), L = W * 0.7;
+    c.fillStyle = '#2a333a'; c.beginPath(); c.ellipse(bx, hy + ppm * 1.2, L / 2, ppm * 1.6, 0, 0, 6.283); c.fill();
+    c.fillRect(bx - L * 0.06, hy - ppm * 4.5, L * 0.13, ppm * 4.7);                         /* 함교 */
+    const mx = bx - L * 0.1, top = Y(s.z - 11.5);
+    c.strokeStyle = '#4a565e'; c.lineWidth = 4; c.beginPath(); c.moveTo(mx, hy - ppm * 2); c.lineTo(mx + ppm * 1.5, top); c.stroke();
+    c.fillStyle = s.open ? '#8fe0a0' : '#ff8a7a'; c.beginPath(); c.arc(mx + ppm * 1.5, top, 4, 0, 6.283); c.fill();
+    if (s.open && !s.stopped) { c.fillStyle = 'rgba(200,210,215,.35)'; for (let k = 0; k < 5; k++) { c.beginPath(); c.arc(mx + ppm * 1.5 - k * 9 - (s.t * 40 % 9), top - 4 - k * 2, 3 + k, 0, 6.283); c.fill(); } }
+    /* 깊이 · 기압 · 레이더 */
+    c.fillStyle = 'rgba(230,240,245,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
+    c.fillText(T('심도 ', 'Depth ', '深度 ') + s.z.toFixed(1) + 'm', 8, 16);
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.8)'; c.font = '10px system-ui'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, 18, 110, s.press, s.press > 0.6 ? '#ff8a7a' : '#e8c068', T('기압 저하', 'Pressure drop', '気圧低下'));
+    bar(W - 118, 42, 110, clamp(s.risk / 1.5, 0, 1), '#ff8a7a', T('레이더 위험', 'Radar risk', 'レーダー危険'));
+    bar(8, H - 12, W - 16, s.t / DUR, '#7fc8ff', T('충전 ', 'Charge ', '充電 ') + Math.round((s.b0 + Math.min(s.got, 1 - s.b0)) * 100) + '%');
+  }
+  function render() { if (!S) return; $('epSnMsg').textContent = S.msg || T('마스트 끝(밸브)을 파도 위에, 함교는 물 아래로.', 'Keep the mast head (valve) above the waves and the tower under.', 'マスト頂部（弁）を波の上に、司令塔は水面下に。'); }
+  function labels() {
+    $('epSnT').textContent = T('스노클 충전', 'SNORKEL CHARGE', 'シュノーケル充電');
+    $('epSnUp').innerHTML = T('올림 ▲', 'Rise ▲', '浮上 ▲'); $('epSnDn').innerHTML = T('내림 ▼', 'Sink ▼', '沈下 ▼');
+    $('epSnEnd').textContent = T('그만', 'Stop', 'やめる'); $('epSnUp').style.display = ''; $('epSnDn').style.display = '';
+  }
+  function build() {
+    if ($('epSn')) return;
+    const st = document.createElement('style'); st.id = 'ep-v674-snorkel-style';
+    st.textContent = '#epSn{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epSn.on{display:flex}' +
+      '#epSn .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--sky,#8fd0ff);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epSn h3{margin:0 0 6px;font-size:15px;letter-spacing:.1em;color:var(--sky,#8fd0ff)}#epSn canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px}' +
+      '#epSn .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epSn .ctl{display:grid;grid-template-columns:1fr 1fr 0.7fr;gap:6px}#epSn .ctl button{padding:14px 0;font-size:15px;touch-action:none;user-select:none;-webkit-user-select:none}#epSn .ctl button.hold{background:var(--sky,#8fd0ff);color:#081016}' +
+      '#epSnBtn{display:none}#epSnBtn.on{display:block}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epSn';
+    el.innerHTML = '<div class="bx"><h3 id="epSnT"></h3><canvas id="epSnCv"></canvas><div class="msg" id="epSnMsg"></div><div class="ctl"><button class="mini" id="epSnUp" data-h="1"></button><button class="mini" id="epSnDn" data-h="-1"></button><button class="mini" id="epSnEnd"></button></div></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    $('epSnEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epSnBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epSnBtn'; b.textContent = '⇡'; b.title = T('스노클 충전', 'Snorkel charge', 'シュノーケル充電'); b.addEventListener('click', open); z.appendChild(b); }
+    b.classList.toggle('on', !!can(CS()));
+  }
+  function init() { setInterval(() => { try { button(); } catch (e) {} }, 800); window.EP_V674_SNORKEL = { version: '6.74.0', open, close, state: () => S, hold: h => { if (S) S.hold = h; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
 </body>
 </html>
