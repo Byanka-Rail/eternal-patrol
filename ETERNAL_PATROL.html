@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.61.0 Sextant</title>
-<script id="ep-build">window.EP_BUILD='6.61.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.62.0 Lifeboat</title>
+<script id="ep-build">window.EP_BUILD='6.62.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -49829,6 +49829,221 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
     try { WorldView.render(); } catch (e) {}
   }
   function init() { setInterval(() => { wrap(); wrapDraw(); button(); }, 700); window.EP_V661_NAV = { version: '6.61.0', err, nav, open, close, canSight, state: () => S, mark, auto }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+
+<style id="ep-v662-lifeboat-style">
+/* ══════════ V6.62 구명정 ══════════ */
+#epLb{ position:fixed; inset:0; z-index:9000; display:none; align-items:center; justify-content:center; background:rgba(2,8,12,.76); }
+#epLb.on{ display:flex; }
+#epLb .lb{ width:min(94vw,430px); max-height:94vh; overflow:auto; background:var(--panel,#0e1a22); border:1px solid var(--steel,#355); border-radius:12px; padding:12px; color:var(--ink,#dfe); box-shadow:0 10px 40px rgba(0,0,0,.5); }
+#epLb h3{ margin:0 0 6px; font-size:15px; letter-spacing:.1em; color:var(--amber,#e8bc68); display:flex; justify-content:space-between; align-items:baseline; }
+#epLb h3 small{ letter-spacing:0; font-size:11px; color:var(--dim,#8aa); font-weight:500; }
+#epLb canvas{ display:block; width:100%; height:auto; aspect-ratio:16/8; border-radius:8px; background:#000; }
+#epLb .risk{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--dim,#8aa); margin:8px 2px 4px; }
+#epLb .risk .bar{ flex:1; height:6px; border-radius:3px; background:rgba(255,255,255,.08); overflow:hidden; }
+#epLb .risk .bar i{ display:block; height:100%; width:0; background:linear-gradient(90deg,var(--amber,#e8bc68),var(--red,#f55)); transition:width .4s; }
+#epLb .talk{ font-size:12.5px; line-height:1.55; margin:6px 0 8px; max-height:30vh; overflow:auto; }
+#epLb .talk p{ margin:0 0 5px; }
+#epLb .talk p b{ color:var(--sky,#8fd0ff); font-weight:600; margin-right:4px; }
+#epLb .talk p.them b{ color:var(--amber,#e8bc68); }
+#epLb .talk p.sys{ color:var(--dim,#8aa); font-style:italic; }
+#epLb .opts{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+#epLb .opts button small{ display:block; font-size:10.5px; opacity:.75; }
+#epLb .opts .wide{ grid-column:span 2; }
+#epLb .opts .warn{ border-color:var(--amber,#e8bc68); }
+</style>
+<script id="ep-v662-lifeboat-script">
+/* ══════════ V6.62 격침 뒤 구명정 ══════════
+   상선을 격침하고 월드맵으로 돌아오면, 수면에 남은 구명정 하나를 만난다.
+   · 묻기 — 배 이름 · 화물 · 목적지 · 다친 사람. 이름을 들어야 전과가 「확인」된다(초계 보고서에 반영).
+     목적지와 선단을 들으면 정보가 하나 쌓인다. 대답하지 않는 사람도 있다.
+   · 돕기 — 물 · 빵 · 육지 방위 · 구급상자. 승조원 사기가 오른다. 1942년 9월 17일 이후 독일 보트에게는
+     「구조 금지」 명령 위반이다(보고서에 남는다).
+   · 시간이 흐를수록 「하늘 위험」이 쌓인다 — 비행기가 오면 급속 잠항으로 끝난다(가까운 폭탄이면 선체 손상).
+   · 그냥 떠나도 된다. 구명정 장면이 열린 동안 항해 시계는 멈춘다. */
+(function EP_V662_LIFEBOAT(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random, pick = a => a[Math.floor(R() * a.length)];
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const nat = C => C.theater === 'PACIFIC' ? 'US' : C.theater === 'EASTPAC' ? 'JP' : 'DE';
+  const hod = C => ((C.hours % 24) + 24) % 24;
+  let S = null, raf = 0, seenKills = null;
+
+  function morale(C, d) { if (window.EP_MORALE && EP_MORALE.add) return EP_MORALE.add(C, d); C.moraleV663 = clamp((C.moraleV663 == null ? 0.62 : C.moraleV663) + d, 0, 1); return C.moraleV663; }
+  function laconia(C) { if (nat(C) !== 'DE') return false; try { const d = EVENTS.dayOffsetOf(C.theater, 1942, 9, 17); const wd = (Number.isFinite(C.warDayStart) ? C.warDayStart : 0) + (C.hours || 0) / 24; return wd >= d; } catch (e) { return false; } }
+  const CARGO = {
+    ATLANTIC: [['밀', 'wheat', '小麦'], ['항공유', 'aviation fuel', '航空燃料'], ['탄약', 'ammunition', '弾薬'], ['트럭과 전차 부품', 'trucks and tank parts', 'トラックと戦車部品'], ['냉동육', 'frozen meat', '冷凍肉'], ['강철', 'steel', '鋼材']],
+    MEDITERRANEAN: [['몰타로 가는 밀가루', 'flour for Malta', 'マルタ行きの小麦粉'], ['연료', 'fuel', '燃料'], ['탄약', 'ammunition', '弾薬'], ['트럭', 'trucks', 'トラック']],
+    PACIFIC: [['쌀', 'rice', '米'], ['보크사이트', 'bauxite', 'ボーキサイト'], ['병력', 'troops', '兵員'], ['고무', 'rubber', 'ゴム'], ['원유', 'crude oil', '原油']],
+    EASTPAC: [['원유', 'crude oil', '原油'], ['목재', 'lumber', '木材'], ['휘발유', 'gasoline', 'ガソリン'], ['통조림', 'canned goods', '缶詰']],
+  };
+  const PORTS = {
+    ATLANTIC: [['리버풀', 'Liverpool', 'リヴァプール'], ['핼리팩스', 'Halifax', 'ハリファックス'], ['뉴욕', 'New York', 'ニューヨーク'], ['글래스고', 'Glasgow', 'グラスゴー']],
+    MEDITERRANEAN: [['몰타', 'Malta', 'マルタ'], ['알렉산드리아', 'Alexandria', 'アレクサンドリア'], ['지브롤터', 'Gibraltar', 'ジブラルタル']],
+    PACIFIC: [['트럭', 'Truk', 'トラック'], ['라바울', 'Rabaul', 'ラバウル'], ['요코하마', 'Yokohama', '横浜'], ['마닐라', 'Manila', 'マニラ']],
+    EASTPAC: [['샌프란시스코', 'San Francisco', 'サンフランシスコ'], ['로스앤젤레스', 'Los Angeles', 'ロサンゼルス'], ['포틀랜드', 'Portland', 'ポートランド'], ['시애틀', 'Seattle', 'シアトル']],
+  };
+  const L3 = a => T(a[0], a[1], a[2]);
+
+  /* ── 열기 — 상선 격침 뒤 월드맵으로 돌아왔을 때 ── */
+  function watch() {
+    const C = window.Campaign && Campaign.state(); if (!C || !Array.isArray(C.kills)) { seenKills = null; return; }
+    if (seenKills == null || seenKills.id !== C.seed) { seenKills = { id: C.seed, n: C.kills.length }; return; }
+    if (C.kills.length <= seenKills.n) { seenKills.n = C.kills.length; return; }
+    const fresh = C.kills.slice(seenKills.n).filter(k => !k.escort);
+    const w = $('world');
+    if (!w || !w.classList.contains('on') || C.status !== 'AT_SEA' || C.pendingEncounter || C.pendingChoice) return;   /* 지도에 돌아올 때까지 기다린다 */
+    if (document.querySelector('.ov.on, #epMorse.on, #epNav.on, #epLb.on')) return;
+    seenKills.n = C.kills.length;
+    if (!fresh.length || (C.seaState || 1) > 4.4) return;
+    open(C, fresh[fresh.length - 1]);
+  }
+  function open(C, kill) {
+    build();
+    const n = nat(C), night = hod(C) < 5 || hod(C) >= 20;
+    const air = (() => { try { return (THEATERS.THEATERS[C.theater].airPatrol || 1) * (C.airMul || 1); } catch (e) { return 1; } })();
+    S = { C, kill, n, night, mood: R(), asked: {}, risk: 0, minutes: 0, rate: clamp(0.012 * air * (night ? 0.35 : 1) * (1 + (C.escalation || 0.4)), 0.004, 0.06),
+      cargo: pick(CARGO[C.theater] || CARGO.ATLANTIC), dest: pick(PORTS[C.theater] || PORTS.ATLANTIC), hurt: Math.floor(R() * 4), men: 6 + Math.floor(R() * 18), end: false, t0: performance.now() };
+    try { window.EP_V661_NAV && 0; } catch (e) {}
+    $('epLbT').textContent = T('구명정', 'LIFEBOAT', '救命艇');
+    $('epLbH').textContent = (night ? T('밤', 'night', '夜') : T('낮', 'day', '昼')) + ' · ' + S.men + T('명', ' men', '名');
+    $('epLbTalk').innerHTML = '';
+    say('sys', T('수면에 기름과 잔해. 구명정 하나가 파도에 오르내립니다. 사람들이 이쪽을 봅니다.', 'Oil and wreckage on the water. One lifeboat rises and falls in the swell. They are watching us.', '水面に油と残骸。救命艇が一隻、うねりに揺れている。こちらを見ている。'));
+    if (laconia(C)) say('x', T('함장님, 사령부 명령은 구조 금지입니다. 묻는 것까지는 괜찮습니다.', 'Captain, HQ orders forbid rescue. Asking questions is allowed.', '艦長、司令部命令は救助禁止です。質問までは問題ありません。'));
+    opts(); $('epLb').classList.add('on'); pause(true);
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(draw);
+  }
+  function pause(on) { window.EP_PAUSE_V662 = on; }
+  function say(who, text) {
+    const NM = { x: T('부장', 'XO', '副長'), them: T('구명정', 'Lifeboat', '救命艇'), sys: '' }, nm = (who in NM) ? NM[who] : who;
+    const p = document.createElement('p'); p.className = who === 'them' ? 'them' : who === 'sys' ? 'sys' : '';
+    p.innerHTML = (nm ? '<b>' + nm + '</b>' : '') + text; const t = $('epLbTalk'); t.appendChild(p); t.scrollTop = t.scrollHeight;
+  }
+  function opts() {
+    const o = $('epLbOpts'), S0 = S, lac = laconia(S.C);
+    const q = (k, ko, en, ja, sub) => S0.asked[k] ? '' : '<button class="mini" data-q="' + k + '">' + T(ko, en, ja) + '<small>' + sub + '</small></button>';
+    let h = '';
+    if (!S.end) {
+      h += q('NAME', '배 이름은?', 'Ship\'s name?', '船名は？', T('전과 확인 · 10분', 'confirms kill · 10 min', '戦果確認・10分'));
+      h += q('CARGO', '무엇을 실었나?', 'Cargo?', '積荷は？', T('10분', '10 min', '10分'));
+      h += q('DEST', '어디로 가던 선단인가?', 'Bound where, which convoy?', 'どこ行きの船団だ？', T('정보 · 15분', 'intel · 15 min', '情報・15分'));
+      h += q('HURT', '다친 사람은?', 'Any wounded?', '負傷者は？', T('5분', '5 min', '5分'));
+      if (!S.asked.AID) h += '<button class="mini' + (lac ? ' warn' : '') + '" data-q="AID">' + T('물과 빵 · 육지 방위', 'Water, bread, a course to land', '水とパン・陸への方位') + '<small>' + (lac ? T('명령 위반 · 20분', 'against orders · 20 min', '命令違反・20分') : T('사기 · 20분', 'morale · 20 min', '士気・20分')) + '</small></button>';
+      if (!S.asked.MED && S.asked.HURT && S.hurt > 0) h += '<button class="mini' + (lac ? ' warn' : '') + '" data-q="MED">' + T('구급상자를 건넨다', 'Hand over the medical kit', '救急箱を渡す') + '<small>' + T('15분', '15 min', '15分') + '</small></button>';
+      h += '<button class="mini wide" data-q="LEAVE">' + T('떠난다', 'Leave', '去る') + '<small>' + T('잠항하고 이탈', 'dive and clear off', '潜航して離脱') + '</small></button>';
+    } else h = '<button class="mini wide go" data-q="CLOSE">' + T('확인', 'OK', '了解') + '</button>';
+    o.innerHTML = h;
+    $('epLbRisk').style.width = Math.round(clamp(S.risk / 0.6, 0, 1) * 100) + '%';
+  }
+  function spend(min) {
+    S.minutes += min; S.C.hours += min / 60;
+    const p = 1 - Math.pow(1 - S.rate, min / 10); S.risk += p;
+    if (R() < p) { plane(); return true; }
+    return false;
+  }
+  function plane() {
+    const C = S.C; S.end = true;
+    say('sys', T('함교 견시: 「비행기! 좌현 하늘!」', 'Bridge lookout: "Aircraft! Port side, high!"', '艦橋見張り：「航空機！左舷上空！」'));
+    say('x', T('급속 잠항!', 'Crash dive!', '急速潜航！'));
+    if (R() < 0.45) { const dmg = 2 + Math.round(R() * 6); C.hull = clamp((C.hull || 100) - dmg, 1, 100);
+      say('sys', T('폭탄 두 발이 가까이 떨어졌습니다. 선체 ' + dmg + '% 손상. 구명정은 보이지 않습니다.', 'Two bombs close aboard. Hull damage ' + dmg + '%. The lifeboat is lost from sight.', '爆弾二発が至近に落下。船体' + dmg + '%損傷。救命艇は見えなくなった。')); }
+    else say('sys', T('잠항이 빨랐습니다. 폭탄은 멀리 떨어졌습니다.', 'We got under in time. The bombs fell wide.', '潜航が間に合った。爆弾は遠くに落ちた。'));
+    C.alert = clamp((C.alert || 0) + 0.15, 0, 1); C.surfaced = false;
+    logLine('비행기에 쫓겨 구명정 곁을 떠났다.', 'Driven off from the lifeboat by aircraft.', '航空機に追われ救命艇から離れた。');
+    opts();
+  }
+  function answer(k) {
+    const C = S.C, K = S.kill, hostile = S.mood < 0.25, shy = S.mood < 0.45;
+    if (k === 'NAME') {
+      if (spend(10)) return;
+      if (hostile && !S.pressed) { S.pressed = true; S.asked.NAME = false;
+        say('them', T('……(한 사람이 바다에 침을 뱉습니다.)', '…(One of them spits into the sea.)', '……（一人が海に唾を吐いた。）'));
+        say('x', T('한 번 더 물어보시겠습니까?', 'Ask again, sir?', 'もう一度聞きますか？')); opts(); return; }
+      const nm = K.name || T('이름 모를 배', 'an unnamed ship', '名も知れぬ船'), tons = Math.round(K.tons || 0).toLocaleString();
+      say('them', T(nm + '. ' + tons + '톤이었소.', nm + '. ' + tons + ' tons.', nm + '。' + tons + 'トンだった。'));
+      K.confirmedV662 = true; say('sys', T('전과 확인 — 일지에 이름과 톤수를 적었습니다.', 'Kill confirmed — name and tonnage logged.', '戦果確認 — 船名とトン数を記録した。'));
+    } else if (k === 'CARGO') {
+      if (spend(10)) return;
+      say('them', shy ? T('…' + L3(S.cargo) + '. 그게 다요.', '…' + L3(S.cargo) + '. That\'s all.', '…' + L3(S.cargo) + '。それだけだ。') : T(L3(S.cargo) + '을 싣고 있었소. 다 바다에 있지.', 'We carried ' + L3(S.cargo) + '. It\'s all in the sea now.', L3(S.cargo) + 'を積んでいた。全部海の底だ。'));
+    } else if (k === 'DEST') {
+      if (spend(15)) return;
+      if (hostile) say('them', T('그건 말 못 하오.', 'I won\'t tell you that.', 'それは言えない。'));
+      else { say('them', T(L3(S.dest) + '로 가던 선단이었소. 호위는… 몇 척 못 봤소.', 'Convoy bound for ' + L3(S.dest) + '. Escorts… didn\'t see many.', L3(S.dest) + '行きの船団だった。護衛は…あまり見なかった。'));
+        C.intel = (C.intel || 0) + 1; say('sys', T('정보 하나가 쌓였습니다.', 'One piece of intelligence gained.', '情報が一つ得られた。')); }
+    } else if (k === 'HURT') {
+      if (spend(5)) return;
+      say('them', S.hurt ? T(S.hurt + '명이 다쳤소. 한 사람은 화상이 심하오.', S.hurt + ' hurt. One has bad burns.', S.hurt + '名負傷。一人は火傷がひどい。') : T('다친 사람은 없소. 운이 좋았지.', 'No one hurt. We were lucky.', '負傷者はいない。運がよかった。'));
+    } else if (k === 'AID') {
+      if (spend(20)) return;
+      say('x', T('물 두 통, 빵, 담배. 육지는 침로 ' + String(Math.round(R() * 359)).padStart(3, '0') + ', ' + (90 + Math.round(R() * 260)) + '마일.', 'Two water tins, bread, cigarettes. Land lies course ' + String(Math.round(R() * 359)).padStart(3, '0') + ', ' + (90 + Math.round(R() * 260)) + ' miles.', '水二缶、パン、煙草。陸は針路' + String(Math.round(R() * 359)).padStart(3, '0') + '、' + (90 + Math.round(R() * 260)) + '浬。'));
+      say('them', S.mood < 0.3 ? T('…(아무 말 없이 받습니다.)', '…(They take it without a word.)', '……（無言で受け取った。）') : T('고맙소. …전쟁이 끝나면, 다른 데서 만납시다.', 'Thank you. …After the war, let\'s meet somewhere else.', 'ありがとう。……戦争が終わったら、別の場所で会おう。'));
+      morale(C, laconia(C) ? 0.06 : 0.08); if (laconia(C)) C.laconiaBreachV662 = (C.laconiaBreachV662 || 0) + 1;
+      C.aidedV662 = (C.aidedV662 || 0) + 1;
+    } else if (k === 'MED') {
+      if (spend(15)) return;
+      say('them', T('…(화상 입은 사람의 손이 떨립니다.) 고맙소.', '…(The burned man\'s hand is shaking.) Thank you.', '……（火傷の男の手が震えている。）ありがとう。'));
+      morale(C, 0.04); if (laconia(C)) C.laconiaBreachV662 = (C.laconiaBreachV662 || 0) + 1;
+    } else if (k === 'LEAVE') {
+      S.end = true; say('sys', T('잠항합니다. 구명정이 잠망경 속에서 작아집니다.', 'We dive. The lifeboat grows small in the periscope.', '潜航する。救命艇が潜望鏡の中で小さくなっていく。'));
+      if (!S.asked.AID && !S.asked.MED && !laconia(C)) morale(C, -0.02);
+    }
+    S.asked[k] = true; opts();
+  }
+  function logLine(ko, en, ja) { try { S.C.log.unshift({ h: S.C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {} }
+  function close() {
+    if (!S) return; const C = S.C, K = S.kill;
+    const parts = [];
+    if (K.confirmedV662) parts.push(['배 이름 확인', 'name confirmed', '船名確認']);
+    if (S.asked.AID) parts.push(['물과 빵을 줌', 'gave water and bread', '水とパンを渡した']);
+    logLine('구명정 — ' + (parts.map(p => p[0]).join(', ') || '그대로 떠남') + '.', 'Lifeboat — ' + (parts.map(p => p[1]).join(', ') || 'left them') + '.', '救命艇 — ' + (parts.map(p => p[2]).join('、') || 'そのまま去った') + '。');
+    cancelAnimationFrame(raf); raf = 0; $('epLb').classList.remove('on'); pause(false); S = null;
+    try { Campaign.save(); WorldView.render(); } catch (e) {}
+  }
+  /* ── 그림 ── */
+  function draw() {
+    if (!S) return; const cv = $('epLbCv'), c = cv.getContext('2d'), W = cv.width, H = cv.height, t = (performance.now() - S.t0) / 1000;
+    const n = S.night, hy = H * 0.38;
+    const g = c.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, n ? '#060b17' : '#6f8ea8'); g.addColorStop(1, n ? '#1a2234' : '#b9c7cf'); c.fillStyle = g; c.fillRect(0, 0, W, hy);
+    const sg = c.createLinearGradient(0, hy, 0, H); sg.addColorStop(0, n ? '#152131' : '#4d6b7e'); sg.addColorStop(1, n ? '#04080e' : '#1d3242'); c.fillStyle = sg; c.fillRect(0, hy, W, H - hy);
+    /* 먼 연기 · 불 */
+    for (let i = 0; i < 14; i++) { const k = i / 13, a = (n ? 0.22 : 0.2) * (1 - k);
+      c.fillStyle = n ? 'rgba(' + Math.round(255 - k * 170) + ',' + Math.round(120 - k * 70) + ',' + Math.round(40 + k * 30) + ',' + a + ')' : 'rgba(55,55,58,' + a + ')';
+      c.beginPath(); c.ellipse(W * 0.84 - k * W * 0.32 + Math.sin(t * 0.4 + i) * 4, hy - 4 - k * hy * 0.75, 10 + k * 46, 6 + k * 18, -0.25, 0, 7); c.fill(); }
+    if (n) { c.fillStyle = 'rgba(255,160,60,.6)'; c.fillRect(W * 0.78, hy - 3, W * 0.08, 3); }
+    /* 기름띠와 잔해 */
+    c.fillStyle = n ? 'rgba(40,40,60,.55)' : 'rgba(30,30,40,.35)'; c.beginPath(); c.ellipse(W * 0.5, H * 0.72, W * 0.42, H * 0.08, 0, 0, 7); c.fill();
+    for (let i = 0; i < 10; i++) { const x = (i * 97 % W), y = hy + 20 + (i * 53 % (H - hy - 30)); c.fillStyle = 'rgba(120,100,80,.6)'; c.fillRect(x + Math.sin(t + i) * 3, y + Math.cos(t * 0.8 + i) * 2, 10 + (i % 3) * 6, 3); }
+    /* 너울 */
+    for (let r = 0; r < 7; r++) { const yy = hy + 14 + r * r * 7; c.strokeStyle = 'rgba(255,255,255,' + (0.08 - r * 0.008) + ')'; c.beginPath();
+      for (let x = 0; x <= W; x += 12) c.lineTo(x, yy + Math.sin(x * 0.02 + t * 0.9 + r) * (2 + r)); c.stroke(); }
+    /* 구명정 */
+    const bx = W * 0.46, by = H * 0.64 + Math.sin(t * 0.9) * 7, rot = Math.sin(t * 0.7) * 0.07;
+    c.save(); c.translate(bx, by); c.rotate(rot);
+    c.fillStyle = n ? '#8a5a2a' : '#d9822b'; c.beginPath(); c.moveTo(-70, 0); c.quadraticCurveTo(-60, 22, -20, 24); c.lineTo(30, 24); c.quadraticCurveTo(66, 20, 76, 0); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.25)'; c.fillRect(-68, -2, 142, 4);
+    const k = Math.min(S.men, 12);
+    for (let i = 0; i < k; i++) { const x = -56 + i * (118 / k), y = -10 - (i % 2) * 4; c.fillStyle = n ? '#2a2a2a' : '#3a3530'; c.beginPath(); c.arc(x, y, 6, 0, 7); c.fill(); c.fillRect(x - 5, y + 4, 10, 10); }
+    c.strokeStyle = '#ddd'; c.lineWidth = 1.5; c.beginPath(); c.moveTo(70, -2); c.lineTo(100, 10 + Math.sin(t) * 3); c.stroke();
+    c.restore();
+    raf = requestAnimationFrame(draw);
+  }
+  function build() {
+    if ($('epLb')) return;
+    const el = document.createElement('div'); el.id = 'epLb';
+    el.innerHTML = '<div class="lb"><h3><span id="epLbT"></span><small id="epLbH"></small></h3><canvas id="epLbCv" width="640" height="320"></canvas>' +
+      '<div class="risk"><span id="epLbRiskL"></span><span class="bar"><i id="epLbRisk"></i></span></div><div class="talk" id="epLbTalk"></div><div class="opts" id="epLbOpts"></div></div>';
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (!b || !S) return; const k = b.dataset.q; if (k === 'CLOSE') { close(); return; } answer(k); });
+  }
+  /* 장면이 열린 동안 항해 시계 멈춤 */
+  function wrap() { const CP = window.Campaign; if (!CP || CP._v662) return; const o = CP.advance; CP.advance = function () { if (window.EP_PAUSE_V662) return { events: [], stopped: false }; return o.apply(this, arguments); }; CP._v662 = true; }
+  function init() { setInterval(() => { wrap(); watch(); const l = $('epLbRiskL'); if (l) l.textContent = T('하늘 위험', 'Air risk', '空の危険'); }, 800);
+    window.EP_V662_LIFEBOAT = { version: '6.62.0', open: (k) => { const C = Campaign.state(); open(C, k || C.kills[C.kills.length - 1] || { name: 'SS Test', tons: 5000 }); }, answer, close, state: () => S }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
