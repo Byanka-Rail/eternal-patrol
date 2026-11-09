@@ -52970,5 +52970,149 @@ window.EP_LB_V667 = {"scen": {"NORMAL": {"w": 5, "intro": ["기름 막 위로 �
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
+<script id="ep-v675-cow-script">
+/* ══════════ V6.75 보급 잠수함 — 「젖소」와 나란히 ══════════
+   1942년 봄부터 1943년 여름까지, 대서양 한가운데에서 XIV형 보급 잠수함(「젖소」)이 유보트에 연료와 식량,
+   때로는 어뢰를 넘겨주었다. 사령부는 연료가 모자란 보트를 불러 만날 자리를 정해 준다.
+   · 연료가 45% 아래로 떨어지면(대서양 · 그 시기) 무전이 오고 지도 위 ⛽ 단추가 켜진다.
+   · 두 배가 나란히 달리며 호스를 잇는다. 너울이 배를 옆으로 민다 — 「◀ / ▶」로 간격(40~60m)을 지킨다.
+     멀어지면 호스가 팽팽해지다 끊기고, 가까우면 부딪친다. 간격 안에 있는 동안만 연료가 넘어온다.
+   · 그 사이 비행기가 올 수 있다 — 「호스 끊고 잠항」을 빨리 누를수록 안전하다.
+   · 끝나면 연료 · 식량(사기) · 파도가 낮으면 어뢰. 대략 4시간. 한 · 영 · 일. */
+(function EP_V675_COW() {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const snd = (k, d) => { try { window.Snd && Snd.event && Snd.event(k, d || {}); } catch (e) {} };
+  const CS = () => { try { return window.Campaign && Campaign.state ? Campaign.state() : null; } catch (e) { return null; } };
+  const DUR = 45;
+  let S = null, raf = 0;
+  function era(C) { try { const iso = EVENTS.isoDateAtDay(C.theater, (C.warDayStart || 0) + (C.hours || 0) / 24); return iso >= '1942-04-20' && iso <= '1943-08-31'; } catch (e) { return false; } }
+  function eligible(C) { return C && C.status === 'AT_SEA' && C.theater === 'ATLANTIC' && era(C) && (C.fuel == null ? 1 : C.fuel) < 0.45 && !C.cowUsedV675; }
+  function offer() {
+    const C = CS(); if (!eligible(C) || C.cowOfferV675) return;
+    C.cowOfferV675 = true; const num = 459 + Math.floor(R() * 5) * (R() < 0.5 ? 1 : 3);
+    C.cowIdV675 = 'U-' + num;
+    const ko = '무전 — 사령부: 보급 잠수함 ' + C.cowIdV675 + ' 이 근처에 있다. 만나서 연료를 받아라.', en = 'Radio — HQ: supply boat ' + C.cowIdV675 + ' is nearby. Rendezvous and take on fuel.', ja = '無電 — 司令部：補給潜水艦' + C.cowIdV675 + 'が近くにいる。会合して燃料を受け取れ。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'radio', kind: 'report' }); } catch (e) {}
+    snd('radio');
+  }
+  function open() {
+    const C = CS(); if (!eligible(C)) return false;
+    S = { C, t: 0, d: 70, vd: 0, hold: 0, fuel0: C.fuel == null ? 1 : C.fuel, got: 0, tens: 0, sea: C.seaState == null ? 1 : C.seaState, hose: false, hoseT: 0, broken: 0, bump: 0, air: R() < 0.35 ? 12 + R() * 22 : null, airOn: false, airLeft: 0, dived: false, dmg: 0, msg: '', done: false };
+    build(); labels(); window.EP_PAUSE_V662 = true; $('epCow').classList.add('on'); cancelAnimationFrame(raf); S.last = performance.now(); raf = requestAnimationFrame(loop);
+    S.msg = T(C.cowIdV675 + ' 이 보입니다. 나란히 붙어 호스를 받습니다 — 간격 40~60m.', C.cowIdV675 + ' in sight. Coming alongside for the hose — keep 40 to 60 m.', C.cowIdV675 + '視認。並走してホースを受ける — 間隔40〜60m。');
+    return true;
+  }
+  function step(dt) {
+    const s = S; s.t += dt;
+    if (s.dived) return;
+    /* 너울 — 옆으로 민다. 함장이 키로 잡는다 */
+    s.vd += (s.hold * 9 - s.vd * 0.7) * dt + (Math.sin(s.t * 0.9) * 2.5 + (R() - 0.5) * 9) * (0.5 + s.sea * 0.35) * dt;
+    s.d = clamp(s.d + s.vd * dt, 8, 140);
+    const inBand = s.d >= 40 && s.d <= 60;
+    if (!s.hose && s.d <= 65 && s.broken <= 0) { s.hoseT += dt; if (s.hoseT > 2.5) { s.hose = true; s.msg = T('호스 연결 — 연료가 넘어옵니다.', 'Hose connected — fuel coming across.', 'ホース接続 — 燃料移送中。'); snd('taskdone'); } }
+    if (s.broken > 0) s.broken -= dt;
+    s.tens = clamp((s.d - 40) / 35, 0, 1);
+    if (s.hose) {
+      if (s.d > 75) { s.hose = false; s.hoseT = 0; s.broken = 3; s.msg = T('호스가 끊어졌습니다! 다시 붙습니다.', 'The hose parted! Closing in again.', 'ホースが切れた！再接近。'); snd('uireject'); s.got = Math.max(0, s.got - 0.01); }
+      else if (inBand) s.got += dt / DUR * 0.62;
+      else s.got += dt / DUR * 0.25;
+    }
+    if (s.d < 22) { s.bump += dt; if (s.bump > 0.6) { s.bump = 0; s.dmg += 1; s.vd = 6; s.msg = T('너무 가깝습니다 — 선체가 스쳤습니다!', 'Too close — the hulls scraped!', '近すぎる — 船体が擦れた！'); snd('uireject'); } }
+    /* 비행기 */
+    if (s.air != null && !s.airOn && s.t >= s.air) { s.airOn = true; s.airLeft = 4.5; s.msg = T('비행기! 호스를 끊고 잠항해야 합니다!', 'Aircraft! Cut the hose and dive!', '航空機！ホースを切って潜航！'); snd('airalarm'); render(); }
+    if (s.airOn) { s.airLeft -= dt; if (s.airLeft <= 0) { const dmg = 6 + Math.round(R() * 10); s.dmg += dmg; s.airOn = false; s.dived = true; s.msg = T('늦었습니다 — 폭탄이 두 배 사이에! 선체 −' + dmg + '%. 둘 다 잠항.', 'Too late — bombs between the boats! Hull −' + dmg + '%. Both diving.', '遅かった — 二隻の間に爆弾！船体 −' + dmg + '%。両艦潜航。'); setTimeout(finish, 1800); } }
+    if (s.t >= DUR) finish();
+  }
+  function dive() {
+    const s = S; if (!s || !s.airOn) return;
+    const early = s.airLeft; s.airOn = false; s.dived = true;
+    if (early < 1.5 && R() < 0.5) { const dmg = 2 + Math.round(R() * 4); s.dmg += dmg; s.msg = T('아슬아슬 — 폭탄이 고물 뒤에. 선체 −' + dmg + '%.', 'Close — bombs astern. Hull −' + dmg + '%.', '危うく — 爆弾は艦尾後方。船体 −' + dmg + '%。'); }
+    else s.msg = T('호스를 끊고 잠항 — 폭탄은 빈 바다에 떨어졌습니다.', 'Hose cut, diving — the bombs fell in empty water.', 'ホースを切って潜航 — 爆弾は何もない海に。');
+    snd('divealarm'); render(); setTimeout(finish, 1600);
+  }
+  function finish() {
+    const s = S; if (!s || s.done) return; s.done = true;
+    const C = s.C, got = clamp(s.got, 0, 1 - s.fuel0);
+    C.fuel = clamp(s.fuel0 + got, 0, 1); C.hours = (C.hours || 0) + 4; C.cowUsedV675 = true;
+    if (s.dmg) C.hull = clamp((C.hull || 100) - s.dmg, 1, 100);
+    let torps = 0; if (!s.dived && s.sea <= 2 && s.t >= DUR - 0.5) { torps = 2 + Math.floor(R() * 3); C.torpReserve = (C.torpReserve || 0) + torps; }
+    if (window.EP_MORALE) EP_MORALE.add(C, 0.04);
+    const ko = '보급 ' + (C.cowIdV675 || '') + ' — 연료 ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%, 신선식품' + (torps ? ', 어뢰 ' + torps + '발' : '') + (s.dmg ? ', 선체 −' + s.dmg + '%' : '') + '.';
+    const en = 'Resupply from ' + (C.cowIdV675 || '') + ' — fuel ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%, fresh food' + (torps ? ', ' + torps + ' torpedoes' : '') + (s.dmg ? ', hull −' + s.dmg + '%' : '') + '.';
+    const ja = '補給 ' + (C.cowIdV675 || '') + ' — 燃料 ' + Math.round(s.fuel0 * 100) + '% → ' + Math.round(C.fuel * 100) + '%、生鮮食品' + (torps ? '、魚雷' + torps + '本' : '') + (s.dmg ? '、船体 −' + s.dmg + '%' : '') + '。';
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'report' }); } catch (e) {}
+    s.msg = T(ko, en, ja); render();
+    $('epCowL').style.display = 'none'; $('epCowR').style.display = 'none'; $('epCowDive').style.display = 'none'; $('epCowEnd').textContent = T('확인', 'OK', '了解');
+  }
+  function close() { if (S && !S.done && S.t > 3) finish(); cancelAnimationFrame(raf); raf = 0; S = null; $('epCow').classList.remove('on'); window.EP_PAUSE_V662 = false; try { Campaign.save(); } catch (e) {} }
+  function loop(now) { if (!S) return; const dt = Math.min(0.05, (now - S.last) / 1000); S.last = now; if (!S.done) step(dt); draw(); render(); raf = requestAnimationFrame(loop); }
+  function boat(c, x, y, L, big, col) {
+    c.fillStyle = col; c.beginPath(); c.moveTo(x, y - L / 2); c.quadraticCurveTo(x + L * (big ? 0.11 : 0.08), y - L * 0.2, x + L * (big ? 0.1 : 0.07), y + L * 0.35);
+    c.quadraticCurveTo(x, y + L / 2, x - L * (big ? 0.1 : 0.07), y + L * 0.35); c.quadraticCurveTo(x - L * (big ? 0.11 : 0.08), y - L * 0.2, x, y - L / 2); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(x - L * 0.03, y - L * 0.1, L * 0.06, L * 0.16);
+  }
+  function draw() {
+    const cv = $('epCowCv'); if (!cv || !S) return;
+    const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.max(220, r.width), H = Math.max(160, r.height);
+    if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const s = S, ppm = W / 220;
+    c.fillStyle = '#163240'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(200,225,235,.12)'; c.lineWidth = 1;
+    for (let k = 0; k < 9; k++) { const y = ((k * 40 + s.t * 30) % (H + 40)) - 20; c.beginPath(); for (let x = 0; x <= W; x += 10) { const yy = y + Math.sin(x * 0.05 + k) * 3; if (x) c.lineTo(x, yy); else c.moveTo(x, yy); } c.stroke(); }
+    /* 간격 띠 */
+    const cowX = W * 0.68, cy = H * 0.5, myX = cowX - s.d * ppm;
+    c.fillStyle = 'rgba(120,220,150,.08)'; c.fillRect(cowX - 60 * ppm, 0, 20 * ppm, H);
+    boat(c, cowX, cy, 72 * ppm, true, s.dived ? 'rgba(40,52,60,.35)' : '#3a454d');
+    boat(c, myX, cy + 4, 60 * ppm, false, s.dived ? 'rgba(40,52,60,.35)' : '#2c363d');
+    if (s.hose && !s.dived) { c.strokeStyle = s.tens > 0.8 ? '#ff8a7a' : '#d9c48a'; c.lineWidth = 2; c.beginPath(); c.moveTo(myX + 4, cy - 6); c.quadraticCurveTo((myX + cowX) / 2, cy - 6 + 18 * (1 - s.tens), cowX - 6, cy - 10); c.stroke(); }
+    c.fillStyle = 'rgba(230,240,245,.9)'; c.font = '600 12px system-ui'; c.textAlign = 'left';
+    c.fillText(T('간격 ', 'Gap ', '間隔 ') + Math.round(s.d) + 'm', 8, 16);
+    c.textAlign = 'center'; c.font = '10px system-ui'; c.fillStyle = 'rgba(200,230,210,.6)'; c.fillText('40–60m', cowX - 50 * ppm, H * 0.82);
+    const bar = (x, y, w, v, col, lab) => { c.fillStyle = 'rgba(255,255,255,.1)'; c.fillRect(x, y, w, 6); c.fillStyle = col; c.fillRect(x, y, w * clamp(v, 0, 1), 6); c.fillStyle = 'rgba(220,235,240,.8)'; c.font = '10px system-ui'; c.textAlign = 'left'; c.fillText(lab, x, y - 3); };
+    bar(W - 118, 18, 110, s.tens, s.tens > 0.8 ? '#ff8a7a' : '#e8c068', T('호스 장력', 'Hose tension', 'ホース張力'));
+    bar(W - 118, 42, 110, (s.fuel0 + Math.min(s.got, 1 - s.fuel0)), '#7fc8ff', T('연료 ', 'Fuel ', '燃料 ') + Math.round((s.fuel0 + Math.min(s.got, 1 - s.fuel0)) * 100) + '%');
+    if (s.airOn) { c.fillStyle = 'rgba(255,90,70,' + (0.18 + 0.12 * Math.sin(s.t * 12)).toFixed(3) + ')'; c.fillRect(0, 0, W, H); c.fillStyle = '#fff'; c.font = '700 16px system-ui'; c.textAlign = 'center'; c.fillText('✈ ' + s.airLeft.toFixed(1), W / 2, 40); }
+    bar(8, H - 14, W * 0.4, s.t / DUR, '#9fe0a8', T('시간', 'Time', '時間'));
+  }
+  function render() { if (!S) return; $('epCowMsg').textContent = S.msg; $('epCowDive').style.display = S.airOn ? '' : 'none'; }
+  function labels() {
+    $('epCowT').textContent = T('보급 — 나란히', 'RESUPPLY — ALONGSIDE', '補給 — 並走');
+    $('epCowL').innerHTML = T('◀ 벌린다', '◀ Open out', '◀ 離す'); $('epCowR').innerHTML = T('붙는다 ▶', 'Close in ▶', '寄せる ▶');
+    $('epCowDive').innerHTML = T('호스 끊고 잠항!', 'Cut hose — DIVE!', 'ホース切断 — 潜航！'); $('epCowEnd').textContent = T('그만', 'Stop', 'やめる');
+    $('epCowL').style.display = ''; $('epCowR').style.display = ''; $('epCowDive').style.display = 'none';
+  }
+  function build() {
+    if ($('epCow')) return;
+    const st = document.createElement('style'); st.id = 'ep-v675-cow-style';
+    st.textContent = '#epCow{position:fixed;inset:0;z-index:9110;display:none;align-items:center;justify-content:center;background:rgba(2,6,9,.84)}#epCow.on{display:flex}' +
+      '#epCow .bx{width:min(94vw,420px);background:var(--panel,#0e1a22);border:1px solid var(--amber,#e0b060);border-radius:12px;padding:10px;color:var(--ink,#dfe);box-shadow:0 10px 40px rgba(0,0,0,.6)}' +
+      '#epCow h3{margin:0 0 6px;font-size:15px;letter-spacing:.08em;color:var(--amber,#e0b060)}#epCow canvas{display:block;width:100%;aspect-ratio:16/11;border-radius:8px}' +
+      '#epCow .msg{font-size:12.5px;min-height:36px;margin:7px 2px;line-height:1.4}#epCow .ctl{display:grid;grid-template-columns:1fr 1fr 0.7fr;gap:6px}#epCow .ctl button{padding:14px 0;font-size:15px;touch-action:none;user-select:none;-webkit-user-select:none}#epCow .ctl button.hold{background:var(--amber,#e0b060);color:#081016}' +
+      '#epCow .dv{grid-column:span 3;background:#a53a2c;border-color:#ff8a7a;color:#fff;font-weight:700}#epCowBtn{display:none}#epCowBtn.on{display:block}#epCowBtn.want{border-color:var(--amber,#e8bc68)!important;color:var(--amber,#e8bc68)!important}';
+    document.head.appendChild(st);
+    const el = document.createElement('div'); el.id = 'epCow';
+    el.innerHTML = '<div class="bx"><h3 id="epCowT"></h3><canvas id="epCowCv"></canvas><div class="msg" id="epCowMsg"></div><div class="ctl"><button class="mini dv" id="epCowDive"></button><button class="mini" id="epCowL" data-h="1"></button><button class="mini" id="epCowR" data-h="-1"></button><button class="mini" id="epCowEnd"></button></div></div>';
+    document.body.appendChild(el);
+    const down = e => { const b = e.target.closest('[data-h]'); if (!b || !S) return; e.preventDefault(); S.hold = +b.dataset.h; b.classList.add('hold'); };
+    const up = () => { if (S) S.hold = 0; el.querySelectorAll('.hold').forEach(x => x.classList.remove('hold')); };
+    el.addEventListener('pointerdown', down); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    el.addEventListener('contextmenu', e => e.preventDefault());
+    $('epCowDive').addEventListener('click', dive); $('epCowEnd').addEventListener('click', close);
+  }
+  function button() {
+    let b = $('epCowBtn');
+    if (!b) { const z = $('wZoom'); if (!z) return; build(); b = document.createElement('button'); b.className = 'zbtn'; b.id = 'epCowBtn'; b.textContent = '⛽'; b.title = T('보급 잠수함', 'Supply boat', '補給潜水艦'); b.addEventListener('click', () => { labels(); open(); }); z.appendChild(b); }
+    const C = CS(), ok = eligible(C) && C.cowOfferV675; b.classList.toggle('on', !!ok); b.classList.toggle('want', !!ok);
+  }
+  function init() { setInterval(() => { try { offer(); button(); } catch (e) {} }, 900); window.EP_V675_COW = { version: '6.75.0', open, close, dive, state: () => S, hold: h => { if (S) S.hold = h; } }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
 </body>
 </html>
