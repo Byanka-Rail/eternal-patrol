@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.64.0 Hydrophone ID</title>
-<script id="ep-build">window.EP_BUILD='6.64.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.65.0 Flak</title>
+<script id="ep-build">window.EP_BUILD='6.65.0';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -50479,6 +50479,201 @@ window.EP_I18N_V659 = {"en": {"달이 구름 뒤로 들어갔습니다. 이제 �
   }
   function init() { setInterval(() => { encButton(); wrapBegin(); wrapAdv(); }, 400);
     window.EP_V664_HYDRO = { version: '6.64.0', open, state: () => S, judge, close, SIG }; }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
+})();
+</script>
+
+<style id="ep-v665-aa-style">
+/* ══════════ V6.65 대공전 ══════════ */
+#epAA{ position:fixed; inset:0; z-index:9100; display:none; align-items:center; justify-content:center; background:rgba(2,8,12,.8); }
+#epAA.on{ display:flex; }
+#epAA .ab{ width:min(96vw,440px); background:var(--panel,#0e1a22); border:1px solid var(--red,#f55); border-radius:12px; padding:10px; color:var(--ink,#dfe); box-shadow:0 10px 40px rgba(0,0,0,.6); }
+#epAA h3{ margin:0 0 6px; font-size:15px; letter-spacing:.12em; color:var(--red,#f55); display:flex; justify-content:space-between; align-items:baseline; }
+#epAA h3 small{ font-size:11px; letter-spacing:0; color:var(--dim,#8aa); font-weight:500; }
+#epAA canvas{ display:block; width:100%; height:auto; aspect-ratio:4/3; border-radius:8px; background:#000; touch-action:none; }
+#epAA .row{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-top:8px; }
+#epAA .row button small{ display:block; font-size:10.5px; opacity:.72; }
+#epAA .row .dive{ border-color:var(--sky,#8fd0ff); }
+#epAA .st{ display:flex; justify-content:space-between; font-size:12px; color:var(--dim,#8aa); margin-top:6px; font-variant-numeric:tabular-nums; }
+#epAA .st b{ color:var(--ink,#dfe); }
+#epAA .res{ display:none; font-size:13px; line-height:1.55; padding:8px; border-radius:8px; background:rgba(255,255,255,.05); margin-top:8px; text-align:center; }
+#epAA .res.on{ display:block; }
+</style>
+<script id="ep-v665-aa-script">
+/* ══════════ V6.65 대공전 — 비행기가 온다 ══════════
+   항해 중 부상해 있다가 비행기에 걸리면(엔진의 항공 초계 판정), 그 결과를 이 장면이 정한다.
+   · 급속 잠항 — 일찍 누를수록 안전하다. 잠항이 70% 넘게 되었을 때 폭탄이 떨어지면 빗나간다.
+   · 대공 사격 — 다가오는 비행기를 두드려 쏜다. 많이 맞히면 격추, 조금 맞히면 폭격 진로가 흐트러진다.
+     대신 부상해 있는 동안 기총 소사를 맞을 수 있다(사기 −). 1943년 여름 실제로 「부상해서 싸우라」는 명령이 있었다.
+   · 부장에게 맡김 — 원래 규칙대로(35% 피격).
+   엔진이 정한 피해는 되돌리고 이 장면의 결과로 바꾼다. 장면 동안 항해 시계는 멈춘다. */
+(function EP_V665_AA(){
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const R = Math.random;
+  const LANG = () => { try { return window.Lang && Lang.get ? Lang.get() : 'ko'; } catch (e) { return 'ko'; } };
+  const T = (ko, en, ja) => { const l = LANG(); return l === 'en' ? en : l === 'ja' ? ja : ko; };
+  const hod = C => ((C.hours % 24) + 24) % 24;
+  let S = null, raf = 0;
+
+  /* ── 엔진 판정 가로채기 ── */
+  function wrap() {
+    const CP = window.Campaign; if (!CP || CP._v665) return;
+    const o = CP.advance;
+    CP.advance = function () {
+      const C0 = CP.state(); const snap = C0 ? { hull: C0.hull, eng: C0.damage ? C0.damage.engine : 0, log0: C0.log && C0.log[0] } : null;
+      const r = o.apply(this, arguments);
+      try {
+        const C = CP.state(); if (!C || !r || !r.events || S) return r;
+        const i = r.events.findIndex(e => e.kind === 'AIR' && e.source === 'AIRCRAFT');
+        if (i < 0 || document.querySelector('#epMorse.on, #epNav.on, #epLb.on, #epDec.on, #epHy.on')) return r;
+        /* 엔진이 이미 깎은 것을 되돌린다 — 결과는 장면이 정한다 */
+        C.hull = snap.hull; if (C.damage) C.damage.engine = snap.eng;
+        if (Array.isArray(C.log)) { const k = C.log.indexOf(snap.log0); if (k > 0) C.log.splice(0, k).forEach(() => {}); }
+        r.events.splice(i, 1);
+        setTimeout(() => open(C), 30);
+      } catch (e) {}
+      return r;
+    };
+    CP._v665 = true;
+  }
+
+  function open(C) {
+    build(); window.EP_PAUSE_V662 = true;
+    const night = hod(C) < 5 || hod(C) >= 20, vis = { clear: 1, haze: 0.8, squall: 0.6, gale: 0.5, fog: 0.3 }[C.weather] || 0.9;
+    const warn = clamp(0.35 + vis * 0.4 + (R() - 0.5) * 0.3 + (C.crewSkill || 0.55) * 0.2 - (night ? 0.25 : 0), 0.15, 0.95);   /* 먼저 본 거리(0 가까움 ~ 1 멀리) */
+    S = { C, t0: performance.now(), arrive: 4.5 + warn * 6.5, dive: null, diveP: 0, fire: false, ammo: 24, hits: 0, hp: 4 + Math.floor(R() * 4), shot: [], puffs: [], end: false, night,
+      side: R() < 0.5 ? -1 : 1, alt: 0.18 + R() * 0.1, strafed: false, released: false, res: null, type: pick2() };
+    $('epAAT').textContent = T('항공기!', 'AIRCRAFT!', '航空機！');
+    $('epAAH').textContent = (night ? T('밤 · 탐조등', 'night · searchlight', '夜・探照灯') : T('낮', 'day', '昼')) + ' · ' + S.type[LANG() === 'en' ? 1 : LANG() === 'ja' ? 2 : 0];
+    $('epAADive').innerHTML = T('급속 잠항!', 'CRASH DIVE!', '急速潜航！') + '<small>' + T('일찍 누를수록 안전', 'the earlier the safer', '早いほど安全') + '</small>';
+    $('epAAGun').innerHTML = T('대공 사격', 'AA GUN', '対空射撃') + '<small>' + T('비행기를 두드려 쏜다', 'tap the plane to fire', '機影を叩いて撃つ') + '</small>';
+    $('epAAAuto').innerHTML = T('부장에게', 'XO\'s call', '副長に') + '<small>' + T('원래 판정', 'standard roll', '通常判定') + '</small>';
+    $('epAARes').classList.remove('on'); ['epAADive', 'epAAGun', 'epAAAuto'].forEach(id => { $(id).style.display = ''; $(id).disabled = false; $(id).style.gridColumn = ''; $(id).classList.remove('go'); });
+    $('epAA').classList.add('on'); cancelAnimationFrame(raf); raf = requestAnimationFrame(loop);
+    try { window.Snd && Snd.event && Snd.event('watchbell', {}); navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) {}
+  }
+  function pick2() { const C = window.Campaign && Campaign.state(), th = C && C.theater;
+    if (th === 'PACIFIC') return R() < 0.6 ? ['일본 해군 정찰기', 'Japanese patrol plane', '日本海軍哨戒機'] : ['수상 정찰기', 'Floatplane', '水上偵察機'];
+    if (th === 'EASTPAC') return R() < 0.6 ? ['미 해군 초계 비행정', 'US Navy flying boat', '米海軍飛行艇'] : ['육군 폭격기', 'Army bomber', '陸軍爆撃機'];
+    return R() < 0.5 ? ['리버레이터', 'Liberator', 'リベレーター'] : R() < 0.5 ? ['선덜랜드 비행정', 'Sunderland', 'サンダーランド'] : ['카탈리나', 'Catalina', 'カタリナ']; }
+  function now() { return (performance.now() - S.t0) / 1000; }
+  /* 비행기 자리 — 0..1 접근(arrive 에서 1) */
+  function planePos(W, H) {
+    const t = now(), k = clamp(t / S.arrive, 0, 1.25), hy = H * 0.55;
+    const x = W / 2 + S.side * (W * 0.38) * (1 - k) * (1 - k) + Math.sin(t * 1.3) * 8 * (1 - k) + (k > 1 ? S.side * -1 * (k - 1) * W * 2.4 : 0);
+    const y = hy - 6 - (H * S.alt) * Math.pow(k, 1.6) - (k > 1 ? (k - 1) * H * 0.6 : 0);
+    const sc = 0.12 + Math.pow(Math.min(k, 1.1), 2.2) * 1.15;
+    return { x, y, sc, k };
+  }
+  function loop() {
+    if (!S) return; const cv = $('epAACv'), c = cv.getContext('2d'), W = cv.width, H = cv.height, t = now();
+    if (S.dive != null) S.diveP = clamp((t - S.dive) / 4.2, 0, 1);
+    const tilt = S.diveP * 0.12, sink = S.diveP * H * 0.38, hy = H * 0.55;
+    c.save(); c.translate(W / 2, H / 2); c.rotate(-tilt * S.side * 0.5); c.translate(-W / 2, -H / 2 - 0);
+    /* 하늘 · 바다 */
+    const g = c.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, S.night ? '#03060e' : '#5b7c99'); g.addColorStop(1, S.night ? '#141c2c' : '#a9bccb'); c.fillStyle = g; c.fillRect(-40, -40, W + 80, hy + 40);
+    const sg = c.createLinearGradient(0, hy, 0, H); sg.addColorStop(0, S.night ? '#0e1824' : '#3d5b70'); sg.addColorStop(1, S.night ? '#02060a' : '#16293a'); c.fillStyle = sg; c.fillRect(-40, hy, W + 80, H - hy + 40);
+    for (let r = 0; r < 8; r++) { const yy = hy + 8 + r * r * 5; c.strokeStyle = 'rgba(255,255,255,' + (0.07 - r * 0.007) + ')'; c.beginPath(); for (let x = -40; x <= W + 40; x += 12) c.lineTo(x, yy + Math.sin(x * 0.03 + t * 1.6 + r) * (1.5 + r * 0.6)); c.stroke(); }
+    /* 비행기 */
+    const p = planePos(W, H);
+    if (!S.down) {
+      if (S.night && p.k < 1.05) { const bg = c.createRadialGradient(p.x, p.y, 2, p.x, p.y + 30, 160 * p.sc + 40); bg.addColorStop(0, 'rgba(255,255,230,.9)'); bg.addColorStop(1, 'rgba(255,255,230,0)'); c.fillStyle = bg; c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(W / 2 - 140, H); c.lineTo(W / 2 + 140, H); c.closePath(); c.fill(); }
+      c.save(); c.translate(p.x, p.y); c.scale(p.sc, p.sc); c.fillStyle = S.night ? '#cfd6dc' : '#1d242b';
+      c.fillRect(-90, -4, 180, 8); c.beginPath(); c.ellipse(0, 0, 14, 18, 0, 0, 7); c.fill(); c.fillRect(-4, -26, 8, 20);
+      for (const ex of [-46, -22, 22, 46]) { c.beginPath(); c.arc(ex, 2, 5, 0, 7); c.fill(); }
+      if (S.smoke) { c.fillStyle = 'rgba(40,40,40,.6)'; for (let i = 0; i < 6; i++) { c.beginPath(); c.arc(40 + i * 12, -10 - i * 6, 8 + i * 2, 0, 7); c.fill(); } }
+      c.restore();
+    }
+    /* 대공 사격 — 예광탄과 폭연 */
+    for (const s of S.shot) { const a = (t - s.t) / 0.35; if (a > 1) continue; c.strokeStyle = 'rgba(255,210,120,' + (1 - a) + ')'; c.lineWidth = 2; c.beginPath(); c.moveTo(W / 2 + (s.x - W / 2) * 0.1, H); c.lineTo(W / 2 + (s.x - W / 2) * a, H - (H - s.y) * a); c.stroke(); }
+    S.puffs = S.puffs.filter(f => t - f.t < 1.6); for (const f of S.puffs) { const a = (t - f.t) / 1.6; c.fillStyle = 'rgba(30,30,30,' + (0.7 * (1 - a)) + ')'; c.beginPath(); c.arc(f.x, f.y - a * 10, 6 + a * 16, 0, 7); c.fill(); }
+    /* 폭탄 */
+    if (S.released && !S.down) { const a = clamp((t - S.relT) / 0.9, 0, 1); for (const dx of [-14, 14]) { c.fillStyle = '#111'; c.beginPath(); c.arc(S.relX + dx + S.side * a * 30, S.relY + a * (H * 0.85 - S.relY), 4, 0, 7); c.fill(); }
+      if (a >= 1 && !S.splash) S.splash = t; }
+    if (S.splash) { const a = (t - S.splash) / 1.2; if (a < 1) for (const dx of [-60, 60]) { c.fillStyle = 'rgba(230,240,255,' + (0.8 * (1 - a)) + ')'; c.beginPath(); c.ellipse(W / 2 + dx * S.missF + S.side * 30, H * 0.8, 18 + a * 24, 50 * Math.sin(Math.min(1, a * 2) * Math.PI / 2) + 4, 0, 0, 7); c.fill(); } }
+    c.restore();
+    /* 잠항 — 물이 차오른다 */
+    if (S.diveP > 0) { c.fillStyle = 'rgba(10,40,60,' + (0.75 * S.diveP) + ')'; c.fillRect(0, H - sink, W, sink); c.strokeStyle = 'rgba(200,230,255,.6)'; c.beginPath(); for (let x = 0; x <= W; x += 10) c.lineTo(x, H - sink + Math.sin(x * 0.05 + t * 5) * 4); c.stroke(); }
+    /* 함교 난간 */
+    c.fillStyle = '#0b1014'; c.fillRect(0, H - 22, W, 22); c.fillStyle = '#1a2229'; c.fillRect(0, H - 24, W, 3);
+    /* 판정 시점 */
+    if (!S.released && p.k >= 0.92) release(p);
+    if (S.fire && !S.strafed && p.k > 0.7 && !S.down && R() < 0.012) strafe();
+    $('epAASt').innerHTML = T('거리 ', 'Range ', '距離 ') + '<b>' + Math.max(0, Math.round((1 - Math.min(p.k, 1)) * 6000)) + 'm</b>' +
+      '<span>' + T('잠항 ', 'Dive ', '潜航 ') + '<b>' + Math.round(S.diveP * 100) + '%</b></span><span>' + T('탄 ', 'Ammo ', '弾 ') + '<b>' + S.ammo + '</b> · ' + T('명중 ', 'Hits ', '命中 ') + '<b>' + S.hits + '</b></span>';
+    if (S.end && t - S.endT > 1.4 && !S.shown) showRes();
+    raf = requestAnimationFrame(loop);
+  }
+  function fireAt(x, y) {
+    if (!S || S.end || S.dive != null || S.ammo <= 0) return;
+    S.fire = true; S.ammo--; const t = now();
+    const cv = $('epAACv'), p = planePos(cv.width, cv.height);
+    S.shot.push({ x, y, t });
+    const d = Math.hypot(x - p.x, y - p.y), r = 12 + 70 * p.sc;
+    /* 멀면 탄이 흩어진다 — 가까이 올수록 맞는다(그만큼 폭탄도 가깝다) */
+    if (!S.down && d < r && R() < (0.18 + 0.62 * clamp(p.k, 0, 1)) * (1 - 0.4 * d / r)) { S.hits++; S.puffs.push({ x: p.x + (R() - 0.5) * 30 * p.sc, y: p.y, t }); if (S.hits >= Math.ceil(S.hp / 2)) S.smoke = true;
+      if (S.hits >= S.hp) { S.down = true; finish('DOWN'); } }
+    else S.puffs.push({ x: x + (R() - 0.5) * 20, y: y + (R() - 0.5) * 20, t });
+    try { navigator.vibrate && navigator.vibrate(12); } catch (e) {}
+  }
+  function strafe() { S.strafed = true; const C = S.C; if (window.EP_MORALE) EP_MORALE.add(C, -0.05); C.hull = clamp((C.hull || 100) - (1 + Math.round(R() * 2)), 1, 100); S.wounded = true; try { navigator.vibrate && navigator.vibrate([40, 30, 40]); } catch (e) {} }
+  function release(p) {
+    S.released = true; S.relT = now(); S.relX = p.x; S.relY = p.y;
+    const C = S.C;
+    /* 폭탄이 맞을 확률 — 잠항 정도 · 명중으로 흐트러진 정도 */
+    let pHit = 0.55;
+    if (S.dive != null) pHit = S.diveP >= 0.7 ? 0.02 : S.diveP >= 0.4 ? 0.25 : 0.45;
+    pHit *= Math.max(0.15, 1 - S.hits * 0.22);
+    if (S.night) pHit *= 0.85;
+    const hit = R() < pHit; S.missF = hit ? 0.4 : 1.6;
+    if (hit) { const dmg = 8 + R() * 18; C.hull = clamp((C.hull || 100) - dmg, 1, 100); if (C.damage) C.damage.engine = clamp((C.damage.engine || 0) + 0.12 + R() * 0.2, 0, 1); S.dmg = Math.round(dmg); }
+    setTimeout(() => finish(hit ? 'HIT' : S.dive != null ? 'DIVED' : 'MISS'), 1000);
+  }
+  function finish(kind) {
+    if (!S || S.end) return; S.end = true; S.endT = now(); S.res = kind;
+    const C = S.C;
+    if (kind === 'DOWN') { if (window.EP_MORALE) EP_MORALE.add(C, 0.06); C.planesDownV665 = (C.planesDownV665 || 0) + 1; }
+    if (kind === 'HIT' && window.EP_MORALE) EP_MORALE.add(C, -0.03);
+    C.surfaced = false; C.resurfaceAt = (C.hours || 0) + 1.5 + R(); C.alert = clamp((C.alert || 0) + (kind === 'DOWN' ? 0.18 : 0.1), 0, 1);
+    ['epAADive', 'epAAGun', 'epAAAuto'].forEach(id => { $(id).disabled = true; });
+  }
+  function showRes() {
+    S.shown = true; const k = S.res, C = S.C;
+    const t = k === 'DOWN' ? T('격추! 비행기가 연기를 끌며 바다에 처박혔습니다. 곧바로 잠항합니다.', 'Shot down! She trailed smoke into the sea. Diving now.', '撃墜！機は煙を引いて海に突っ込みました。直ちに潜航します。')
+      : k === 'HIT' ? T('폭탄이 바로 옆에 떨어졌습니다. 선체 ' + S.dmg + '% 손상.', 'Bombs right alongside. Hull damage ' + S.dmg + '%.', '爆弾が至近に落下。船体' + S.dmg + '%損傷。')
+      : k === 'DIVED' ? T('잠항이 빨랐습니다. 폭탄은 뒤에서 터졌습니다.', 'We got under in time. The bombs went off astern.', '潜航が間に合った。爆弾は後方で炸裂。')
+      : T('명중탄에 놀랐는지 폭격이 빗나갔습니다. 잠항합니다.', 'Our fire threw off his run — the bombs missed. Diving.', '射撃で照準が乱れたか、爆弾は外れた。潜航する。');
+    $('epAARes').innerHTML = t + (S.wounded ? '<br><small>' + T('기총 소사에 함교 요원 둘이 다쳤습니다.', 'Strafing wounded two men on the bridge.', '機銃掃射で艦橋員二名負傷。') + '</small>' : '');
+    $('epAARes').classList.add('on'); ['epAADive', 'epAAGun'].forEach(id => { $(id).style.display = 'none'; }); $('epAAAuto').style.display = ''; $('epAAAuto').style.gridColumn = 'span 3'; $('epAAAuto').disabled = false; $('epAAAuto').innerHTML = T('확인', 'OK', '了解');
+    const ko = { DOWN: '항공기 격추 — 대공 사격.', HIT: '항공기 폭격 — 선체 ' + S.dmg + '% 손상.', DIVED: '항공기 — 급속 잠항으로 피했다.', MISS: '항공기 — 대공 사격으로 폭격을 흐트러뜨렸다.' }[k];
+    const en = { DOWN: 'Aircraft shot down by AA fire.', HIT: 'Bombed by aircraft — hull damage ' + S.dmg + '%.', DIVED: 'Aircraft — evaded by crash dive.', MISS: 'Aircraft — AA fire spoiled the bombing run.' }[k];
+    const ja = { DOWN: '航空機撃墜 — 対空射撃。', HIT: '航空機の爆撃 — 船体' + S.dmg + '%損傷。', DIVED: '航空機 — 急速潜航で回避。', MISS: '航空機 — 対空射撃で爆撃を乱した。' }[k];
+    try { C.log.unshift({ h: C.hours, text: ko, variants: { ko, en, ja }, who: 'exec', kind: 'air' }); } catch (e) {}
+  }
+  function close() { cancelAnimationFrame(raf); raf = 0; $('epAA').classList.remove('on'); window.EP_PAUSE_V662 = false; S = null; try { Campaign.save(); WorldView.render(); } catch (e) {} }
+  function auto() {
+    if (!S) return; if (S.shown) { close(); return; }
+    const C = S.C, hit = R() < 0.35; S.end = true; S.endT = now() - 2; S.res = hit ? 'HIT' : 'DIVED';
+    if (hit) { const dmg = 8 + R() * 18; C.hull = clamp((C.hull || 100) - dmg, 1, 100); if (C.damage) C.damage.engine = clamp((C.damage.engine || 0) + 0.15 + R() * 0.2, 0, 1); S.dmg = Math.round(dmg); }
+    C.surfaced = false; C.resurfaceAt = (C.hours || 0) + 1.5 + R();
+    ['epAADive', 'epAAGun', 'epAAAuto'].forEach(id => { $(id).disabled = true; });
+  }
+  function build() {
+    if ($('epAA')) return;
+    const el = document.createElement('div'); el.id = 'epAA';
+    el.innerHTML = '<div class="ab"><h3><span id="epAAT"></span><small id="epAAH"></small></h3><canvas id="epAACv" width="560" height="420"></canvas>' +
+      '<div class="st" id="epAASt"></div><div class="res" id="epAARes"></div>' +
+      '<div class="row"><button class="mini dive" id="epAADive"></button><button class="mini" id="epAAGun"></button><button class="mini" id="epAAAuto"></button></div></div>';
+    document.body.appendChild(el);
+    $('epAADive').addEventListener('click', () => { if (S && !S.end && S.dive == null) { S.dive = now(); try { window.Snd && Snd.event && Snd.event('dive', {}); } catch (e) {} } });
+    $('epAAGun').addEventListener('click', () => { if (S && !S.end) { S.fire = true; $('epAAGun').classList.add('go'); } });
+    $('epAAAuto').addEventListener('click', () => auto());
+    const cv = $('epAACv');
+    cv.addEventListener('pointerdown', e => { if (!S) return; const r = cv.getBoundingClientRect(), k = cv.width / r.width; fireAt((e.clientX - r.left) * k, (e.clientY - r.top) * k); });
+  }
+  function init() { setInterval(wrap, 700); window.EP_V665_AA = { version: '6.65.0', open: () => open(Campaign.state()), state: () => S, fireAt, close, planePos }; }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true }); else init();
 })();
 </script>
