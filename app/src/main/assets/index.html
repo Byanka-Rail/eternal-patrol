@@ -5,8 +5,8 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
 <meta content="dark" name="color-scheme"/>
-<title>ETERNAL PATROL: Silent Seas — v6.50.0 Wolfpack</title>
-<script id="ep-build">window.EP_BUILD='6.50.0';</script>
+<title>ETERNAL PATROL: Silent Seas — v6.50.1 Binocular Horizon</title>
+<script id="ep-build">window.EP_BUILD='6.50.1';</script>
 <!--
   PATCH RECORD — 2026-08-30
   V6.25.2 NAVAL ACTIVITY 전구 전체의 해군 활동을 개별 함선 전술 AI가 아니라 CONVOY / ESCORT_SWEEP / SURFACE_GROUP / SUB_PATROL / AIR_PATROL 5종 작전 패킷으로 추상화. 패킷은 전구별 실제 항로 위에서 독립 진행도를 가지며 War.seaActivity에 저장됨.
@@ -47319,7 +47319,7 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
 #epTrack .st span{ display:block; font-size:13.5px; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #epTrack .st .bad{ color:var(--red); } #epTrack .st .warn{ color:var(--amber); } #epTrack .st .good{ color:var(--green); }
 #epTrkPlot{ flex:1 1 auto; min-height:0; width:100%; display:block; touch-action:none; }
-#epTrkHzn{ flex:0 0 auto; width:100%; height:64px; display:block; border-top:1px solid var(--steel); border-bottom:1px solid var(--steel); }
+#epTrkHzn{ flex:0 0 auto; width:100%; height:118px; display:block; border-top:1px solid var(--steel); border-bottom:1px solid var(--steel); }
 #epTrack .msg{ flex:0 0 auto; min-height:38px; padding:6px 10px; font-size:12.5px; line-height:1.45; color:var(--ink); }
 #epTrack .msg i{ font-style:normal; color:var(--dim); margin-right:6px; }
 #epTrack .ctl{ flex:0 0 auto; display:grid; gap:6px; padding:6px 8px 8px; }
@@ -47376,10 +47376,30 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
       /* 3단계 */ boats: [], packStage: 0, alarmUntil: -1, lastPackHit: -99,
       /* 2단계 */ reports: 0, lastReport: -99, pack: null, dfAt: null, air: null, nextAir: rnd(0.6, 2.5), warnedDawn: false, hullHit: 0,
     };
+    S.fleet = makeFleet(e);
     say('부장', '선단을 놓치지 않게 붙습니다. 연기 끝을 수평선에 걸어 두고 따라가겠습니다.');
     build(); $('epTrack').classList.add('on'); $('ovEnc').classList.remove('on');
     lastNow = performance.now(); clearInterval(timer); timer = setInterval(tick, 100);
     render();
+  }
+
+  /* ── 대열 — 쌍안경에 그릴 배들(선단 기준 앞 a · 옆 s, km) ──
+     상선은 종대 여러 줄(줄 간격 약 0.9km, 앞뒤 0.55km), 호위는 앞과 양옆에. 함형은 게임 도감의 실루엣을 그대로 쓴다. */
+  function makeFleet(e) {
+    const m = Math.max(0, e.ships || 0), out = [], tankP = e.route && /유조선/.test(e.route) ? 0.6 : 0.2;
+    const cols = Math.max(1, Math.round(Math.sqrt(m * 1.6))), rows = Math.ceil(m / cols);
+    for (let i = 0; i < m; i++) { const ci = i % cols, ri = Math.floor(i / cols);
+      const tank = Math.random() < tankP, len = tank ? rnd(140, 165) : rnd(120, 145);
+      out.push({ kind: 'M', type: tank ? 'TANKER' : 'MERCHANT', a: (rows / 2 - ri) * 0.55 + rnd(-0.08, 0.08), s: (ci - (cols - 1) / 2) * 0.9 + rnd(-0.1, 0.1), len, mast: tank ? rnd(20, 26) : rnd(26, 34), coal: !tank && Math.random() < 0.75, ph: Math.random() * 9 }); }
+    const ne = e.escorts || 0, spots = [[2.6, 0], [1.4, -2.2], [1.4, 2.2], [-1.6, -2.4], [-1.6, 2.4], [-2.8, 0]];
+    for (let i = 0; i < ne; i++) { const sp = spots[i % spots.length], dd = Math.random() < 0.35;
+      out.push({ kind: 'E', type: dd ? 'DESTROYER' : 'ESCORT', a: sp[0] + rnd(-0.3, 0.3), s: sp[1] + rnd(-0.3, 0.3), len: dd ? rnd(100, 115) : rnd(62, 72), mast: dd ? rnd(20, 24) : rnd(16, 20), coal: false, ph: Math.random() * 9 }); }
+    return out;
+  }
+  function trimFleet() {   /* 늑대떼 전과 · 끌려간 호위를 대열에도 반영 */
+    const s = S; if (!s.fleet) return; let m = s.fleet.filter(f => f.kind === 'M').length, e = s.fleet.filter(f => f.kind === 'E').length;
+    while (m > Math.max(0, s.merchants)) { const i = s.fleet.findIndex(f => f.kind === 'M'); s.fleet.splice(i, 1); m--; }
+    while (e > s.esc) { const i = s.fleet.map(f => f.kind).lastIndexOf('E'); s.fleet.splice(i, 1); e--; }
   }
 
   /* ── 거리 ── */
@@ -47553,7 +47573,7 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     let sunk = 0; for (let k = 0; k < 2; k++) if (Math.random() < P.p) sunk++;
     sunk = Math.min(sunk, Math.max(0, s.merchants - 1));
     const pulled = s.esc > 0 && Math.random() < 0.45 ? 1 : 0;
-    s.merchants -= sunk; s.esc = Math.max(0, s.esc - pulled);
+    s.merchants -= sunk; s.esc = Math.max(0, s.esc - pulled); trimFleet();
     s.cv.base = norm(s.cv.base + (Math.random() < 0.5 ? 1 : -1) * rnd(25, 45));          /* 비상 변침 */
     s.flashes = (s.flashes || []); s.flashes.push({ x: s.cv.x + rnd(-1.5, 1.5), y: s.cv.y + rnd(-1.5, 1.5), t: s.t });
     const seen = hyp(s.cv.x - s.boat.x, s.cv.y - s.boat.y) < seeRange({ vis: s.vis, night, dive: s.boat.speed === 'DIVE', moon: s.moon }) * 1.6;
@@ -47753,30 +47773,72 @@ button[data-ico="cd"]{ --ico:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A
     c.save(); c.translate(bx, by); c.rotate(b.hdg * d2r); c.fillStyle = dive ? '#5aa0e0' : '#5ae0a6'; c.beginPath(); c.moveTo(0, -9); c.lineTo(6, 7); c.lineTo(-6, 7); c.closePath(); c.fill(); c.restore();
     c.fillStyle = 'rgba(207,219,228,.55)'; c.textAlign = 'left'; c.fillText('5km 격자 · 빈 바다를 누르면 그리로 · 붉은 고리 = 들킬 거리 · 푸른 고리 = 보는 거리', 8, H - 8);
   }
+  /* ── 쌍안경(7배, 시야 약 7°) — 함교 견시가 보는 수평선 ──
+     거리에 따라 실제 각도 크기로 그린다. 눈높이 약 5m 에서 수평선은 약 8km — 그보다 먼 배는 선체가 수평선 아래로
+     가라앉아(헐다운) 돛대·굴뚝·연기만 보인다. 먼 것일수록 하늘빛에 묻힌다. 밤에는 아주 가까워야 검은 형체로 보인다. */
+  const mix = (a, b, t) => [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * t));
   function drawHorizon(night, dive) {
     const s = S, b = s.boat, cv = $('epTrkHzn'); const { c, W, H } = fit(cv);
-    const hy = H * 0.62, gr = c.createLinearGradient(0, 0, 0, hy);
-    const sky = night > 0.5 ? ['#05070c', '#0b1220'] : night > 0.05 ? ['#2a2a3a', '#7a5a50'] : ['#5a7a92', '#b8c8d0'];
-    gr.addColorStop(0, sky[0]); gr.addColorStop(1, sky[1]); c.fillStyle = gr; c.fillRect(0, 0, W, hy);
-    c.fillStyle = night > 0.5 ? '#04080c' : '#2c4656'; c.fillRect(0, hy, W, H - hy);
-    if (dive) { c.fillStyle = 'rgba(0,10,20,.85)'; c.fillRect(0, 0, W, H); c.fillStyle = '#7d8d9a'; c.font = '12px system-ui'; c.textAlign = 'center'; c.fillText('잠항 중 — 청음으로만 듣는다', W / 2, H / 2 + 4); }
-    const px = brg => W / 2 + relA(brg, b.hdg) / 180 * (W / 2);
+    const BAR = 16, VH = H - BAR, hy = Math.round(VH * 0.64), FOV = 7, ppd = W / FOV;
+    const seen = s.t - s.est.seenAt < 0.1, cvx = s.cv.x, cvy = s.cv.y;
+    const tgtB = seen ? norm(Math.atan2(cvx - b.x, cvy - b.y) / d2r) : b.hdg;
+    s._hzB = s._hzB == null ? tgtB : norm(s._hzB + relA(tgtB, s._hzB) * 0.25);
+    const ctr = s._hzB, X = brg => W / 2 + relA(brg, ctr) * ppd;
+    /* 하늘 · 바다 */
+    const dusk = night > 0.05 && night < 0.95;
+    const skyTop = night > 0.75 ? [6, 9, 15] : dusk ? [40, 42, 60] : [92, 124, 148], skyHz = night > 0.75 ? [16, 22, 32] : dusk ? [150, 104, 84] : [190, 204, 210];
+    const seaHz = night > 0.75 ? [10, 16, 22] : dusk ? [52, 50, 58] : [70, 98, 112], seaNear = night > 0.75 ? [3, 7, 10] : dusk ? [20, 24, 32] : [30, 52, 64];
+    const vis = s.vis, haze = (1 - vis) * 0.7;
+    let g = c.createLinearGradient(0, 0, 0, hy); g.addColorStop(0, 'rgb(' + skyTop + ')'); g.addColorStop(1, 'rgb(' + mix(skyHz, [170, 176, 180], haze) + ')'); c.fillStyle = g; c.fillRect(0, 0, W, hy);
+    g = c.createLinearGradient(0, hy, 0, VH); g.addColorStop(0, 'rgb(' + mix(seaHz, skyHz, 0.25 + haze) + ')'); g.addColorStop(1, 'rgb(' + seaNear + ')'); c.fillStyle = g; c.fillRect(0, hy, W, VH - hy);
+    c.strokeStyle = 'rgba(255,255,255,' + (night > 0.75 ? 0.03 : 0.07) + ')'; c.lineWidth = 1;
+    for (let i = 0; i < 26; i++) { const yy = hy + 3 + Math.pow(i / 26, 1.6) * (VH - hy - 4), ww = 6 + i * 2.2, xx = ((i * 97.3 + s.t * 40 * (1 + i * 0.1)) % (W + 40)) - 20; c.beginPath(); c.moveTo(xx, yy); c.lineTo(xx + ww, yy); c.stroke(); }
+    if (dive) { c.fillStyle = 'rgba(0,10,20,.88)'; c.fillRect(0, 0, W, VH); c.fillStyle = '#7d8d9a'; c.font = '12px system-ui'; c.textAlign = 'center'; c.fillText('잠항 중 — 청음으로만 듣는다', W / 2, VH / 2 + 4); }
+    else {
+      const Dh = 3.57 * Math.sqrt(5) / 1;                     /* 눈높이 5m 의 수평선(km) */
+      const wind = 55, items = [];
+      if (seen && s.fleet) for (const f of s.fleet) { const p = fromFrame(s.cv, f.a, f.s); items.push({ f, x: p.x, y: p.y, hdg: s.cv.crs, chase: false }); }
+      if (s.chaser) { const ch = s.chaser; items.push({ f: { type: 'DESTROYER', len: 108, mast: 22, coal: false, ph: 1 }, x: ch.x, y: ch.y, hdg: norm(Math.atan2(ch.lx - ch.x, ch.ly - ch.y) / d2r), chase: ch.mode === 'CHASE' }); }
+      items.forEach(o => { o.d = hyp(o.x - b.x, o.y - b.y); o.brg = norm(Math.atan2(o.x - b.x, o.y - b.y) / d2r); });
+      items.sort((p, q) => q.d - p.d);
+      const see = seeRange({ vis, night, dive: false, moon: s.moon });
+      /* 연기 먼저(배 뒤로 퍼진다) — 낮에만, 석탄선은 짙게 */
+      if (night < 0.7) for (const o of items) { if (!o.f.coal || o.d > see * 1.25) continue; const x = X(o.brg); if (x < -80 || x > W + 80) continue;
+        const k = 1 / Math.max(1.5, o.d), drift = Math.sin((wind - ctr) * d2r) * 1.8, hide = o.d > Dh ? Math.pow((o.d - Dh) / 3.57, 2) : 0;
+        const top = hy - Math.max(0, (o.f.mast * 0.75 - hide)) / (o.d * 1000) * 57.3 * ppd;
+        for (let j = 0; j < 14; j++) { const u = j / 13, yy = top - u * (18 + 140 * k) - Math.sin(s.t * 3 + o.f.ph + j) * 1.2, xx = x + drift * u * u * 60 * (0.4 + k * 3) + Math.sin(j * 1.7 + o.f.ph) * 1.5;
+          const rr = 1.2 + u * (5 + 30 * k), al = (0.32 - 0.22 * u) * (1 - night) * clamp(1.4 - o.d / (see * 1.25), 0, 1);
+          const gg = c.createRadialGradient(xx, yy, 0, xx, yy, rr); gg.addColorStop(0, 'rgba(58,58,60,' + al.toFixed(3) + ')'); gg.addColorStop(1, 'rgba(58,58,60,0)'); c.fillStyle = gg; c.beginPath(); c.arc(xx, yy, rr, 0, 6.283); c.fill(); } }
+      /* 배 — 실루엣 · 헐다운 · 대기 원근 */
+      c.save(); c.beginPath(); c.rect(0, 0, W, hy + 0.5); c.clip();
+      for (const o of items) { const x = X(o.brg); if (x < -120 || x > W + 120) continue;
+        if (night > 0.7 && o.d > 3.5 * s.moon * vis + 0.5) continue;
+        const asp = relA(o.hdg, norm(o.brg + 180)), side = Math.abs(Math.sin(asp * d2r));
+        const wpx = Math.max(3, o.f.len * (0.22 + 0.78 * side) / (o.d * 1000) * 57.3 * ppd), hpx = Math.max(2, o.f.mast / (o.d * 1000) * 57.3 * ppd);
+        const hide = o.d > Dh ? Math.pow((o.d - Dh) / 3.57, 2) : 0, sink = hide / o.f.mast * hpx;
+        if (sink >= hpx) continue;
+        const hz = clamp(o.d / (30 * vis), 0, 0.85), col = night > 0.7 ? 'rgba(2,3,5,' + (0.75 * (1 - o.d / 5)).toFixed(2) + ')' : 'rgb(' + mix([34, 38, 42], mix(skyHz, [170, 176, 180], haze), hz) + ')';
+        const spec = window.Sil && window.Sil.typeSpec ? window.Sil.typeSpec(o.f.type) : null;
+        const bob = Math.sin(s.t * 40 + o.f.ph) * Math.min(1.2, hpx * 0.04);
+        if (spec) { try { window.Sil.canvas(c, spec, { x, waterlineY: hy + sink + bob, width: wpx, height: hpx, mirror: asp > 0, detail: hpx > 22 ? 4 : hpx > 10 ? 3 : 2, color: col }); } catch (e) {} }
+        if (o.chase && o.d < Dh && night < 0.8) { c.fillStyle = 'rgba(235,240,242,.75)'; const bx = x + (asp > 0 ? -1 : 1) * wpx * 0.45 * (side > 0.3 ? 1 : 0); c.beginPath(); c.moveTo(bx - 3, hy); c.lineTo(bx + 3, hy); c.lineTo(bx, hy - Math.max(1.5, hpx * 0.12)); c.closePath(); c.fill(); } }
+      c.restore();
+      /* 늑대떼 공격 섬광 */
+      for (const f of (s.flashes || [])) { const age = s.t - f.t; if (age > 0.15) continue; const x = X(norm(Math.atan2(f.x - b.x, f.y - b.y) / d2r)), a = 1 - age / 0.15;
+        const g3 = c.createRadialGradient(x, hy, 0, x, hy, 60); g3.addColorStop(0, 'rgba(255,210,140,' + (0.9 * a).toFixed(3) + ')'); g3.addColorStop(1, 'rgba(255,140,60,0)'); c.fillStyle = g3; c.fillRect(x - 60, 0, 120, VH); }
+      /* 쌍안경 테두리 */
+      const vg = c.createRadialGradient(W / 2, VH / 2, Math.min(W, VH) * 0.35, W / 2, VH / 2, W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); c.fillStyle = vg; c.fillRect(0, 0, W, VH);
+      c.fillStyle = 'rgba(230,235,238,.7)'; c.font = '10.5px system-ui'; c.textAlign = 'left';
+      c.fillText('쌍안경 7× · ' + String(Math.round(ctr)).padStart(3, '0') + '°' + (seen ? ' · ' + hyp(cvx - b.x, cvy - b.y).toFixed(1) + 'km' : ' · 보이는 것 없음'), 8, 13);
+    }
+    /* 아래 나침 띠 — 360° 전체 */
+    c.fillStyle = '#0a1116'; c.fillRect(0, VH, W, BAR);
+    const pX = brg => W / 2 + relA(brg, b.hdg) / 180 * (W / 2);
     c.fillStyle = 'rgba(207,219,228,.6)'; c.font = '10px system-ui'; c.textAlign = 'center';
-    for (const [a, t] of [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'W']]) { const x = px(a); c.fillText(t, x, H - 4); }
-    c.fillStyle = 'rgba(90,224,166,.8)'; c.fillRect(W / 2 - 1, H - 14, 2, 6);
-    if (dive) return;
-    const cvv = s.cv, d = hyp(cvv.x - b.x, cvv.y - b.y), seen = s.t - s.est.seenAt < 0.1;
-    if (seen) { const x = px(norm(Math.atan2(cvv.x - b.x, cvv.y - b.y) / d2r)), sc = clamp(1 - d / 26, 0.15, 1);
-      const n = Math.min(8, 1 + s.merchants);
-      for (let i = 0; i < n; i++) { const xx = x + (i - n / 2) * 5 * sc;
-        if (night < 0.6) { for (let j = 0; j < 9; j++) { const yy = hy - 3 - j * 3.2 * (0.5 + sc), rr = 1.5 + j * 1.1 * (0.5 + sc), xs = xx + j * j * 0.35 * (0.6 + sc);
-            const g2 = c.createRadialGradient(xs, yy, 0, xs, yy, rr); g2.addColorStop(0, 'rgba(62,62,66,' + ((0.28 + 0.25 * sc) * (1 - j / 10) * (1 - night)).toFixed(3) + ')'); g2.addColorStop(1, 'rgba(62,62,66,0)');
-            c.fillStyle = g2; c.beginPath(); c.arc(xs, yy, rr, 0, 6.283); c.fill(); } }
-        if (d < 15) { c.fillStyle = night > 0.5 ? 'rgba(0,0,0,.9)' : 'rgba(30,30,32,.9)'; c.fillRect(xx - 0.5, hy - 3 - 8 * sc, 1.2, 3 + 8 * sc); if (d < 9) c.fillRect(xx - 4 * sc, hy - 3 * sc, 8 * sc, 3 * sc); } } }
-    for (const f of (s.flashes || [])) { const age = s.t - f.t; if (age > 0.15 || dive) continue; const x = px(norm(Math.atan2(f.x - b.x, f.y - b.y) / d2r)), a = 1 - age / 0.15;
-      const g3 = c.createRadialGradient(x, hy, 0, x, hy, 40); g3.addColorStop(0, 'rgba(255,210,140,' + (0.9 * a).toFixed(3) + ')'); g3.addColorStop(1, 'rgba(255,140,60,0)'); c.fillStyle = g3; c.fillRect(x - 40, 0, 80, H); }
-    if (s.chaser && !dive) { const ch = s.chaser, dc = hyp(ch.x - b.x, ch.y - b.y); if (dc < 14) { const x = px(norm(Math.atan2(ch.x - b.x, ch.y - b.y) / d2r)), sc = clamp(1 - dc / 14, 0.2, 1);
-      c.fillStyle = 'rgba(10,10,12,.95)'; c.fillRect(x - 6 * sc, hy - 5 * sc, 12 * sc, 5 * sc); c.fillRect(x - 1, hy - 11 * sc, 2, 6 * sc); c.fillStyle = 'rgba(240,240,240,.6)'; c.fillRect(x - 9 * sc, hy - 1, 5 * sc, 1.5); } }
+    for (const [a, t] of [[0, 'N'], [90, 'E'], [180, 'S'], [270, 'W']]) c.fillText(t, pX(a), H - 4);
+    c.fillStyle = 'rgba(90,224,166,.9)'; c.fillRect(W / 2 - 1, VH + 1, 2, 5);
+    const eb = norm(Math.atan2(s.est.x - b.x, s.est.y - b.y) / d2r); c.fillStyle = seen ? '#f0b040' : 'rgba(240,176,64,.45)'; c.fillRect(pX(eb) - 2, VH + 1, 4, 6);
+    if (s.chaser) { const hb = norm(Math.atan2(s.chaser.x - b.x, s.chaser.y - b.y) / d2r); c.fillStyle = '#ff6a5a'; c.fillRect(pX(hb) - 2, VH + 1, 4, 6); }
   }
 
   /* ── 조우 창에 「추적」 ── */
